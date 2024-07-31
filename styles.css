@@ -145,3 +145,20 @@ ul li {
 .product:hover {
     background-color: #e0e0e0;
 }
+
+.mesa-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mesa-info label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#pax {
+    width: 50px;
+    margin: 0;
+}
