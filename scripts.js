@@ -48,6 +48,7 @@ function seleccionarMesa(numero) {
 
 function showProducts(categoria) {
     document.getElementById('categories').style.display = 'none';
+    document.getElementById('back-to-categories').style.display = 'block';
     const productsDiv = document.getElementById('products');
     productsDiv.style.display = 'flex';
     productsDiv.innerHTML = '';
@@ -58,6 +59,12 @@ function showProducts(categoria) {
         productDiv.onclick = () => agregarProducto(producto);
         productsDiv.appendChild(productDiv);
     });
+}
+
+function showCategories() {
+    document.getElementById('categories').style.display = 'flex';
+    document.getElementById('back-to-categories').style.display = 'none';
+    document.getElementById('products').style.display = 'none';
 }
 
 function agregarProducto(producto) {
