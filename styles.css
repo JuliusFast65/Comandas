@@ -113,4 +113,62 @@ ul li {
 }
 
 .category:nth-child(even) {
-    background-color
+    background-color: #c8e6c9;
+}
+
+.category:hover {
+    background-color: #b2dfdb;
+}
+
+.mesa.libre {
+    background-color: #c8e6c9;
+}
+
+.mesa.ocupada {
+    background-color: #ffecb3;
+}
+
+.mesa:hover {
+    background-color: #b2dfdb;
+}
+
+.product {
+    flex: 1 1 calc(50% - 10px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    text-align: center;
+}
+
+.product:hover {
+    background-color: #e0e0e0;
+}
+
+.mesa-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.mesa-info label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#pax {
+    width: 50px;
+    margin: 0;
+}
+
+.scrollable {
+    max-height: 150px;
+    overflow-y: auto;
+}
