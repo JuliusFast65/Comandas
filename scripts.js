@@ -78,11 +78,7 @@ function showCategories() {
 }
 
 function agregarProducto(producto) {
-    let cuenta = 1;
-    if (cuentas > 1) {
-        cuenta = parseInt(prompt(`¿A qué cuenta pertenece ${producto}? (1-${cuentas})`));
-    }
-
+    const cuenta = parseInt(document.getElementById('cuentas').value);
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina);
     if (index > -1) {
         orden[index].cantidad += 1;
@@ -179,15 +175,6 @@ function autorizar() {
 
 function actualizarCuentas() {
     cuentas = parseInt(document.getElementById('cuentas').value);
-    if (cuentas > 1) {
-        orden.forEach(item => {
-            if (!item.cuenta) {
-                item.cuenta = 1;
-            }
-        });
-    } else {
-        orden.forEach(item => delete item.cuenta);
-    }
     actualizarOrden();
 }
 
