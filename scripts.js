@@ -127,6 +127,7 @@ function actualizarOrden() {
         `;
         ordenList.appendChild(listItem);
     });
+    ordenList.scrollTop = ordenList.scrollHeight;
 }
 
 function confirmarOrden() {
