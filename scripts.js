@@ -39,7 +39,8 @@ function seleccionarMesa(numero) {
     const mesa = mesas.find(m => m.numero === numero);
     mesaSeleccionada = mesa;
     document.getElementById('mesa-seleccionada').textContent = mesa.numero;
-    orden = mesa.ordenes.find(o => o.estado === 'nueva')?.items || [];
+    const ordenEnCocina = mesa.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
+    orden = [...ordenEnCocina, ...mesa.ordenes.find(o => o.estado === 'nueva').items];
     actualizarOrden();
     showScreen('toma-ordenes-screen');
 }
