@@ -13,6 +13,7 @@ const mesas = [
 ];
 
 let orden = [];
+let ordenEnCocina = [];
 let mesaSeleccionada = null;
 
 function showScreen(screenId) {
@@ -39,8 +40,8 @@ function seleccionarMesa(numero) {
     const mesa = mesas.find(m => m.numero === numero);
     mesaSeleccionada = mesa;
     document.getElementById('mesa-seleccionada').textContent = mesa.numero;
-    const ordenEnCocina = mesa.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
-    orden = [...ordenEnCocina, ...mesa.ordenes.find(o => o.estado === 'nueva').items];
+    ordenEnCocina = mesa.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
+    orden = mesa.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     showScreen('toma-ordenes-screen');
 }
@@ -81,6 +82,16 @@ function disminuirCantidad(producto) {
 function actualizarOrden() {
     const ordenList = document.getElementById('orden-list');
     ordenList.innerHTML = '';
+    
+    ordenEnCocina.forEach(item => {
+        const listItem = document.createElement('li');
+        listItem.innerHTML = `
+            ${item.nombre} - ${item.cantidad}
+            <span class="en-cocina">(En cocina)</span>
+        `;
+        ordenList.appendChild(listItem);
+    });
+    
     orden.forEach(item => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
@@ -97,11 +108,19 @@ function actualizarOrden() {
 function confirmarOrden() {
     const confirmacionList = document.getElementById('confirmacion-list');
     confirmacionList.innerHTML = '';
+    
+    ordenEnCocina.forEach(item => {
+        const listItem = document.createElement('li');
+        listItem.textContent = `${item.nombre} - ${item.cantidad} (En cocina)`;
+        confirmacionList.appendChild(listItem);
+    });
+    
     orden.forEach(item => {
         const listItem = document.createElement('li');
         listItem.textContent = `${item.nombre} - ${item.cantidad}`;
         confirmacionList.appendChild(listItem);
     });
+    
     showScreen('confirmacion-screen');
 }
 
@@ -116,7 +135,7 @@ function enviarCocina() {
     mesaSeleccionada.ocupada = true;
     mostrarMesas();
     alert('Orden enviada a la cocina');
-    showScreen('cocina-screen');
+    showScreen('mesas-screen');
 }
 
 function cancelarOrden() {
