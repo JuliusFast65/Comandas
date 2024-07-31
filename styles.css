@@ -10,7 +10,7 @@ body {
 
 #app {
     width: 100%;
-    max-width: 400px;
+    max-width: 1200px;
     background: #fff;
     padding: 20px;
     border-radius: 8px;
@@ -81,19 +81,31 @@ ul li {
     margin: 0 5px;
 }
 
-.quantity-controls button:hover {
+quantity-controls button:hover {
     background-color: #0056b3;
 }
 
-.categories, .products, .mesas {
+.container {
+    display: flex;
+    gap: 20px;
+}
+
+.selection {
+    flex: 1;
+}
+
+.order {
+    flex: 1;
+}
+
+.categories, .products {
     display: flex;
     flex-wrap: wrap;
     gap: 20px;
-    margin: 10px 0;
 }
 
-.category, .mesa, .product {
-    flex: 1 1 calc(50% - 10px);
+.category, .product {
+    flex: 1 1 calc(33.333% - 20px);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -121,18 +133,6 @@ ul li {
     background-color: #b2dfdb;
 }
 
-.mesa.libre {
-    background-color: #c8e6c9;
-}
-
-.mesa.ocupada {
-    background-color: #ffecb3;
-}
-
-.mesa:hover {
-    background-color: #b2dfdb;
-}
-
 .product:hover {
     background-color: #e0e0e0;
 }
@@ -157,6 +157,6 @@ ul li {
 }
 
 .scrollable {
-    max-height: 150px;
+    max-height: 300px;
     overflow-y: auto;
 }
