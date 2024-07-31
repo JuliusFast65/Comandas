@@ -24,37 +24,43 @@
         
         <!-- Pantalla de Toma de Órdenes -->
         <div id="toma-ordenes-screen" class="screen">
-            <h3 class="center-title">Toma de Órdenes</h3>
+            <h3 class="center-title">Orden de la mesa <span id="mesa-numero"></span></h3>
             <div class="mesa-info">
                 <label>Mesa: <span id="mesa-seleccionada"></span></label>
                 <label>Pax: <input type="number" id="pax" min="1" value="1"></label>
                 <label>Para llevar: <input type="checkbox" id="para-llevar"></label>
             </div>
             <div class="container">
+                <div id="order" class="order">
+                    <ul id="orden-list" class="scrollable"></ul>
+                </div>
                 <div id="selection" class="selection">
                     <div id="categories" class="categories">
                         <div class="category" onclick="showProducts('entradas')">Entradas</div>
                         <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
                         <div class="category" onclick="showProducts('postres')">Postres</div>
                         <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+                        <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
+                        <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
                     </div>
                     <div id="products" class="products"></div>
                     <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
                 </div>
-                <div id="order" class="order">
-                    <ul id="orden-list" class="scrollable"></ul>
-                </div>
             </div>
-            <button onclick="confirmarOrden()">Confirmar Orden</button>
-            <button onclick="cancelarOrden()">Cancelar Orden</button>
+            <div class="button-group">
+                <button onclick="confirmarOrden()">Confirmar Orden</button>
+                <button onclick="cancelarOrden()">Cancelar Orden</button>
+            </div>
         </div>
         
         <!-- Pantalla de Confirmación de Órdenes -->
         <div id="confirmacion-screen" class="screen">
             <h3>Confirmación de Orden</h3>
             <ul id="confirmacion-list"></ul>
-            <button onclick="enviarCocina()">Enviar a Cocina</button>
-            <button onclick="showScreen('toma-ordenes-screen')">Volver a la Orden</button>
+            <div class="button-group">
+                <button onclick="enviarCocina()">Enviar a Cocina</button>
+                <button onclick="showScreen('toma-ordenes-screen')">Volver a la Orden</button>
+            </div>
         </div>
         
         <!-- Pantalla de Autorización -->
