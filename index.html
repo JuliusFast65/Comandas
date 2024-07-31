@@ -3,38 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orden</title>
+    <title>Prototipo Comandas</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <form id="orderForm">
-        <div class="order-details">
-            <label for="mesa">Mesa:</label>
-            <input type="text" id="mesa" name="mesa">
-
-            <label for="pax">Pax:</label>
-            <input type="number" id="pax" name="pax">
-
-            <label for="takeaway">Para llevar:</label>
-            <input type="checkbox" id="takeaway" name="takeaway">
+    <div id="app">
+        <!-- Pantalla de Inicio de Sesión -->
+        <div id="login-screen" class="screen active">
+            <h3>Iniciar Sesión</h3>
+            <input type="text" id="username" placeholder="Usuario">
+            <input type="password" id="password" placeholder="Contraseña">
+            <button onclick="showScreen('mesas-screen')">Iniciar Sesión</button>
         </div>
-
-        <div class="order-items">
-            <h3>Órdenes</h3>
-            <div class="item">
-                <label for="item1">Artículo 1</label>
-                <input type="number" id="item1" name="item1" min="1">
-            </div>
-            <div class="item">
-                <label for="item2">Artículo 2</label>
-                <input type="number" id="item2" name="item2" min="1">
-            </div>
-            <!-- Agregar más artículos según sea necesario -->
+        
+        <!-- Pantalla de Selección de Mesas -->
+        <div id="mesas-screen" class="screen">
+            <h3>Seleccionar Mesa</h3>
+            <div id="mesas" class="mesas"></div>
         </div>
-
-        <button type="button" onclick="confirmOrder()">Confirmar Orden</button>
-    </form>
-
-    <script src="script.js"></script>
+        
+        <!-- Pantalla de Toma de Órdenes -->
+        <div id="toma-ordenes-screen" class="screen">
+            <h3>Toma de Órdenes</h3>
+            <div class="mesa-info">
+                <label>Mesa: <span id="mesa-seleccionada"></span></label>
+                <label>Pax: <input type="number" id="pax" min="1" value="1"></label>
+                <label>Para llevar: <input type="checkbox" id="para-llevar"></label>
+            </div>
+            <div id="categories" class="categories">
+                <div class="category" onclick="showProducts('entradas')">Entradas</div>
+                <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
+                <div class="category" onclick="showProducts('postres')">Postres</div>
+                <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+            </div>
+            <div id="products" class="products"></div>
+            <ul id="orden-list"></ul>
+            <button onclick="confirmarOrden()">Confirmar Orden</button>
+        </div>
+        
+        <!-- Pantalla de Confirmación de Órdenes -->
+        <div id="confirmacion-screen" class="screen">
+            <h3>Confirmación de Orden</h3>
+            <ul id="confirmacion-list"></ul>
+            <button onclick="enviarCocina()">Enviar a Cocina</button>
+            <button onclick="showScreen('toma-ordenes-screen')">Volver a la Orden</button>
+        </div>
+        
+        <!-- Pantalla de Autorización -->
+        <div id="autorizacion-screen" class="screen">
+            <h3>Autorización</h3>
+            <input type="text" id="auth-code" placeholder="Código de Autorización">
+            <button onclick="autorizar()">Confirmar</button>
+        </div>
+        
+        <!-- Pantalla de Órdenes en Cocina -->
+        <div id="cocina-screen" class="screen">
+            <h3>Órdenes en Cocina</h3>
+            <ul id="cocina-list"></ul>
+        </div>
+    </div>
+    <script src="scripts.js"></script>
 </body>
 </html>
