@@ -94,10 +94,6 @@ function actualizarOrden() {
 }
 
 function confirmarOrden() {
-    mesaSeleccionada.ocupada = true;
-    mesaSeleccionada.orden = [...orden];
-    mostrarMesas();
-
     const confirmacionList = document.getElementById('confirmacion-list');
     confirmacionList.innerHTML = '';
     orden.forEach(item => {
@@ -109,9 +105,15 @@ function confirmarOrden() {
 }
 
 function enviarCocina() {
-    // Aquí iría la lógica para enviar la orden a la cocina
+    mesaSeleccionada.ocupada = true;
+    mesaSeleccionada.orden = [...orden];
+    mostrarMesas();
     alert('Orden enviada a la cocina');
     showScreen('cocina-screen');
+}
+
+function cancelarOrden() {
+    showScreen('mesas-screen');
 }
 
 function autorizar() {
