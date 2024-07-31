@@ -25,13 +25,14 @@
         <!-- Pantalla de Toma de Órdenes -->
         <div id="toma-ordenes-screen" class="screen">
             <h3>Toma de Órdenes</h3>
-            <label>Mesa: <span id="mesa-seleccionada"></span></label>
-            <label>Personas (Pax):</label>
-            <input type="number" id="pax" min="1" value="1">
-            <label>Para llevar:</label>
-            <input type="checkbox" id="para-llevar">
+            <div class="mesa-info">
+                <label>Mesa: <span id="mesa-seleccionada"></span></label>
+                <label>Pax: <input type="number" id="pax" min="1" value="1"></label>
+            </div>
+            <label>
+                Para llevar: <input type="checkbox" id="para-llevar">
+            </label>
             <div id="categories" class="categories">
-                <h3>Categorías</h3>
                 <div class="category" onclick="showProducts('entradas')">Entradas</div>
                 <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
                 <div class="category" onclick="showProducts('postres')">Postres</div>
@@ -39,14 +40,7 @@
             </div>
             <div id="products" class="products"></div>
             <ul id="orden-list"></ul>
-            <button onclick="showScreen('confirmacion-screen')">Confirmar Orden</button>
-        </div>
-        
-        <!-- Pantalla de Confirmación de Órdenes -->
-        <div id="confirmacion-screen" class="screen">
-            <h3>Confirmación de Orden</h3>
-            <ul id="confirmacion-list"></ul>
-            <button onclick="enviarOrden()">Enviar a Cocina</button>
+            <button onclick="confirmarOrden()">Confirmar Orden y Enviar a Cocina</button>
         </div>
         
         <!-- Pantalla de Autorización -->
