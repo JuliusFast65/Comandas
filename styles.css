@@ -81,7 +81,7 @@ ul li {
     margin: 0 5px;
 }
 
-quantity-controls button:hover {
+.quantity-controls button:hover {
     background-color: #0056b3;
 }
 
@@ -104,7 +104,7 @@ quantity-controls button:hover {
     gap: 20px;
 }
 
-.category, .product {
+.category, .product, .mesa {
     flex: 1 1 calc(33.333% - 20px);
     display: flex;
     justify-content: center;
@@ -130,6 +130,18 @@ quantity-controls button:hover {
 }
 
 .category:hover {
+    background-color: #b2dfdb;
+}
+
+.mesa.libre {
+    background-color: #c8e6c9;
+}
+
+.mesa.ocupada {
+    background-color: #ffecb3;
+}
+
+.mesa:hover {
     background-color: #b2dfdb;
 }
 
@@ -159,4 +171,23 @@ quantity-controls button:hover {
 .scrollable {
     max-height: 300px;
     overflow-y: auto;
+}
+
+.center-title {
+    text-align: center;
+}
+
+#back-to-categories {
+    display: none;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+#back-to-categories:hover {
+    background-color: #0056b3;
 }
