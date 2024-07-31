@@ -47,7 +47,9 @@ function seleccionarMesa(numero) {
 }
 
 function showProducts(categoria) {
+    document.getElementById('categories').style.display = 'none';
     const productsDiv = document.getElementById('products');
+    productsDiv.style.display = 'flex';
     productsDiv.innerHTML = '';
     productos[categoria].forEach(producto => {
         const productDiv = document.createElement('div');
