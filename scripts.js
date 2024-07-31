@@ -23,6 +23,7 @@ const mesas = [
 let orden = [];
 let ordenEnCocina = [];
 let mesaSeleccionada = null;
+let cuentas = 1;
 
 function showScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
@@ -77,17 +78,17 @@ function showCategories() {
 }
 
 function agregarProducto(producto) {
-    const index = orden.findIndex(item => item.nombre === producto);
+    const index = orden.findIndex(item => item.nombre === producto && !item.enCocina);
     if (index > -1) {
         orden[index].cantidad += 1;
     } else {
-        orden.push({ nombre: producto, cantidad: 1 });
+        orden.push({ nombre: producto, cantidad: 1, cuenta: 1, enCocina: false });
     }
     actualizarOrden();
 }
 
 function disminuirCantidad(producto) {
-    const index = orden.findIndex(item => item.nombre === producto);
+    const index = orden.findIndex(item => item.nombre === producto && !item.enCocina);
     if (index > -1) {
         orden[index].cantidad -= 1;
         if (orden[index].cantidad === 0) {
@@ -110,7 +111,7 @@ function actualizarOrden() {
         ordenList.appendChild(listItem);
     });
     
-    orden.forEach(item => {
+    orden.filter(item => !item.enCocina).forEach(item => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
             ${item.nombre} - ${item.cantidad}
@@ -133,7 +134,7 @@ function confirmarOrden() {
         confirmacionList.appendChild(listItem);
     });
     
-    orden.forEach(item => {
+    orden.filter(item => !item.enCocina).forEach(item => {
         const listItem = document.createElement('li');
         listItem.textContent = `${item.nombre} - ${item.cantidad}`;
         confirmacionList.appendChild(listItem);
@@ -148,8 +149,8 @@ function enviarCocina() {
         ordenNueva = { estado: 'nueva', items: [] };
         mesaSeleccionada.ordenes.push(ordenNueva);
     }
-    ordenNueva.items = [...orden];
-    mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: [...orden] });
+    ordenNueva.items = orden.filter(item => !item.enCocina).map(item => ({ ...item, enCocina: true }));
+    mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: ordenNueva.items });
     mesaSeleccionada.ocupada = true;
     mostrarMesas();
     alert('Orden enviada a la cocina');
@@ -168,6 +169,20 @@ function autorizar() {
     } else {
         alert('Código incorrecto');
     }
+}
+
+function actualizarCuentas() {
+    cuentas = parseInt(document.getElementById('cuentas').value);
+    if (cuentas > 1) {
+        orden.forEach(item => {
+            if (!item.cuenta) {
+                item.cuenta = 1;
+            }
+        });
+    } else {
+        orden.forEach(item => delete item.cuenta);
+    }
+    actualizarOrden();
 }
 
 // Inicializar con la pantalla de inicio de sesión activa
