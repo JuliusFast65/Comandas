@@ -110,7 +110,7 @@ ul li {
 }
 
 .category, .product, .mesa {
-    flex: 1 1 calc(33.333% - 20px);
+    flex: 1 1 calc(20% - 20px); /* ajusta esto según el tamaño que desees */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -187,3 +187,5 @@ ul li {
 #back-to-categories:hover {
     background-color: #0056b3;
 }
+
+.button-group {
