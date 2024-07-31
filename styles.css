@@ -16,6 +16,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
     overflow-y: auto;
+    position: relative;
 }
 
 .screen {
@@ -97,6 +98,7 @@ ul li {
 
 .selection {
     flex: 1;
+    overflow-y: auto;
 }
 
 .order {
@@ -174,14 +176,12 @@ ul li {
 }
 
 #back-to-categories {
-    display: none;
     background-color: #007bff;
     color: white;
     border: none;
     cursor: pointer;
     padding: 10px;
     border-radius: 4px;
-    margin-top: 20px;
 }
 
 #back-to-categories:hover {
@@ -191,4 +191,24 @@ ul li {
 .button-group {
     display: flex;
     justify-content: space-between;
+}
+
+.header, .footer {
+    position: sticky;
+    background: white;
+    padding: 10px 0;
+    z-index: 10;
+}
+
+.header {
+    top: 0;
+}
+
+.footer {
+    bottom: 0;
+}
+
+.scrollable {
+    overflow-y: auto;
+    max-height: calc(100vh - 200px); /* Ajusta según necesites */
 }
