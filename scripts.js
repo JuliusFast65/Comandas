@@ -5,7 +5,15 @@ const productos = {
     bebidas: ['Coca-Cola', 'Jugo de Naranja', 'Agua', 'Cerveza']
 };
 
+const mesas = [
+    { numero: 1, ocupada: false, orden: [] },
+    { numero: 2, ocupada: true, orden: [{ nombre: 'Pizza', cantidad: 2 }, { nombre: 'Coca-Cola', cantidad: 1 }] },
+    { numero: 3, ocupada: false, orden: [] },
+    { numero: 4, ocupada: true, orden: [{ nombre: 'Bruschetta', cantidad: 1 }, { nombre: 'Jugo de Naranja', cantidad: 2 }] }
+];
+
 let orden = [];
+let mesaSeleccionada = null;
 
 function showScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
@@ -13,6 +21,27 @@ function showScreen(screenId) {
         screen.classList.remove('active');
     });
     document.getElementById(screenId).classList.add('active');
+}
+
+function mostrarMesas() {
+    const mesasDiv = document.getElementById('mesas');
+    mesasDiv.innerHTML = '';
+    mesas.forEach(mesa => {
+        const mesaDiv = document.createElement('div');
+        mesaDiv.className = `mesa ${mesa.ocupada ? 'ocupada' : 'libre'}`;
+        mesaDiv.textContent = `Mesa ${mesa.numero}`;
+        mesaDiv.onclick = () => seleccionarMesa(mesa.numero);
+        mesasDiv.appendChild(mesaDiv);
+    });
+}
+
+function seleccionarMesa(numero) {
+    const mesa = mesas.find(m => m.numero === numero);
+    mesaSeleccionada = mesa;
+    document.getElementById('mesa-seleccionada').textContent = mesa.numero;
+    orden = [...mesa.orden];
+    actualizarOrden();
+    showScreen('toma-ordenes-screen');
 }
 
 function showProducts(categoria) {
@@ -65,6 +94,10 @@ function actualizarOrden() {
 }
 
 function enviarOrden() {
+    mesaSeleccionada.ocupada = true;
+    mesaSeleccionada.orden = [...orden];
+    mostrarMesas();
+
     const confirmacionList = document.getElementById('confirmacion-list');
     confirmacionList.innerHTML = '';
     orden.forEach(item => {
@@ -88,4 +121,5 @@ function autorizar() {
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
     showScreen('login-screen');
+    mostrarMesas();
 });
