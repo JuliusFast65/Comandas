@@ -30,14 +30,21 @@
                 <label>Pax: <input type="number" id="pax" min="1" value="1"></label>
                 <label>Para llevar: <input type="checkbox" id="para-llevar"></label>
             </div>
-            <div id="categories" class="categories">
-                <div class="category" onclick="showProducts('entradas')">Entradas</div>
-                <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
-                <div class="category" onclick="showProducts('postres')">Postres</div>
-                <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+            <div class="container">
+                <div id="selection" class="selection">
+                    <div id="categories" class="categories">
+                        <div class="category" onclick="showProducts('entradas')">Entradas</div>
+                        <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
+                        <div class="category" onclick="showProducts('postres')">Postres</div>
+                        <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+                    </div>
+                    <div id="products" class="products"></div>
+                </div>
+                <div id="order" class="order">
+                    <h3>Orden Actual</h3>
+                    <ul id="orden-list" class="scrollable"></ul>
+                </div>
             </div>
-            <div id="products" class="products"></div>
-            <ul id="orden-list" class="scrollable"></ul>
             <button onclick="confirmarOrden()">Confirmar Orden</button>
             <button onclick="cancelarOrden()">Cancelar Orden</button>
         </div>
