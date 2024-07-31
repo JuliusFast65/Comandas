@@ -19,23 +19,25 @@
         <!-- Pantalla de Selección de Mesas -->
         <div id="mesas-screen" class="screen">
             <h3>Seleccionar Mesa</h3>
-            <div id="mesas" class="mesas"></div>
+            <div id="mesas" class="mesas scrollable"></div>
         </div>
         
         <!-- Pantalla de Toma de Órdenes -->
         <div id="toma-ordenes-screen" class="screen">
-            <h3 class="center-title">Orden de la mesa <span id="mesa-numero"></span></h3>
-            <div class="mesa-info">
-                <label>Mesa: <span id="mesa-seleccionada"></span></label>
-                <label>Cuentas: <input type="number" id="cuentas" min="1" value="1" onchange="actualizarCuentas()"></label>
-                <label>Para llevar: <input type="checkbox" id="para-llevar"></label>
+            <div class="header">
+                <h3 class="center-title">Orden de la mesa <span id="mesa-numero"></span></h3>
+                <div class="mesa-info">
+                    <label>Mesa: <span id="mesa-seleccionada"></span></label>
+                    <label>Cuentas: <input type="number" id="cuentas" min="1" value="1" onchange="actualizarCuentas()"></label>
+                    <label>Para llevar: <input type="checkbox" id="para-llevar"></label>
+                </div>
             </div>
             <div class="container">
                 <div id="order" class="order">
                     <ul id="orden-list" class="scrollable"></ul>
                 </div>
                 <div id="selection" class="selection">
-                    <div id="categories" class="categories">
+                    <div id="categories" class="categories scrollable">
                         <div class="category" onclick="showProducts('entradas')">Entradas</div>
                         <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
                         <div class="category" onclick="showProducts('postres')">Postres</div>
@@ -43,11 +45,11 @@
                         <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
                         <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
                     </div>
-                    <div id="products" class="products"></div>
-                    <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+                    <div id="products" class="products scrollable"></div>
                 </div>
             </div>
-            <div class="button-group">
+            <div class="footer">
+                <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
                 <button onclick="confirmarOrden()">Confirmar Orden</button>
                 <button onclick="cancelarOrden()">Cancelar Orden</button>
             </div>
