@@ -78,17 +78,22 @@ function showCategories() {
 }
 
 function agregarProducto(producto) {
-    const index = orden.findIndex(item => item.nombre === producto && !item.enCocina);
+    let cuenta = 1;
+    if (cuentas > 1) {
+        cuenta = parseInt(prompt(`¿A qué cuenta pertenece ${producto}? (1-${cuentas})`));
+    }
+
+    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina);
     if (index > -1) {
         orden[index].cantidad += 1;
     } else {
-        orden.push({ nombre: producto, cantidad: 1, cuenta: 1, enCocina: false });
+        orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false });
     }
     actualizarOrden();
 }
 
-function disminuirCantidad(producto) {
-    const index = orden.findIndex(item => item.nombre === producto && !item.enCocina);
+function disminuirCantidad(producto, cuenta) {
+    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina);
     if (index > -1) {
         orden[index].cantidad -= 1;
         if (orden[index].cantidad === 0) {
@@ -114,9 +119,9 @@ function actualizarOrden() {
     orden.filter(item => !item.enCocina).forEach(item => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
-            ${item.nombre} - ${item.cantidad}
+            ${item.nombre} - ${item.cantidad} (Cuenta ${item.cuenta})
             <div class="quantity-controls">
-                <button onclick="disminuirCantidad('${item.nombre}')">-</button>
+                <button onclick="disminuirCantidad('${item.nombre}', ${item.cuenta})">-</button>
                 <button onclick="agregarProducto('${item.nombre}')">+</button>
             </div>
         `;
@@ -136,7 +141,7 @@ function confirmarOrden() {
     
     orden.filter(item => !item.enCocina).forEach(item => {
         const listItem = document.createElement('li');
-        listItem.textContent = `${item.nombre} - ${item.cantidad}`;
+        listItem.textContent = `${item.nombre} - ${item.cantidad} (Cuenta ${item.cuenta})`;
         confirmacionList.appendChild(listItem);
     });
     
