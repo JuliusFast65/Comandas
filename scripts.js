@@ -5,6 +5,8 @@ const productos = {
     bebidas: ['Coca-Cola', 'Jugo de Naranja', 'Agua', 'Cerveza']
 };
 
+let orden = [];
+
 function showScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => {
@@ -26,16 +28,42 @@ function showProducts(categoria) {
 }
 
 function agregarProducto(producto) {
+    const index = orden.findIndex(item => item.nombre === producto);
+    if (index > -1) {
+        orden[index].cantidad += 1;
+    } else {
+        orden.push({ nombre: producto, cantidad: 1 });
+    }
+    actualizarOrden();
+}
+
+function eliminarProducto(producto) {
+    orden = orden.filter(item => item.nombre !== producto);
+    actualizarOrden();
+}
+
+function actualizarOrden() {
     const ordenList = document.getElementById('orden-list');
-    const listItem = document.createElement('li');
-    listItem.textContent = producto;
-    ordenList.appendChild(listItem);
+    ordenList.innerHTML = '';
+    orden.forEach(item => {
+        const listItem = document.createElement('li');
+        listItem.textContent = `${item.nombre} - Cantidad: ${item.cantidad}`;
+        const eliminarBtn = document.createElement('button');
+        eliminarBtn.textContent = 'Eliminar';
+        eliminarBtn.onclick = () => eliminarProducto(item.nombre);
+        listItem.appendChild(eliminarBtn);
+        ordenList.appendChild(listItem);
+    });
 }
 
 function enviarOrden() {
-    const ordenList = document.getElementById('orden-list');
     const confirmacionList = document.getElementById('confirmacion-list');
-    confirmacionList.innerHTML = ordenList.innerHTML;
+    confirmacionList.innerHTML = '';
+    orden.forEach(item => {
+        const listItem = document.createElement('li');
+        listItem.textContent = `${item.nombre} - Cantidad: ${item.cantidad}`;
+        confirmacionList.appendChild(listItem);
+    });
     showScreen('confirmacion-screen');
 }
 
