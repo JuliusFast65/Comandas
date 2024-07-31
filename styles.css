@@ -62,13 +62,24 @@ ul li {
     align-items: center;
 }
 
-ul li button {
-    background-color: #dc3545;
-    margin-left: 10px;
+.quantity-controls {
+    display: flex;
+    align-items: center;
 }
 
-ul li button:hover {
-    background-color: #c82333;
+.quantity-controls button {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    margin: 0 5px;
+}
+
+.quantity-controls button:hover {
+    background-color: #0056b3;
 }
 
 .categories, .products {
