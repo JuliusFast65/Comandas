@@ -13,30 +13,19 @@
             <h3>Iniciar Sesión</h3>
             <input type="text" id="username" placeholder="Usuario">
             <input type="password" id="password" placeholder="Contraseña">
-            <button onclick="showScreen('mesa-screen')">Iniciar Sesión</button>
+            <button onclick="showScreen('mesas-screen')">Iniciar Sesión</button>
         </div>
         
-        <!-- Pantalla de Configuración de Mesas -->
-        <div id="mesa-screen" class="screen">
-            <h3>Configuración de Mesas</h3>
-            <button onclick="showScreen('toma-ordenes-screen')">Agregar Mesa</button>
-            <ul id="mesa-list">
-                <li>Mesa 1 (Capacidad: 4) <button>Editar</button></li>
-                <li>Mesa 2 (Capacidad: 2) <button>Editar</button></li>
-                <li>Mesa 3 (Capacidad: 6) <button>Editar</button></li>
-            </ul>
-            <button onclick="showScreen('toma-ordenes-screen')">Siguiente</button>
+        <!-- Pantalla de Selección de Mesas -->
+        <div id="mesas-screen" class="screen">
+            <h3>Seleccionar Mesa</h3>
+            <div id="mesas" class="mesas"></div>
         </div>
         
         <!-- Pantalla de Toma de Órdenes -->
         <div id="toma-ordenes-screen" class="screen">
             <h3>Toma de Órdenes</h3>
-            <label>Mesa:</label>
-            <select id="mesa-select">
-                <option>Mesa 1</option>
-                <option>Mesa 2</option>
-                <option>Mesa 3</option>
-            </select>
+            <label>Mesa: <span id="mesa-seleccionada"></span></label>
             <label>Personas (Pax):</label>
             <input type="number" id="pax" min="1" value="1">
             <label>Para llevar:</label>
