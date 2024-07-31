@@ -93,19 +93,19 @@ function actualizarOrden() {
     });
 }
 
-function enviarOrden() {
+function confirmarOrden() {
     mesaSeleccionada.ocupada = true;
     mesaSeleccionada.orden = [...orden];
     mostrarMesas();
 
-    const confirmacionList = document.getElementById('confirmacion-list');
+    const confirmacionList = document.getElementById('cocina-list');
     confirmacionList.innerHTML = '';
     orden.forEach(item => {
         const listItem = document.createElement('li');
         listItem.textContent = `${item.nombre} - Cantidad: ${item.cantidad}`;
         confirmacionList.appendChild(listItem);
     });
-    showScreen('confirmacion-screen');
+    showScreen('cocina-screen');
 }
 
 function autorizar() {
