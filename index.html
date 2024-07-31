@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prototipo Toma de Órdenes</title>
+    <title>Prototipo Comandas</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -41,7 +41,14 @@
             <input type="number" id="pax" min="1" value="1">
             <label>Para llevar:</label>
             <input type="checkbox" id="para-llevar">
-            <button onclick="agregarProducto()">Agregar Producto</button>
+            <div id="categories" class="categories">
+                <h3>Categorías</h3>
+                <div class="category" onclick="showProducts('entradas')">Entradas</div>
+                <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
+                <div class="category" onclick="showProducts('postres')">Postres</div>
+                <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+            </div>
+            <div id="products" class="products"></div>
             <ul id="orden-list"></ul>
             <button onclick="showScreen('confirmacion-screen')">Confirmar Orden</button>
         </div>
