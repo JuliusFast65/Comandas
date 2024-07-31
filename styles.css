@@ -30,6 +30,10 @@ h3 {
     margin-top: 0;
 }
 
+.center-title {
+    text-align: center;
+}
+
 input, select, button {
     display: block;
     width: 100%;
@@ -53,7 +57,7 @@ button:hover {
 ul {
     list-style-type: none;
     padding: 0;
-    max-height: 150px;
+    max-height: 300px;
     overflow-y: auto;
 }
 
@@ -87,6 +91,7 @@ ul li {
 
 .container {
     display: flex;
+    flex-direction: column;
     gap: 20px;
 }
 
@@ -98,7 +103,7 @@ ul li {
     flex: 1;
 }
 
-.categories, .products {
+.categories, .products, .mesas {
     display: flex;
     flex-wrap: wrap;
     gap: 20px;
@@ -166,15 +171,6 @@ ul li {
 #pax {
     width: 50px;
     margin: 0;
-}
-
-.scrollable {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.center-title {
-    text-align: center;
 }
 
 #back-to-categories {
