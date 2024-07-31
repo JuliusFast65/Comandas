@@ -3,19 +3,20 @@ const productos = {
     platos: ['Pizza', 'Pasta', 'Hamburguesa', 'Ensalada', 'Sushi', 'Burrito', 'Paella', 'Risotto', 'Pollo Asado', 'Steak', 'Lasaña', 'Fajitas', 'Costillas BBQ', 'Shawarma', 'Fish & Chips'],
     postres: ['Tarta de Queso', 'Brownie', 'Helado', 'Fruta', 'Tiramisú', 'Crème Brûlée', 'Panna Cotta', 'Pastel de Zanahoria', 'Mousse de Chocolate', 'Gelatina', 'Flan', 'Profiteroles', 'Trifle', 'Tarta de Manzana', 'Tarta de Limón'],
     bebidas: ['Coca-Cola', 'Jugo de Naranja', 'Agua', 'Cerveza', 'Té Helado', 'Limonada', 'Café', 'Chocolate Caliente', 'Batido de Fresa', 'Batido de Chocolate', 'Agua con Gas', 'Red Bull', 'Sprite', 'Fanta', 'Vino'],
-    bebidasAlcoolicas: ['Vino Tinto', 'Vino Blanco', 'Cerveza', 'Whisky', 'Tequila', 'Vodka', 'Ginebra', 'Ron', 'Brandy', 'Licor', 'Champán', 'Sangría', 'Margarita', 'Martini', 'Bloody Mary']
+    bebidasAlcoolicas: ['Vino Tinto', 'Vino Blanco', 'Cerveza', 'Whisky', 'Tequila', 'Vodka', 'Ginebra', 'Ron', 'Brandy', 'Licor', 'Champán', 'Sangría', 'Margarita', 'Martini', 'Bloody Mary'],
+    adicionales: ['Papas Fritas', 'Arroz', 'Ensalada', 'Guacamole', 'Queso', 'Tortillas', 'Frijoles', 'Salsa', 'Pan', 'Aguacate', 'Tocino', 'Champiñones', 'Aros de Cebolla', 'Purée de Papas', 'Maíz']
 };
 
 const mesas = [
     { numero: 1, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 2, ocupada: true, ordenes: [{ estado: 'en cocina', items: [{ nombre: 'Pizza', cantidad: 2 }, { nombre: 'Coca-Cola', cantidad: 1 }] }] },
+    { numero: 2, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 3, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 4, ocupada: true, ordenes: [{ estado: 'en cocina', items: [{ nombre: 'Bruschetta', cantidad: 1 }, { nombre: 'Jugo de Naranja', cantidad: 2 }] }] },
+    { numero: 4, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 5, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 6, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 7, ocupada: true, ordenes: [{ estado: 'en cocina', items: [{ nombre: 'Ensalada', cantidad: 1 }, { nombre: 'Vino Tinto', cantidad: 2 }] }] },
+    { numero: 7, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 8, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 9, ocupada: true, ordenes: [{ estado: 'en cocina', items: [{ nombre: 'Sushi', cantidad: 1 }, { nombre: 'Martini', cantidad: 1 }] }] },
+    { numero: 9, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 10, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] }
 ];
 
@@ -46,6 +47,7 @@ function mostrarMesas() {
 function seleccionarMesa(numero) {
     const mesa = mesas.find(m => m.numero === numero);
     mesaSeleccionada = mesa;
+    document.getElementById('mesa-numero').textContent = mesa.numero;
     document.getElementById('mesa-seleccionada').textContent = mesa.numero;
     ordenEnCocina = mesa.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     orden = mesa.ordenes.find(o => o.estado === 'nueva')?.items || [];
