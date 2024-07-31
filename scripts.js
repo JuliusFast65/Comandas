@@ -83,7 +83,7 @@ function actualizarOrden() {
     orden.forEach(item => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
-            ${item.nombre} - Cantidad: ${item.cantidad}
+            ${item.nombre} - ${item.cantidad}
             <div class="quantity-controls">
                 <button onclick="disminuirCantidad('${item.nombre}')">-</button>
                 <button onclick="agregarProducto('${item.nombre}')">+</button>
@@ -98,13 +98,19 @@ function confirmarOrden() {
     mesaSeleccionada.orden = [...orden];
     mostrarMesas();
 
-    const confirmacionList = document.getElementById('cocina-list');
+    const confirmacionList = document.getElementById('confirmacion-list');
     confirmacionList.innerHTML = '';
     orden.forEach(item => {
         const listItem = document.createElement('li');
-        listItem.textContent = `${item.nombre} - Cantidad: ${item.cantidad}`;
+        listItem.textContent = `${item.nombre} - ${item.cantidad}`;
         confirmacionList.appendChild(listItem);
     });
+    showScreen('confirmacion-screen');
+}
+
+function enviarCocina() {
+    // Aquí iría la lógica para enviar la orden a la cocina
+    alert('Orden enviada a la cocina');
     showScreen('cocina-screen');
 }
 
