@@ -6,10 +6,10 @@ const productos = {
 };
 
 const mesas = [
-    { numero: 1, ocupada: false, orden: [] },
-    { numero: 2, ocupada: true, orden: [{ nombre: 'Pizza', cantidad: 2 }, { nombre: 'Coca-Cola', cantidad: 1 }] },
-    { numero: 3, ocupada: false, orden: [] },
-    { numero: 4, ocupada: true, orden: [{ nombre: 'Bruschetta', cantidad: 1 }, { nombre: 'Jugo de Naranja', cantidad: 2 }] }
+    { numero: 1, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 2, ocupada: true, ordenes: [{ estado: 'en cocina', items: [{ nombre: 'Pizza', cantidad: 2 }, { nombre: 'Coca-Cola', cantidad: 1 }] }] },
+    { numero: 3, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 4, ocupada: true, ordenes: [{ estado: 'en cocina', items: [{ nombre: 'Bruschetta', cantidad: 1 }, { nombre: 'Jugo de Naranja', cantidad: 2 }] }] }
 ];
 
 let orden = [];
@@ -39,7 +39,7 @@ function seleccionarMesa(numero) {
     const mesa = mesas.find(m => m.numero === numero);
     mesaSeleccionada = mesa;
     document.getElementById('mesa-seleccionada').textContent = mesa.numero;
-    orden = [...mesa.orden];
+    orden = mesa.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     showScreen('toma-ordenes-screen');
 }
@@ -105,8 +105,14 @@ function confirmarOrden() {
 }
 
 function enviarCocina() {
+    let ordenNueva = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva');
+    if (!ordenNueva) {
+        ordenNueva = { estado: 'nueva', items: [] };
+        mesaSeleccionada.ordenes.push(ordenNueva);
+    }
+    ordenNueva.items = [...orden];
+    mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: [...orden] });
     mesaSeleccionada.ocupada = true;
-    mesaSeleccionada.orden = [...orden];
     mostrarMesas();
     alert('Orden enviada a la cocina');
     showScreen('cocina-screen');
