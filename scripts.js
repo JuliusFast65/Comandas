@@ -37,8 +37,14 @@ function agregarProducto(producto) {
     actualizarOrden();
 }
 
-function eliminarProducto(producto) {
-    orden = orden.filter(item => item.nombre !== producto);
+function disminuirCantidad(producto) {
+    const index = orden.findIndex(item => item.nombre === producto);
+    if (index > -1) {
+        orden[index].cantidad -= 1;
+        if (orden[index].cantidad === 0) {
+            orden.splice(index, 1);
+        }
+    }
     actualizarOrden();
 }
 
@@ -47,11 +53,13 @@ function actualizarOrden() {
     ordenList.innerHTML = '';
     orden.forEach(item => {
         const listItem = document.createElement('li');
-        listItem.textContent = `${item.nombre} - Cantidad: ${item.cantidad}`;
-        const eliminarBtn = document.createElement('button');
-        eliminarBtn.textContent = 'Eliminar';
-        eliminarBtn.onclick = () => eliminarProducto(item.nombre);
-        listItem.appendChild(eliminarBtn);
+        listItem.innerHTML = `
+            ${item.nombre} - Cantidad: ${item.cantidad}
+            <div class="quantity-controls">
+                <button onclick="disminuirCantidad('${item.nombre}')">-</button>
+                <button onclick="agregarProducto('${item.nombre}')">+</button>
+            </div>
+        `;
         ordenList.appendChild(listItem);
     });
 }
