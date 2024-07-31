@@ -33,8 +33,8 @@
                 </div>
             </div>
             <div class="container">
-                <div id="order" class="order">
-                    <ul id="orden-list" class="scrollable"></ul>
+                <div id="order" class="order scrollable">
+                    <ul id="orden-list"></ul>
                 </div>
                 <div id="selection" class="selection">
                     <div id="categories" class="categories scrollable">
@@ -46,10 +46,10 @@
                         <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
                     </div>
                     <div id="products" class="products scrollable"></div>
+                    <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
                 </div>
             </div>
             <div class="footer">
-                <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
                 <button onclick="confirmarOrden()">Confirmar Orden</button>
                 <button onclick="cancelarOrden()">Cancelar Orden</button>
             </div>
