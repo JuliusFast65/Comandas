@@ -81,7 +81,7 @@ ul li {
     margin: 0 5px;
 }
 
-quantity-controls button:hover {
+.quantity-controls button:hover {
     background-color: #0056b3;
 }
 
@@ -92,7 +92,7 @@ quantity-controls button:hover {
     margin: 10px 0;
 }
 
-.category, .mesa {
+.category, .mesa, .product {
     flex: 1 1 calc(50% - 10px);
     display: flex;
     justify-content: center;
@@ -102,6 +102,7 @@ quantity-controls button:hover {
     border-radius: 4px;
     cursor: pointer;
     text-align: center;
+    background-color: #f8f8f8;
 }
 
 .category {
@@ -122,4 +123,40 @@ quantity-controls button:hover {
 
 .mesa.libre {
     background-color: #c8e6c9;
+}
+
+.mesa.ocupada {
+    background-color: #ffecb3;
+}
+
+.mesa:hover {
+    background-color: #b2dfdb;
+}
+
+.product:hover {
+    background-color: #e0e0e0;
+}
+
+.mesa-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.mesa-info label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#pax {
+    width: 50px;
+    margin: 0;
+}
+
+.scrollable {
+    max-height: 150px;
+    overflow-y: auto;
 }
