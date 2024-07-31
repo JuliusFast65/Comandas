@@ -67,3 +67,26 @@ ul li button {
 ul li button:hover {
     background-color: #c82333;
 }
+
+.categories, .products {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.category, .product {
+    flex: 1 1 calc(50% - 10px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    text-align: center;
+}
+
+.category:hover, .product:hover {
+    background-color: #e0e0e0;
+}
