@@ -24,7 +24,7 @@
         
         <!-- Pantalla de Toma de Órdenes -->
         <div id="toma-ordenes-screen" class="screen">
-            <h3>Toma de Órdenes</h3>
+            <h3 class="center-title">Toma de Órdenes</h3>
             <div class="mesa-info">
                 <label>Mesa: <span id="mesa-seleccionada"></span></label>
                 <label>Pax: <input type="number" id="pax" min="1" value="1"></label>
@@ -39,9 +39,9 @@
                         <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
                     </div>
                     <div id="products" class="products"></div>
+                    <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
                 </div>
                 <div id="order" class="order">
-                    <h3>Orden Actual</h3>
                     <ul id="orden-list" class="scrollable"></ul>
                 </div>
             </div>
