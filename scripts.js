@@ -8,16 +8,16 @@ const productos = {
 };
 
 const mesas = [
-    { numero: 1, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 2, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 3, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 4, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 5, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 6, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 7, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 8, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 9, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 10, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] }
+    { numero: 1, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 2, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 3, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 4, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 5, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 6, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 7, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 8, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 9, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 10, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] }
 ];
 
 let orden = [];
@@ -47,7 +47,7 @@ function mostrarMesas() {
     mesasDiv.innerHTML = ''; // Limpiar el contenedor de mesas
     mesas.forEach(mesa => {
         const mesaDiv = document.createElement('div');
-        mesaDiv.className = `mesa ${mesa.ocupada ? 'ocupada' : 'libre'}`;
+        mesaDiv.className = `mesa ${mesa.ocupada ? (mesa.terminada ? 'terminada' : 'ocupada') : 'libre'}`;
         mesaDiv.textContent = `Mesa ${mesa.numero}`;
         mesaDiv.onclick = () => seleccionarMesa(mesa.numero);
         mesasDiv.appendChild(mesaDiv);
@@ -64,7 +64,7 @@ function mostrarParaLlevar() {
     paraLlevarDiv.innerHTML = ''; // Limpiar el contenedor de órdenes para llevar
     paraLlevarOrdenes.forEach(orden => {
         const ordenDiv = document.createElement('div');
-        ordenDiv.className = `mesa ${orden.ocupada ? 'ocupada' : 'libre'}`; // Cambiar el color según el estado
+        ordenDiv.className = `mesa ${orden.ocupada ? (orden.terminada ? 'terminada' : 'ocupada') : 'libre'}`; // Cambiar el color según el estado
         ordenDiv.textContent = `Para Llevar ${orden.numero}`;
         ordenDiv.onclick = () => seleccionarOrdenParaLlevar(orden.numero);
         paraLlevarDiv.appendChild(ordenDiv);
@@ -102,6 +102,7 @@ function crearParaLlevar() {
     const nuevaOrden = {
         numero: paraLlevarCounter,
         ocupada: false,
+        terminada: false,
         ordenes: [{ estado: 'nueva', items: [] }]
     };
     paraLlevarCounter += 1;
@@ -317,13 +318,28 @@ function mostrarCocina() {
 // Función para actualizar el estado de un ítem en la orden
 function actualizarEstadoOrden(ordenNumero, itemNombre, estado) {
     const orden = [...mesas, ...paraLlevarOrdenes].find(o => o.numero === ordenNumero);
+    let ordenTerminada = true; // Inicializamos la bandera de orden terminada
+
     orden.ordenes.forEach(orden => {
         orden.items.forEach(item => {
             if (item.nombre === itemNombre) {
                 item.estado = estado;
             }
+            if (item.estado !== 'terminado') {
+                ordenTerminada = false; // Si hay algún ítem que no esté terminado, la orden no está completa
+            }
         });
     });
+
+    // Si todos los ítems de la orden están terminados, marcamos la mesa o el pedido como terminado
+    if (ordenTerminada) {
+        orden.terminada = true;
+    } else {
+        orden.terminada = false;
+    }
+
+    mostrarMesas();
+    mostrarParaLlevar();
 }
 
 // Inicializar con la pantalla de inicio de sesión activa
