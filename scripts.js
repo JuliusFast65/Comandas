@@ -27,6 +27,10 @@ function showScreen(screenId) {
 // Función para mostrar las órdenes para llevar
 function mostrarParaLlevar() {
     const paraLlevarDiv = document.getElementById('para-llevar');
+    if (!paraLlevarDiv) {
+        console.error("El elemento con id 'para-llevar' no existe.");
+        return;
+    }
     paraLlevarDiv.innerHTML = '';
     paraLlevarOrdenes.forEach(orden => {
         const ordenDiv = document.createElement('div');
@@ -217,6 +221,10 @@ function actualizarCuentas() {
 // Función para mostrar las órdenes en la pantalla de cocina
 function mostrarCocina() {
     const cocinaList = document.getElementById('cocina-list');
+    if (!cocinaList) {
+        console.error("El elemento con id 'cocina-list' no existe.");
+        return;
+    }
     cocinaList.innerHTML = '';
 
     paraLlevarOrdenes.forEach(orden => {
