@@ -38,8 +38,8 @@ h2 {
     border: 1px solid #ddd;
     padding: 10px;
     margin: 10px;
-    width: 120px;
-    height: 120px;
+    width: 150px;
+    height: 150px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -70,7 +70,7 @@ h2 {
 }
 
 .category {
-    background-color: #e3f2fd;
+    background-color: #d9edf7;
 }
 
 .product {
