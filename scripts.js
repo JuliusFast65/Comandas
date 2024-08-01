@@ -360,7 +360,7 @@ function mostrarCocina() {
                     itemDiv.innerHTML = `
                         <div style="display: flex; justify-content: space-between; width: 100%;">
                             <span>${item.nombre} - ${item.cantidad}</span>
-                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'cocina')" ${item.enCocina ? 'checked' : ''}>
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'cocina')" ${item.enCocina === 'terminado' ? 'checked' : ''}>
                         </div>
                         ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
                     `;
@@ -402,7 +402,7 @@ function mostrarBar() {
                     itemDiv.innerHTML = `
                         <div style="display: flex; justify-content: space-between; width: 100%;">
                             <span>${item.nombre} - ${item.cantidad}</span>
-                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'bar')" ${item.enBar ? 'checked' : ''}>
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'bar')" ${item.enBar === 'terminado' ? 'checked' : ''}>
                         </div>
                         ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
                     `;
@@ -432,15 +432,16 @@ function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
     orden.ordenes.forEach(o => {
         o.items.forEach(item => {
             if (item.nombre === itemNombre) {
-                if (area === 'cocina' && item.enCocina) {
-                    item.enCocina = estado === 'terminado';
+                if (area === 'cocina') {
+                    item.enCocina = estado;
                 }
-                if (area === 'bar' && item.enBar) {
-                    item.enBar = estado === 'terminado';
+                if (area === 'bar') {
+                    item.enBar = estado;
                 }
+                console.log(`Estado actualizado: ${item.nombre} en ${area} es ${item.enCocina || item.enBar}`); // Debug
             }
             // Si hay algún ítem que no esté terminado, la orden no está completa
-            if ((!item.enCocina && area === 'cocina') || (!item.enBar && area === 'bar')) {
+            if ((item.enCocina !== 'terminado' && area === 'cocina') || (item.enBar !== 'terminado' && area === 'bar')) {
                 ordenTerminada = false;
             }
         });
