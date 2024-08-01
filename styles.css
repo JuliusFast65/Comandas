@@ -94,11 +94,10 @@ ul li {
     flex-direction: column;
     gap: 20px;
     height: calc(100vh - 200px); /* Ajusta según necesites */
-    overflow-y: auto;
 }
 
 .selection {
-    flex: 1;
+    flex: 2;
     overflow-y: auto;
 }
 
@@ -195,21 +194,4 @@ ul li {
     justify-content: space-between;
 }
 
-.header, .footer {
-    position: sticky;
-    background: white;
-    padding: 10px 0;
-    z-index: 10;
-}
-
-.header {
-    top: 0;
-}
-
-.footer {
-    bottom: 0;
-}
-
-.scrollable {
-    overflow-y: auto;
-}
+.header
