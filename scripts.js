@@ -184,21 +184,28 @@ function mostrarCocina() {
     cocinaList.innerHTML = '';
 
     mesas.forEach(mesa => {
-        mesa.ordenes.filter(o => o.estado === 'en cocina').forEach(orden => {
-            orden.items.forEach(item => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'cocina-item';
-                itemDiv.innerHTML = `
-                    <h4>Mesa ${mesa.numero}</h4>
-                    <p>${item.nombre} - ${item.cantidad}</p>
-                    <select onchange="actualizarEstadoOrden(${mesa.numero}, '${item.nombre}', this.value)">
-                        <option value="en preparación" ${item.estado === 'en preparación' ? 'selected' : ''}>En preparación</option>
-                        <option value="terminado" ${item.estado === 'terminado' ? 'selected' : ''}>Terminado</option>
-                    </select>
-                `;
-                cocinaList.appendChild(itemDiv);
+        const ordenesCocina = mesa.ordenes.filter(o => o.estado === 'en cocina');
+        if (ordenesCocina.length > 0) {
+            const ordenDiv = document.createElement('div');
+            ordenDiv.className = 'cocina-item';
+            ordenDiv.innerHTML = `<h4>Mesa ${mesa.numero}</h4>`;
+            
+            ordenesCocina.forEach(orden => {
+                orden.items.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.innerHTML = `
+                        <p>${item.nombre} - ${item.cantidad}</p>
+                        <select onchange="actualizarEstadoOrden(${mesa.numero}, '${item.nombre}', this.value)">
+                            <option value="en preparación" ${item.estado === 'en preparación' ? 'selected' : ''}>En preparación</option>
+                            <option value="terminado" ${item.estado === 'terminado' ? 'selected' : ''}>Terminado</option>
+                        </select>
+                    `;
+                    ordenDiv.appendChild(itemDiv);
+                });
             });
-        });
+
+            cocinaList.appendChild(ordenDiv);
+        }
     });
 }
 
