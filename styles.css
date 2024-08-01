@@ -280,6 +280,10 @@ textarea {
     gap: 5px;
 }
 
+.checkbox-label input[type="checkbox"] {
+    margin-right: 10px;
+}
+
 .mesa {
     transition: background-color 0.3s ease;
 }
