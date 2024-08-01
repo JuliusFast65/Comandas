@@ -299,8 +299,8 @@ function mostrarCocina() {
                     itemDiv.style.justifyContent = "space-between"; // Alinear el checkbox al final
                     itemDiv.style.alignItems = "center"; // Centrar verticalmente el contenido
                     itemDiv.innerHTML = `
-                        <span>${item.nombre} - ${item.cantidad}${item.nota ? `<br><small>Nota: ${item.nota}</small>` : ''}</span>
                         <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación')">
+                        <span>${item.nombre} - ${item.cantidad}${item.nota ? ` <small>(Nota: ${item.nota})</small>` : ''}</span>
                     `;
                     ordenDiv.appendChild(itemDiv);
                 });
