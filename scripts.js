@@ -78,7 +78,7 @@ function seleccionarMesa(numero) {
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
     document.getElementById('mesa-label').style.display = 'block'; // Mostrar el label de mesa
-    document.getElementById('para-llevar-checkbox').checked = false;
+    // Quitar label para llevar
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -92,7 +92,7 @@ function seleccionarOrdenParaLlevar(numero) {
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
     document.getElementById('mesa-label').style.display = 'none'; // Ocultar el label de mesa
-    document.getElementById('para-llevar-checkbox').checked = true;
+    // Quitar label para llevar
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -139,6 +139,7 @@ function showCategories() {
 // Función para agregar un producto a la orden
 function agregarProducto(producto) {
     const cuenta = parseInt(document.getElementById('cuentas').value);
+    // Actualizamos el código para evitar duplicaciones
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
     if (index > -1) {
         orden[index].cantidad += 1;
