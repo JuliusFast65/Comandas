@@ -24,6 +24,7 @@ let orden = [];
 let ordenEnCocina = [];
 let mesaSeleccionada = null;
 let cuentas = 1;
+let notaIndex = null;
 
 function showScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
@@ -83,7 +84,7 @@ function agregarProducto(producto) {
     if (index > -1) {
         orden[index].cantidad += 1;
     } else {
-        orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false });
+        orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false, nota: '' });
     }
     actualizarOrden();
 }
@@ -99,6 +100,25 @@ function disminuirCantidad(producto, cuenta) {
     actualizarOrden();
 }
 
+function abrirModalNota(index) {
+    notaIndex = index;
+    document.getElementById('nota-texto').value = orden[index].nota || '';
+    document.getElementById('nota-modal').style.display = 'block';
+}
+
+function cerrarModal() {
+    document.getElementById('nota-modal').style.display = 'none';
+}
+
+function guardarNota() {
+    const nota = document.getElementById('nota-texto').value;
+    if (notaIndex !== null) {
+        orden[notaIndex].nota = nota;
+        actualizarOrden();
+    }
+    cerrarModal();
+}
+
 function actualizarOrden() {
     const ordenList = document.getElementById('orden-list');
     ordenList.innerHTML = '';
@@ -112,13 +132,14 @@ function actualizarOrden() {
         ordenList.appendChild(listItem);
     });
     
-    orden.filter(item => !item.enCocina).forEach(item => {
+    orden.filter(item => !item.enCocina).forEach((item, index) => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
             ${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}
             <div class="quantity-controls">
                 <button onclick="disminuirCantidad('${item.nombre}', ${item.cuenta})">-</button>
                 <button onclick="agregarProducto('${item.nombre}')">+</button>
+                <button onclick="abrirModalNota(${index})">📝</button>
             </div>
         `;
         ordenList.appendChild(listItem);
@@ -194,7 +215,7 @@ function mostrarCocina() {
                 orden.items.forEach(item => {
                     const itemDiv = document.createElement('div');
                     itemDiv.innerHTML = `
-                        <p>${item.nombre} - ${item.cantidad}</p>
+                        <p>${item.nombre} - ${item.cantidad} ${item.nota ? `<br><small>Nota: ${item.nota}</small>` : ''}</p>
                         <select onchange="actualizarEstadoOrden(${mesa.numero}, '${item.nombre}', this.value)">
                             <option value="en preparación" ${item.estado === 'en preparación' ? 'selected' : ''}>En preparación</option>
                             <option value="terminado" ${item.estado === 'terminado' ? 'selected' : ''}>Terminado</option>
