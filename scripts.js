@@ -22,6 +22,7 @@ const mesas = [
 
 let orden = [];
 let ordenEnCocina = [];
+let ordenEnBar = [];
 let mesaSeleccionada = null;
 let cuentas = 1;
 let notaIndex = null;
@@ -79,6 +80,7 @@ function seleccionarMesa(numero) {
     document.getElementById('mesa-label').style.display = 'block'; // Mostrar el label de mesa
     document.getElementById('para-llevar-checkbox').checked = false;
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
+    ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     showScreen('toma-ordenes-screen');
@@ -92,6 +94,7 @@ function seleccionarOrdenParaLlevar(numero) {
     document.getElementById('mesa-label').style.display = 'none'; // Ocultar el label de mesa
     document.getElementById('para-llevar-checkbox').checked = true;
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
+    ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     showScreen('toma-ordenes-screen');
@@ -136,18 +139,18 @@ function showCategories() {
 // Función para agregar un producto a la orden
 function agregarProducto(producto) {
     const cuenta = parseInt(document.getElementById('cuentas').value);
-    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina);
+    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
     if (index > -1) {
         orden[index].cantidad += 1;
     } else {
-        orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false, nota: '' });
+        orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false, enBar: false, nota: '' });
     }
     actualizarOrden();
 }
 
 // Función para disminuir la cantidad de un producto en la orden
 function disminuirCantidad(producto, cuenta) {
-    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina);
+    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
     if (index > -1) {
         orden[index].cantidad -= 1;
         if (orden[index].cantidad === 0) {
@@ -193,9 +196,19 @@ function actualizarOrden() {
         `;
         ordenList.appendChild(listItem);
     });
-    
-    // Mostrar los items que aún no están en cocina
-    orden.filter(item => !item.enCocina).forEach((item, index) => {
+
+    // Mostrar los items en bar
+    ordenEnBar.forEach(item => {
+        const listItem = document.createElement('li');
+        listItem.innerHTML = `
+            ${item.nombre} - ${item.cantidad}
+            <span class="en-bar">(En bar)</span>
+        `;
+        ordenList.appendChild(listItem);
+    });
+
+    // Mostrar los items que aún no están en preparación
+    orden.filter(item => !item.enCocina && !item.enBar).forEach((item, index) => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
             ${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}
@@ -223,9 +236,16 @@ function confirmarOrden() {
         listItem.textContent = `${item.nombre} - ${item.cantidad} (En cocina)`;
         confirmacionList.appendChild(listItem);
     });
-    
-    // Mostrar los items que aún no están en cocina
-    orden.filter(item => !item.enCocina).forEach(item => {
+
+    // Mostrar los items en bar
+    ordenEnBar.forEach(item => {
+        const listItem = document.createElement('li');
+        listItem.textContent = `${item.nombre} - ${item.cantidad} (En bar)`;
+        confirmacionList.appendChild(listItem);
+    });
+
+    // Mostrar los items que aún no están en preparación
+    orden.filter(item => !item.enCocina && !item.enBar).forEach(item => {
         const listItem = document.createElement('li');
         listItem.textContent = `${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}`;
         confirmacionList.appendChild(listItem);
@@ -234,21 +254,41 @@ function confirmarOrden() {
     showScreen('confirmacion-screen');
 }
 
-// Función para enviar la orden a la cocina
+// Función para enviar la orden a preparación (cocina o bar)
 function enviarCocina() {
     let ordenNueva = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva');
     if (!ordenNueva) {
         ordenNueva = { estado: 'nueva', items: [] };
         mesaSeleccionada.ordenes.push(ordenNueva);
     }
-    // Marcar los items como en cocina
-    ordenNueva.items = orden.filter(item => !item.enCocina).map(item => ({ ...item, enCocina: true }));
-    mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: ordenNueva.items });
+    
+    // Separar los ítems para bar y cocina
+    ordenNueva.items = orden.filter(item => !item.enCocina && !item.enBar).map(item => {
+        if (productos.bebidasAlcoolicas.includes(item.nombre)) {
+            item.enBar = true; // Marcar como ítem de bar
+        } else {
+            item.enCocina = true; // Marcar como ítem de cocina
+        }
+        return item;
+    });
+
+    // Agrupar ítems por estado de preparación
+    const itemsCocina = ordenNueva.items.filter(item => item.enCocina);
+    const itemsBar = ordenNueva.items.filter(item => item.enBar);
+
+    if (itemsCocina.length > 0) {
+        mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: itemsCocina });
+    }
+    if (itemsBar.length > 0) {
+        mesaSeleccionada.ordenes.push({ estado: 'en bar', items: itemsBar });
+    }
+
     mesaSeleccionada.ocupada = true; // Marcar la mesa como ocupada
     mostrarMesas();
     mostrarParaLlevar();
     mostrarCocina();
-    alert('Orden enviada a la cocina');
+    mostrarBar();
+    alert('Orden enviada a preparación');
     showScreen('seleccion-mesas-screen');
 }
 
@@ -302,7 +342,7 @@ function mostrarCocina() {
                     itemDiv.innerHTML = `
                         <div style="display: flex; justify-content: space-between; width: 100%;">
                             <span>${item.nombre} - ${item.cantidad}</span>
-                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación')">
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'cocina')">
                         </div>
                         ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
                     `;
@@ -315,17 +355,62 @@ function mostrarCocina() {
     });
 }
 
+// Función para mostrar las órdenes en la pantalla del bar
+function mostrarBar() {
+    const barList = document.getElementById('bar-list');
+    if (!barList) {
+        console.error("El elemento con id 'bar-list' no existe.");
+        return;
+    }
+    barList.innerHTML = ''; // Limpiar la lista del bar
+
+    [...mesas, ...paraLlevarOrdenes].forEach(orden => {
+        const ordenesBar = orden.ordenes.filter(o => o.estado === 'en bar');
+        if (ordenesBar.length > 0) {
+            const ordenDiv = document.createElement('div');
+            // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
+            const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
+            ordenDiv.className = 'bar-item';
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
+            
+            // Iterar sobre cada ítem de la orden
+            ordenesBar.forEach(orden => {
+                orden.items.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.style.display = "flex";
+                    itemDiv.style.flexDirection = "column"; // Cambiar para dos líneas por ítem
+                    itemDiv.style.alignItems = "flex-start"; // Alinear los elementos a la izquierda
+                    itemDiv.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; width: 100%;">
+                            <span>${item.nombre} - ${item.cantidad}</span>
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'bar')">
+                        </div>
+                        ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
+                    `;
+                    ordenDiv.appendChild(itemDiv);
+                });
+            });
+
+            barList.appendChild(ordenDiv);
+        }
+    });
+}
+
 // Función para actualizar el estado de un ítem en la orden
-function actualizarEstadoOrden(ordenNumero, itemNombre, estado) {
+function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
     const orden = [...mesas, ...paraLlevarOrdenes].find(o => o.numero === ordenNumero);
     let ordenTerminada = true; // Inicializamos la bandera de orden terminada
 
     orden.ordenes.forEach(orden => {
         orden.items.forEach(item => {
             if (item.nombre === itemNombre) {
-                item.estado = estado;
+                if (area === 'cocina') {
+                    item.enCocina = estado === 'terminado';
+                } else {
+                    item.enBar = estado === 'terminado';
+                }
             }
-            if (item.estado !== 'terminado') {
+            if (!item.enCocina && !item.enBar) {
                 ordenTerminada = false; // Si hay algún ítem que no esté terminado, la orden no está completa
             }
         });
@@ -340,6 +425,8 @@ function actualizarEstadoOrden(ordenNumero, itemNombre, estado) {
 
     mostrarMesas();
     mostrarParaLlevar();
+    mostrarCocina();
+    mostrarBar();
 }
 
 // Inicializar con la pantalla de inicio de sesión activa
@@ -348,4 +435,5 @@ document.addEventListener('DOMContentLoaded', () => {
     mostrarMesas();
     mostrarParaLlevar();
     mostrarCocina();
+    mostrarBar();
 });
