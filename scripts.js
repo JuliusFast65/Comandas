@@ -36,6 +36,7 @@ function showScreen(screenId) {
         screen.classList.remove('active');
     });
     document.getElementById(screenId).classList.add('active');
+    console.log(`Pantalla actual: ${screenId}`); // Debug
 }
 
 // Función para mostrar las mesas
@@ -74,6 +75,7 @@ function mostrarParaLlevar() {
 
 // Función para seleccionar una mesa
 function seleccionarMesa(numero) {
+    console.log(`Seleccionando mesa: ${numero}`); // Debug
     mesaSeleccionada = mesas.find(m => m.numero === numero);
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
@@ -86,6 +88,7 @@ function seleccionarMesa(numero) {
 
 // Función para seleccionar una orden para llevar
 function seleccionarOrdenParaLlevar(numero) {
+    console.log(`Seleccionando orden para llevar: ${numero}`); // Debug
     mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
@@ -107,10 +110,12 @@ function crearParaLlevar() {
     paraLlevarCounter += 1;
     paraLlevarOrdenes.push(nuevaOrden);
     mostrarParaLlevar();
+    console.log(`Creada nueva orden para llevar: ${nuevaOrden.numero}`); // Debug
 }
 
 // Función para mostrar productos según la categoría seleccionada
 function showProducts(categoria) {
+    console.log(`Mostrando productos de la categoría: ${categoria}`); // Debug
     document.getElementById('categories').style.display = 'none';
     document.getElementById('back-to-categories').style.display = 'block';
     const productsDiv = document.getElementById('products');
@@ -127,6 +132,7 @@ function showProducts(categoria) {
 
 // Función para volver a mostrar las categorías
 function showCategories() {
+    console.log("Volviendo a mostrar categorías"); // Debug
     document.getElementById('categories').style.display = 'flex';
     document.getElementById('back-to-categories').style.display = 'none';
     document.getElementById('products').style.display = 'none';
@@ -135,6 +141,7 @@ function showCategories() {
 // Función para agregar un producto a la orden
 function agregarProducto(producto) {
     const cuenta = parseInt(document.getElementById('cuentas').value);
+    console.log(`Agregando producto: ${producto} a la cuenta: ${cuenta}`); // Debug
     // Actualizamos el código para evitar duplicaciones
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
     if (index > -1) {
@@ -147,6 +154,7 @@ function agregarProducto(producto) {
 
 // Función para disminuir la cantidad de un producto en la orden
 function disminuirCantidad(producto, cuenta) {
+    console.log(`Disminuyendo cantidad de producto: ${producto} para la cuenta: ${cuenta}`); // Debug
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
     if (index > -1) {
         orden[index].cantidad -= 1;
@@ -160,12 +168,14 @@ function disminuirCantidad(producto, cuenta) {
 // Función para abrir el modal para añadir notas a un producto
 function abrirModalNota(index) {
     notaIndex = index;
+    console.log(`Abriendo modal para añadir nota al producto en el índice: ${index}`); // Debug
     document.getElementById('nota-texto').value = orden[index].nota || '';
     document.getElementById('nota-modal').style.display = 'block';
 }
 
 // Función para cerrar el modal de notas
 function cerrarModal() {
+    console.log("Cerrando modal de notas"); // Debug
     document.getElementById('nota-modal').style.display = 'none';
 }
 
@@ -174,6 +184,7 @@ function guardarNota() {
     const nota = document.getElementById('nota-texto').value;
     if (notaIndex !== null) {
         orden[notaIndex].nota = nota;
+        console.log(`Guardando nota para el producto en el índice: ${notaIndex}`); // Debug
         actualizarOrden();
     }
     cerrarModal();
@@ -223,6 +234,7 @@ function actualizarOrden() {
 
     // Hacer scroll al final de la lista para mostrar el último item añadido
     ordenList.scrollTop = ordenList.scrollHeight;
+    console.log("Orden actualizada", orden); // Debug
 }
 
 // Función para confirmar la orden
@@ -252,6 +264,7 @@ function confirmarOrden() {
     });
     
     showScreen('confirmacion-screen');
+    console.log("Confirmación de orden"); // Debug
 }
 
 // Función para enviar la orden a preparación (cocina o bar)
@@ -290,11 +303,13 @@ function enviarCocina() {
     mostrarBar();
     alert('Orden enviada a preparación');
     showScreen('seleccion-mesas-screen');
+    console.log(`Orden enviada a cocina/bar para Mesa/Para Llevar ${mesaSeleccionada.numero}`); // Debug
 }
 
 // Función para cancelar la orden y volver a la pantalla de selección de mesas
 function cancelarOrden() {
     showScreen('seleccion-mesas-screen');
+    console.log("Orden cancelada, volviendo a selección de mesas"); // Debug
 }
 
 // Función para autorizar cambios con un código
@@ -303,8 +318,10 @@ function autorizar() {
     if (authCode === '1234') { // Simulación de código de autorización
         alert('Autorización exitosa');
         showScreen('toma-ordenes-screen');
+        console.log("Autorización exitosa"); // Debug
     } else {
         alert('Código incorrecto');
+        console.log("Código de autorización incorrecto"); // Debug
     }
 }
 
@@ -312,6 +329,7 @@ function autorizar() {
 function actualizarCuentas() {
     cuentas = parseInt(document.getElementById('cuentas').value);
     actualizarOrden();
+    console.log(`Número de cuentas actualizado a: ${cuentas}`); // Debug
 }
 
 // Función para mostrar las órdenes en la pantalla de cocina
@@ -353,6 +371,7 @@ function mostrarCocina() {
             cocinaList.appendChild(ordenDiv);
         }
     });
+    console.log("Órdenes en cocina mostradas"); // Debug
 }
 
 // Función para mostrar las órdenes en la pantalla del bar
@@ -394,10 +413,12 @@ function mostrarBar() {
             barList.appendChild(ordenDiv);
         }
     });
+    console.log("Órdenes en bar mostradas"); // Debug
 }
 
 // Función para actualizar el estado de un ítem en la orden
 function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
+    console.log(`Actualizando estado de ítem: ${itemNombre} a ${estado} en ${area} para orden ${ordenNumero}`); // Debug
     const orden = mesas.find(m => m.numero === ordenNumero) || paraLlevarOrdenes.find(o => o.numero === ordenNumero);
 
     if (!orden) {
@@ -419,7 +440,7 @@ function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
                 }
             }
             // Si hay algún ítem que no esté terminado, la orden no está completa
-            if (!item.enCocina || !item.enBar) {
+            if (!item.enCocina && !item.enBar) {
                 ordenTerminada = false;
             }
         });
@@ -428,6 +449,7 @@ function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
     // Si todos los ítems de la orden están terminados, marcamos la mesa o el pedido como terminado
     if (ordenTerminada) {
         orden.terminada = true;
+        console.log(`Orden ${ordenNumero} terminada en ${area}`); // Debug
     } else {
         orden.terminada = false;
     }
@@ -445,4 +467,5 @@ document.addEventListener('DOMContentLoaded', () => {
     mostrarParaLlevar();
     mostrarCocina();
     mostrarBar();
+    console.log("Aplicación inicializada"); // Debug
 });
