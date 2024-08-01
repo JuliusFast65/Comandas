@@ -75,4 +75,30 @@
         </div>
         
         <!-- Pantalla de Autorización -->
-        <div id="autorizacion-screen" class="screen"
+        <div id="autorizacion-screen" class="screen">
+            <h3>Autorización</h3>
+            <input type="text" id="auth-code" placeholder="Código de Autorización">
+            <button onclick="autorizar()">Confirmar</button>
+        </div>
+        
+        <!-- Pantalla de Órdenes en Cocina -->
+        <div id="cocina-screen" class="screen">
+            <h3>Órdenes en Cocina</h3>
+            <div id="cocina-list" class="cocina-list scrollable"></div>
+            <button onclick="showScreen('mesas-screen')">Volver a Mesas</button>
+        </div>
+    </div>
+
+    <!-- Modal para añadir notas -->
+    <div id="nota-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="cerrarModal()">&times;</span>
+            <h3>Añadir Nota</h3>
+            <textarea id="nota-texto" placeholder="Escribe tu nota aquí"></textarea>
+            <button onclick="guardarNota()">Guardar Nota</button>
+        </div>
+    </div>
+
+    <script src="scripts.js"></script>
+</body>
+</html>
