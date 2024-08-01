@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Pantalla de inicio de sesión -->
     <div id="login-screen" class="screen active">
         <h2>Inicio de Sesión</h2>
         <input type="text" placeholder="Usuario" id="usuario">
@@ -14,6 +15,7 @@
         <button onclick="showScreen('seleccion-mesas-screen')">Entrar</button>
     </div>
 
+    <!-- Pantalla de selección de mesas -->
     <div id="seleccion-mesas-screen" class="screen">
         <h2>Seleccionar Mesa</h2>
         <div id="mesas" class="mesas"></div>
@@ -24,12 +26,10 @@
         <button onclick="showScreen('bar-screen')">Ver Bar</button>
     </div>
 
+    <!-- Pantalla de toma de órdenes -->
     <div id="toma-ordenes-screen" class="screen">
         <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
         <div class="header">
-            <label id="mesa-label">
-                Mesa: <span id="orden-numero"></span>
-            </label>
             <label>
                 Cuentas:
                 <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()">
@@ -54,6 +54,7 @@
         </div>
     </div>
 
+    <!-- Pantalla de confirmación de órdenes -->
     <div id="confirmacion-screen" class="screen">
         <h2>Confirmar Orden</h2>
         <ul id="confirmacion-list" class="orden-list scrollable"></ul>
@@ -65,12 +66,14 @@
         </div>
     </div>
 
+    <!-- Pantalla de cocina -->
     <div id="cocina-screen" class="screen">
         <h2>Órdenes en Cocina</h2>
         <div id="cocina-list" class="cocina-list"></div>
         <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
     </div>
 
+    <!-- Pantalla de bar -->
     <div id="bar-screen" class="screen">
         <h2>Órdenes en Bar</h2>
         <div id="bar-list" class="bar-list"></div>
