@@ -20,6 +20,7 @@
         <div id="mesas-screen" class="screen">
             <h3>Seleccionar Mesa</h3>
             <div id="mesas" class="mesas scrollable"></div>
+            <button onclick="showScreen('cocina-screen')">Ir a Cocina</button>
         </div>
         
         <!-- Pantalla de Toma de Órdenes -->
@@ -33,11 +34,8 @@
                 </div>
             </div>
             <div class="container">
-                <div id="order" class="order scrollable">
-                    <ul id="orden-list"></ul>
-                </div>
-                <div id="selection" class="selection">
-                    <div id="categories" class="categories scrollable">
+                <div id="selection" class="selection scrollable">
+                    <div id="categories" class="categories">
                         <div class="category" onclick="showProducts('entradas')">Entradas</div>
                         <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
                         <div class="category" onclick="showProducts('postres')">Postres</div>
@@ -45,8 +43,11 @@
                         <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
                         <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
                     </div>
-                    <div id="products" class="products scrollable"></div>
+                    <div id="products" class="products"></div>
                     <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+                </div>
+                <div id="order" class="order scrollable">
+                    <ul id="orden-list"></ul>
                 </div>
             </div>
             <div class="footer">
@@ -75,7 +76,8 @@
         <!-- Pantalla de Órdenes en Cocina -->
         <div id="cocina-screen" class="screen">
             <h3>Órdenes en Cocina</h3>
-            <ul id="cocina-list"></ul>
+            <div id="cocina-list" class="cocina-list scrollable"></div>
+            <button onclick="showScreen('mesas-screen')">Volver a Mesas</button>
         </div>
     </div>
     <script src="scripts.js"></script>
