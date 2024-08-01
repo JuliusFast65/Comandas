@@ -333,8 +333,8 @@ function mostrarCocina() {
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
             
             // Iterar sobre cada ítem de la orden
-            ordenesCocina.forEach(orden => {
-                orden.items.forEach(item => {
+            ordenesCocina.forEach(o => {
+                o.items.forEach(item => {
                     const itemDiv = document.createElement('div');
                     itemDiv.style.display = "flex";
                     itemDiv.style.flexDirection = "column"; // Cambiar para dos líneas por ítem
@@ -374,8 +374,8 @@ function mostrarBar() {
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
             
             // Iterar sobre cada ítem de la orden
-            ordenesBar.forEach(orden => {
-                orden.items.forEach(item => {
+            ordenesBar.forEach(o => {
+                o.items.forEach(item => {
                     const itemDiv = document.createElement('div');
                     itemDiv.style.display = "flex";
                     itemDiv.style.flexDirection = "column"; // Cambiar para dos líneas por ítem
@@ -398,11 +398,17 @@ function mostrarBar() {
 
 // Función para actualizar el estado de un ítem en la orden
 function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
-    const orden = [...mesas, ...paraLlevarOrdenes].find(o => o.numero === ordenNumero);
+    const orden = mesas.find(m => m.numero === ordenNumero) || paraLlevarOrdenes.find(o => o.numero === ordenNumero);
+
+    if (!orden) {
+        console.error("Orden no encontrada.");
+        return;
+    }
+
     let ordenTerminada = true; // Inicializamos la bandera de orden terminada
 
-    orden.ordenes.forEach(orden => {
-        orden.items.forEach(item => {
+    orden.ordenes.forEach(o => {
+        o.items.forEach(item => {
             if (item.nombre === itemNombre) {
                 if (area === 'cocina') {
                     item.enCocina = estado === 'terminado';
