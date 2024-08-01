@@ -44,7 +44,7 @@ function mostrarMesas() {
         console.error("El elemento con id 'mesas' no existe.");
         return;
     }
-    mesasDiv.innerHTML = '';
+    mesasDiv.innerHTML = ''; // Limpiar el contenedor de mesas
     mesas.forEach(mesa => {
         const mesaDiv = document.createElement('div');
         mesaDiv.className = `mesa ${mesa.ocupada ? 'ocupada' : 'libre'}`;
@@ -61,7 +61,7 @@ function mostrarParaLlevar() {
         console.error("El elemento con id 'para-llevar' no existe.");
         return;
     }
-    paraLlevarDiv.innerHTML = '';
+    paraLlevarDiv.innerHTML = ''; // Limpiar el contenedor de órdenes para llevar
     paraLlevarOrdenes.forEach(orden => {
         const ordenDiv = document.createElement('div');
         ordenDiv.className = 'mesa'; // Reutilizamos clase 'mesa' para estilo
@@ -113,7 +113,7 @@ function showProducts(categoria) {
     document.getElementById('back-to-categories').style.display = 'block';
     const productsDiv = document.getElementById('products');
     productsDiv.style.display = 'flex';
-    productsDiv.innerHTML = '';
+    productsDiv.innerHTML = ''; // Limpiar el contenedor de productos
     productos[categoria].forEach(producto => {
         const productDiv = document.createElement('div');
         productDiv.className = 'product';
@@ -179,8 +179,9 @@ function guardarNota() {
 // Función para actualizar la lista de la orden
 function actualizarOrden() {
     const ordenList = document.getElementById('orden-list');
-    ordenList.innerHTML = '';
+    ordenList.innerHTML = ''; // Limpiar la lista de la orden
     
+    // Mostrar los items en cocina
     ordenEnCocina.forEach(item => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
@@ -190,6 +191,7 @@ function actualizarOrden() {
         ordenList.appendChild(listItem);
     });
     
+    // Mostrar los items que aún no están en cocina
     orden.filter(item => !item.enCocina).forEach((item, index) => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
@@ -202,20 +204,24 @@ function actualizarOrden() {
         `;
         ordenList.appendChild(listItem);
     });
+
+    // Hacer scroll al final de la lista para mostrar el último item añadido
     ordenList.scrollTop = ordenList.scrollHeight;
 }
 
 // Función para confirmar la orden
 function confirmarOrden() {
     const confirmacionList = document.getElementById('confirmacion-list');
-    confirmacionList.innerHTML = '';
+    confirmacionList.innerHTML = ''; // Limpiar la lista de confirmación
     
+    // Mostrar los items en cocina
     ordenEnCocina.forEach(item => {
         const listItem = document.createElement('li');
         listItem.textContent = `${item.nombre} - ${item.cantidad} (En cocina)`;
         confirmacionList.appendChild(listItem);
     });
     
+    // Mostrar los items que aún no están en cocina
     orden.filter(item => !item.enCocina).forEach(item => {
         const listItem = document.createElement('li');
         listItem.textContent = `${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}`;
@@ -232,9 +238,10 @@ function enviarCocina() {
         ordenNueva = { estado: 'nueva', items: [] };
         mesaSeleccionada.ordenes.push(ordenNueva);
     }
+    // Marcar los items como en cocina
     ordenNueva.items = orden.filter(item => !item.enCocina).map(item => ({ ...item, enCocina: true }));
     mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: ordenNueva.items });
-    mesaSeleccionada.ocupada = true;
+    mesaSeleccionada.ocupada = true; // Marcar la mesa como ocupada
     mostrarMesas();
     mostrarParaLlevar();
     mostrarCocina();
@@ -271,7 +278,7 @@ function mostrarCocina() {
         console.error("El elemento con id 'cocina-list' no existe.");
         return;
     }
-    cocinaList.innerHTML = '';
+    cocinaList.innerHTML = ''; // Limpiar la lista de cocina
 
     [...mesas, ...paraLlevarOrdenes].forEach(orden => {
         const ordenesCocina = orden.ordenes.filter(o => o.estado === 'en cocina');
