@@ -13,32 +13,24 @@
             <h3>Iniciar Sesión</h3>
             <input type="text" id="username" placeholder="Usuario">
             <input type="password" id="password" placeholder="Contraseña">
-            <button onclick="showScreen('mesas-screen')">Iniciar Sesión</button>
+            <button onclick="showScreen('para-llevar-screen')">Iniciar Sesión</button>
         </div>
         
-        <!-- Pantalla de Selección de Mesas -->
-        <div id="mesas-screen" class="screen">
-            <h3>Seleccionar Mesa</h3>
-            <div>
-                <h4>Mesas</h4>
-                <div id="mesas" class="mesas scrollable"></div>
-            </div>
-            <div>
-                <h4>Para Llevar</h4>
-                <div id="para-llevar" class="mesas scrollable"></div>
-                <button onclick="crearParaLlevar()">Añadir Para Llevar</button>
-            </div>
+        <!-- Pantalla de Selección de Órdenes Para Llevar -->
+        <div id="para-llevar-screen" class="screen">
+            <h3>Órdenes Para Llevar</h3>
+            <div id="para-llevar" class="mesas scrollable"></div>
+            <button onclick="crearParaLlevar()">Añadir Orden Para Llevar</button>
             <button onclick="showScreen('cocina-screen')">Ir a Cocina</button>
         </div>
         
         <!-- Pantalla de Toma de Órdenes -->
         <div id="toma-ordenes-screen" class="screen">
             <div class="header">
-                <h3 class="center-title">Orden de la mesa <span id="mesa-numero"></span></h3>
+                <h3 class="center-title">Orden Para Llevar <span id="orden-numero"></span></h3>
                 <div class="mesa-info">
-                    <label>Mesa: <span id="mesa-seleccionada"></span></label>
                     <label>Cuentas: <input type="number" id="cuentas" min="1" value="1" onchange="actualizarCuentas()"></label>
-                    <label>Para llevar: <input type="checkbox" id="para-llevar-checkbox"></label>
+                    <label>Para llevar: <input type="checkbox" id="para-llevar-checkbox" checked disabled></label>
                 </div>
             </div>
             <div class="container">
@@ -85,7 +77,7 @@
         <div id="cocina-screen" class="screen">
             <h3>Órdenes en Cocina</h3>
             <div id="cocina-list" class="cocina-list scrollable"></div>
-            <button onclick="showScreen('mesas-screen')">Volver a Mesas</button>
+            <button onclick="showScreen('para-llevar-screen')">Volver a Órdenes Para Llevar</button>
         </div>
     </div>
 
