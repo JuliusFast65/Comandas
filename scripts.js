@@ -64,7 +64,7 @@ function mostrarParaLlevar() {
     paraLlevarDiv.innerHTML = ''; // Limpiar el contenedor de órdenes para llevar
     paraLlevarOrdenes.forEach(orden => {
         const ordenDiv = document.createElement('div');
-        ordenDiv.className = 'mesa'; // Reutilizamos clase 'mesa' para estilo
+        ordenDiv.className = `mesa ${orden.ocupada ? 'ocupada' : 'libre'}`; // Cambiar el color según el estado
         ordenDiv.textContent = `Para Llevar ${orden.numero}`;
         ordenDiv.onclick = () => seleccionarOrdenParaLlevar(orden.numero);
         paraLlevarDiv.appendChild(ordenDiv);
@@ -76,6 +76,7 @@ function seleccionarMesa(numero) {
     mesaSeleccionada = mesas.find(m => m.numero === numero);
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
+    document.getElementById('mesa-label').style.display = 'block'; // Mostrar el label de mesa
     document.getElementById('para-llevar-checkbox').checked = false;
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -88,6 +89,7 @@ function seleccionarOrdenParaLlevar(numero) {
     mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
+    document.getElementById('mesa-label').style.display = 'none'; // Ocultar el label de mesa
     document.getElementById('para-llevar-checkbox').checked = true;
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -292,11 +294,11 @@ function mostrarCocina() {
                     const itemDiv = document.createElement('div');
                     itemDiv.innerHTML = `
                         <p>${item.nombre} - ${item.cantidad} ${item.nota ? `<br><small>Nota: ${item.nota}</small>` : ''}</p>
-                        <select onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.value)">
-                            <option value="en preparación" ${item.estado === 'en preparación' ? 'selected' : ''}>En preparación</option>
-                            <option value="terminado" ${item.estado === 'terminado' ? 'selected' : ''}>Terminado</option>
-                        </select>
+                        <label class="checkbox-label">
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación')"> Terminado
+                        </label>
                     `;
+                    itemDiv.style.textAlign = "left"; // Alinear el texto a la izquierda para mejor estética
                     ordenDiv.appendChild(itemDiv);
                 });
             });
