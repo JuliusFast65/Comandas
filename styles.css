@@ -194,4 +194,36 @@ ul li {
     justify-content: space-between;
 }
 
-.header
+.header, .footer {
+    position: sticky;
+    background: white;
+    padding: 10px 0;
+    z-index: 10;
+}
+
+.header {
+    top: 0;
+}
+
+.footer {
+    bottom: 0;
+}
+
+.scrollable {
+    overflow-y: auto;
+}
+
+.cocina-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.cocina-item {
+    flex: 1 1 calc(33% - 20px);
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f8f8f8;
+    text-align: center;
+}
