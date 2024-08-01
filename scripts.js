@@ -360,7 +360,7 @@ function mostrarCocina() {
                     itemDiv.innerHTML = `
                         <div style="display: flex; justify-content: space-between; width: 100%;">
                             <span>${item.nombre} - ${item.cantidad}</span>
-                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'cocina')">
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'cocina')" ${item.enCocina ? 'checked' : ''}>
                         </div>
                         ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
                     `;
@@ -402,7 +402,7 @@ function mostrarBar() {
                     itemDiv.innerHTML = `
                         <div style="display: flex; justify-content: space-between; width: 100%;">
                             <span>${item.nombre} - ${item.cantidad}</span>
-                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'bar')">
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'bar')" ${item.enBar ? 'checked' : ''}>
                         </div>
                         ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
                     `;
@@ -440,7 +440,7 @@ function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
                 }
             }
             // Si hay algún ítem que no esté terminado, la orden no está completa
-            if (!item.enCocina && !item.enBar) {
+            if ((!item.enCocina && area === 'cocina') || (!item.enBar && area === 'bar')) {
                 ordenTerminada = false;
             }
         });
