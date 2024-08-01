@@ -191,7 +191,8 @@ ul li {
 
 .button-group {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .header, .footer {
