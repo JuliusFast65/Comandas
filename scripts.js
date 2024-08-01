@@ -28,6 +28,7 @@ let notaIndex = null;
 let paraLlevarCounter = 1;
 let paraLlevarOrdenes = [];
 
+// Función para mostrar la pantalla deseada
 function showScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => {
@@ -36,6 +37,7 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
 }
 
+// Función para mostrar las mesas y las órdenes para llevar
 function mostrarMesas() {
     const mesasDiv = document.getElementById('mesas');
     mesasDiv.innerHTML = '';
@@ -58,6 +60,7 @@ function mostrarMesas() {
     });
 }
 
+// Función para seleccionar una mesa o una orden para llevar
 function seleccionarMesa(numero, esParaLlevar) {
     if (esParaLlevar) {
         mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
@@ -75,6 +78,7 @@ function seleccionarMesa(numero, esParaLlevar) {
     showScreen('toma-ordenes-screen');
 }
 
+// Función para crear una nueva orden para llevar
 function crearParaLlevar() {
     const nuevaOrden = {
         numero: paraLlevarCounter,
@@ -86,6 +90,7 @@ function crearParaLlevar() {
     mostrarMesas();
 }
 
+// Función para mostrar productos según la categoría seleccionada
 function showProducts(categoria) {
     document.getElementById('categories').style.display = 'none';
     document.getElementById('back-to-categories').style.display = 'block';
@@ -101,12 +106,14 @@ function showProducts(categoria) {
     });
 }
 
+// Función para volver a mostrar las categorías
 function showCategories() {
     document.getElementById('categories').style.display = 'flex';
     document.getElementById('back-to-categories').style.display = 'none';
     document.getElementById('products').style.display = 'none';
 }
 
+// Función para agregar un producto a la orden
 function agregarProducto(producto) {
     const cuenta = parseInt(document.getElementById('cuentas').value);
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina);
@@ -118,6 +125,7 @@ function agregarProducto(producto) {
     actualizarOrden();
 }
 
+// Función para disminuir la cantidad de un producto en la orden
 function disminuirCantidad(producto, cuenta) {
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina);
     if (index > -1) {
@@ -129,16 +137,19 @@ function disminuirCantidad(producto, cuenta) {
     actualizarOrden();
 }
 
+// Función para abrir el modal para añadir notas a un producto
 function abrirModalNota(index) {
     notaIndex = index;
     document.getElementById('nota-texto').value = orden[index].nota || '';
     document.getElementById('nota-modal').style.display = 'block';
 }
 
+// Función para cerrar el modal de notas
 function cerrarModal() {
     document.getElementById('nota-modal').style.display = 'none';
 }
 
+// Función para guardar la nota del modal
 function guardarNota() {
     const nota = document.getElementById('nota-texto').value;
     if (notaIndex !== null) {
@@ -148,6 +159,7 @@ function guardarNota() {
     cerrarModal();
 }
 
+// Función para actualizar la lista de la orden
 function actualizarOrden() {
     const ordenList = document.getElementById('orden-list');
     ordenList.innerHTML = '';
@@ -176,6 +188,7 @@ function actualizarOrden() {
     ordenList.scrollTop = ordenList.scrollHeight;
 }
 
+// Función para confirmar la orden
 function confirmarOrden() {
     const confirmacionList = document.getElementById('confirmacion-list');
     confirmacionList.innerHTML = '';
@@ -195,6 +208,7 @@ function confirmarOrden() {
     showScreen('confirmacion-screen');
 }
 
+// Función para enviar la orden a la cocina
 function enviarCocina() {
     let ordenNueva = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva');
     if (!ordenNueva) {
@@ -210,10 +224,12 @@ function enviarCocina() {
     showScreen('mesas-screen');
 }
 
+// Función para cancelar la orden y volver a la pantalla de mesas
 function cancelarOrden() {
     showScreen('mesas-screen');
 }
 
+// Función para autorizar cambios con un código
 function autorizar() {
     const authCode = document.getElementById('auth-code').value;
     if (authCode === '1234') { // Simulación de código de autorización
@@ -224,11 +240,13 @@ function autorizar() {
     }
 }
 
+// Función para actualizar el número de cuentas
 function actualizarCuentas() {
     cuentas = parseInt(document.getElementById('cuentas').value);
     actualizarOrden();
 }
 
+// Función para mostrar las órdenes en la pantalla de cocina
 function mostrarCocina() {
     const cocinaList = document.getElementById('cocina-list');
     cocinaList.innerHTML = '';
@@ -259,6 +277,7 @@ function mostrarCocina() {
     });
 }
 
+// Función para actualizar el estado de un ítem en la orden
 function actualizarEstadoOrden(mesaNumero, itemNombre, estado) {
     const mesa = mesas.find(m => m.numero === mesaNumero) || paraLlevarOrdenes.find(m => m.numero === mesaNumero);
     mesa.ordenes.forEach(orden => {
