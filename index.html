@@ -3,90 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prototipo Comandas</title>
+    <title>Comandas</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="app">
-        <!-- Pantalla de Inicio de Sesión -->
-        <div id="login-screen" class="screen active">
-            <h3>Iniciar Sesión</h3>
-            <input type="text" id="username" placeholder="Usuario">
-            <input type="password" id="password" placeholder="Contraseña">
-            <button onclick="showScreen('seleccion-mesas-screen')">Iniciar Sesión</button>
+    <div id="login-screen" class="screen active">
+        <h2>Inicio de Sesión</h2>
+        <input type="text" placeholder="Usuario" id="usuario">
+        <input type="password" placeholder="Contraseña" id="contrasena">
+        <button onclick="showScreen('seleccion-mesas-screen')">Entrar</button>
+    </div>
+
+    <div id="seleccion-mesas-screen" class="screen">
+        <h2>Seleccionar Mesa</h2>
+        <div id="mesas" class="mesas"></div>
+        <h2>Para Llevar</h2>
+        <div id="para-llevar" class="para-llevar"></div>
+        <button onclick="crearParaLlevar()">Nueva Orden Para Llevar</button>
+        <button onclick="showScreen('cocina-screen')">Ver Cocina</button>
+        <button onclick="showScreen('bar-screen')">Ver Bar</button>
+    </div>
+
+    <div id="toma-ordenes-screen" class="screen">
+        <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
+        <div class="header">
+            <label id="mesa-label">
+                Mesa: <span id="orden-numero"></span>
+            </label>
+            <label>
+                Cuentas:
+                <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()">
+            </label>
+            <label>
+                Para Llevar
+                <input type="checkbox" id="para-llevar-checkbox" disabled>
+            </label>
         </div>
-        
-        <!-- Pantalla de Selección de Mesas y Para Llevar -->
-        <div id="seleccion-mesas-screen" class="screen">
-            <h3>Seleccionar Mesa o Para Llevar</h3>
-            <div>
-                <h4>Mesas</h4>
-                <div id="mesas" class="mesas scrollable"></div>
-            </div>
-            <div>
-                <h4>Para Llevar</h4>
-                <div id="para-llevar" class="mesas scrollable"></div>
-                <button onclick="crearParaLlevar()">Añadir Orden Para Llevar</button>
-            </div>
-            <button onclick="showScreen('cocina-screen')">Ir a Cocina</button>
+        <div id="categories" class="categories">
+            <div class="category" onclick="showProducts('entradas')">Entradas</div>
+            <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
+            <div class="category" onclick="showProducts('postres')">Postres</div>
+            <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+            <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
+            <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
         </div>
-        
-        <!-- Pantalla de Toma de Órdenes -->
-        <div id="toma-ordenes-screen" class="screen">
-            <div class="header">
-                <h3 class="center-title">Orden <span id="orden-tipo"></span> <span id="orden-numero"></span></h3>
-                <div class="mesa-info">
-                    <label id="mesa-label">Mesa: <span id="mesa-seleccionada"></span></label>
-                    <label>Cuentas: <input type="number" id="cuentas" min="1" value="1" onchange="actualizarCuentas()"></label>
-                    <label>Para llevar: <input type="checkbox" id="para-llevar-checkbox" disabled></label>
-                </div>
-            </div>
-            <div class="container">
-                <div id="selection" class="selection scrollable">
-                    <div id="categories" class="categories">
-                        <div class="category" onclick="showProducts('entradas')">Entradas</div>
-                        <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
-                        <div class="category" onclick="showProducts('postres')">Postres</div>
-                        <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
-                        <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
-                        <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
-                    </div>
-                    <div id="products" class="products"></div>
-                    <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
-                </div>
-                <div id="order" class="order scrollable">
-                    <ul id="orden-list"></ul>
-                </div>
-            </div>
-            <div class="footer">
+        <div id="products" class="products"></div>
+        <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+        <ul id="orden-list" class="orden-list scrollable"></ul>
+        <div class="footer">
+            <div class="button-group">
                 <button onclick="confirmarOrden()">Confirmar Orden</button>
                 <button onclick="cancelarOrden()">Volver a Mesas</button>
             </div>
         </div>
-        
-        <!-- Pantalla de Confirmación de Órdenes -->
-        <div id="confirmacion-screen" class="screen">
-            <h3>Confirmación de Orden</h3>
-            <ul id="confirmacion-list"></ul>
-            <div class="button-group vertical">
-                <button onclick="enviarCocina()">Enviar a Cocina</button>
+    </div>
+
+    <div id="confirmacion-screen" class="screen">
+        <h2>Confirmar Orden</h2>
+        <ul id="confirmacion-list" class="orden-list scrollable"></ul>
+        <div class="footer">
+            <div class="button-group">
+                <button onclick="enviarCocina()">Enviar a Preparación</button>
                 <button onclick="showScreen('toma-ordenes-screen')">Volver a la Orden</button>
             </div>
         </div>
-        
-        <!-- Pantalla de Autorización -->
-        <div id="autorizacion-screen" class="screen">
-            <h3>Autorización</h3>
-            <input type="text" id="auth-code" placeholder="Código de Autorización">
-            <button onclick="autorizar()">Confirmar</button>
-        </div>
-        
-        <!-- Pantalla de Órdenes en Cocina -->
-        <div id="cocina-screen" class="screen">
-            <h3>Órdenes en Cocina</h3>
-            <div id="cocina-list" class="cocina-list scrollable"></div>
-            <button onclick="showScreen('seleccion-mesas-screen')">Volver a Selección de Mesas</button>
-        </div>
+    </div>
+
+    <div id="cocina-screen" class="screen">
+        <h2>Órdenes en Cocina</h2>
+        <div id="cocina-list" class="cocina-list"></div>
+        <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
+    </div>
+
+    <div id="bar-screen" class="screen">
+        <h2>Órdenes en Bar</h2>
+        <div id="bar-list" class="bar-list"></div>
+        <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
     </div>
 
     <!-- Modal para añadir notas -->
@@ -94,12 +86,11 @@
         <div class="modal-content">
             <span class="close" onclick="cerrarModal()">&times;</span>
             <h3>Añadir Nota</h3>
-            <textarea id="nota-texto" placeholder="Escribe tu nota aquí"></textarea>
+            <textarea id="nota-texto" rows="4"></textarea>
             <button onclick="guardarNota()">Guardar Nota</button>
         </div>
     </div>
 
-    <!-- Carga del script al final para asegurar que el DOM esté completamente cargado -->
     <script src="scripts.js"></script>
 </body>
 </html>
