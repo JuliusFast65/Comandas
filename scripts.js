@@ -286,19 +286,22 @@ function mostrarCocina() {
         const ordenesCocina = orden.ordenes.filter(o => o.estado === 'en cocina');
         if (ordenesCocina.length > 0) {
             const ordenDiv = document.createElement('div');
+            // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
+            const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
             ordenDiv.className = 'cocina-item';
-            ordenDiv.innerHTML = `<h4>${orden.ordenes.some(o => o.estado === 'nueva') ? 'Mesa' : 'Para Llevar'} ${orden.numero}</h4>`;
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
             
+            // Iterar sobre cada ítem de la orden
             ordenesCocina.forEach(orden => {
                 orden.items.forEach(item => {
                     const itemDiv = document.createElement('div');
+                    itemDiv.style.display = "flex";
+                    itemDiv.style.justifyContent = "space-between"; // Alinear el checkbox al final
+                    itemDiv.style.alignItems = "center"; // Centrar verticalmente el contenido
                     itemDiv.innerHTML = `
-                        <p>${item.nombre} - ${item.cantidad} ${item.nota ? `<br><small>Nota: ${item.nota}</small>` : ''}</p>
-                        <label class="checkbox-label">
-                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación')"> Terminado
-                        </label>
+                        <span>${item.nombre} - ${item.cantidad}${item.nota ? `<br><small>Nota: ${item.nota}</small>` : ''}</span>
+                        <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación')">
                     `;
-                    itemDiv.style.textAlign = "left"; // Alinear el texto a la izquierda para mejor estética
                     ordenDiv.appendChild(itemDiv);
                 });
             });
