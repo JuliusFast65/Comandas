@@ -7,22 +7,9 @@ const productos = {
     adicionales: ['Papas Fritas', 'Arroz', 'Ensalada', 'Guacamole', 'Queso', 'Tortillas', 'Frijoles', 'Salsa', 'Pan', 'Aguacate', 'Tocino', 'Champiñones', 'Aros de Cebolla', 'Purée de Papas', 'Maíz']
 };
 
-const mesas = [
-    { numero: 1, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 2, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 3, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 4, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 5, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 6, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 7, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 8, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 9, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 10, ocupada: false, ordenes: [{ estado: 'nueva', items: [] }] }
-];
-
 let orden = [];
 let ordenEnCocina = [];
-let mesaSeleccionada = null;
+let ordenSeleccionada = null;
 let cuentas = 1;
 let notaIndex = null;
 let paraLlevarCounter = 1;
@@ -37,43 +24,25 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
 }
 
-// Función para mostrar las mesas y las órdenes para llevar
-function mostrarMesas() {
-    const mesasDiv = document.getElementById('mesas');
-    mesasDiv.innerHTML = '';
-    mesas.forEach(mesa => {
-        const mesaDiv = document.createElement('div');
-        mesaDiv.className = `mesa ${mesa.ocupada ? 'ocupada' : 'libre'}`;
-        mesaDiv.textContent = `Mesa ${mesa.numero}`;
-        mesaDiv.onclick = () => seleccionarMesa(mesa.numero, false);
-        mesasDiv.appendChild(mesaDiv);
-    });
-
+// Función para mostrar las órdenes para llevar
+function mostrarParaLlevar() {
     const paraLlevarDiv = document.getElementById('para-llevar');
     paraLlevarDiv.innerHTML = '';
     paraLlevarOrdenes.forEach(orden => {
         const ordenDiv = document.createElement('div');
-        ordenDiv.className = 'mesa';
-        ordenDiv.textContent = `Para Llevar ${orden.numero}`;
-        ordenDiv.onclick = () => seleccionarMesa(orden.numero, true);
+        ordenDiv.className = 'mesa'; // Reutilizamos clase 'mesa' para estilo
+        ordenDiv.textContent = `Orden Para Llevar ${orden.numero}`;
+        ordenDiv.onclick = () => seleccionarOrdenParaLlevar(orden.numero);
         paraLlevarDiv.appendChild(ordenDiv);
     });
 }
 
-// Función para seleccionar una mesa o una orden para llevar
-function seleccionarMesa(numero, esParaLlevar) {
-    if (esParaLlevar) {
-        mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
-        document.getElementById('para-llevar-checkbox').checked = true;
-    } else {
-        mesaSeleccionada = mesas.find(m => m.numero === numero);
-        document.getElementById('para-llevar-checkbox').checked = false;
-    }
-    
-    document.getElementById('mesa-numero').textContent = mesaSeleccionada.numero;
-    document.getElementById('mesa-seleccionada').textContent = mesaSeleccionada.numero;
-    ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
-    orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
+// Función para seleccionar una orden para llevar
+function seleccionarOrdenParaLlevar(numero) {
+    ordenSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
+    document.getElementById('orden-numero').textContent = ordenSeleccionada.numero;
+    ordenEnCocina = ordenSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
+    orden = ordenSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     showScreen('toma-ordenes-screen');
 }
@@ -87,7 +56,7 @@ function crearParaLlevar() {
     };
     paraLlevarCounter += 1;
     paraLlevarOrdenes.push(nuevaOrden);
-    mostrarMesas();
+    mostrarParaLlevar();
 }
 
 // Función para mostrar productos según la categoría seleccionada
@@ -210,23 +179,22 @@ function confirmarOrden() {
 
 // Función para enviar la orden a la cocina
 function enviarCocina() {
-    let ordenNueva = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva');
+    let ordenNueva = ordenSeleccionada.ordenes.find(o => o.estado === 'nueva');
     if (!ordenNueva) {
         ordenNueva = { estado: 'nueva', items: [] };
-        mesaSeleccionada.ordenes.push(ordenNueva);
+        ordenSeleccionada.ordenes.push(ordenNueva);
     }
     ordenNueva.items = orden.filter(item => !item.enCocina).map(item => ({ ...item, enCocina: true }));
-    mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: ordenNueva.items });
-    mesaSeleccionada.ocupada = true;
-    mostrarMesas();
+    ordenSeleccionada.ordenes.push({ estado: 'en cocina', items: ordenNueva.items });
+    mostrarParaLlevar();
     mostrarCocina();
     alert('Orden enviada a la cocina');
-    showScreen('mesas-screen');
+    showScreen('para-llevar-screen');
 }
 
-// Función para cancelar la orden y volver a la pantalla de mesas
+// Función para cancelar la orden y volver a la pantalla de órdenes para llevar
 function cancelarOrden() {
-    showScreen('mesas-screen');
+    showScreen('para-llevar-screen');
 }
 
 // Función para autorizar cambios con un código
@@ -251,19 +219,19 @@ function mostrarCocina() {
     const cocinaList = document.getElementById('cocina-list');
     cocinaList.innerHTML = '';
 
-    [...mesas, ...paraLlevarOrdenes].forEach(mesa => {
-        const ordenesCocina = mesa.ordenes.filter(o => o.estado === 'en cocina');
+    paraLlevarOrdenes.forEach(orden => {
+        const ordenesCocina = orden.ordenes.filter(o => o.estado === 'en cocina');
         if (ordenesCocina.length > 0) {
             const ordenDiv = document.createElement('div');
             ordenDiv.className = 'cocina-item';
-            ordenDiv.innerHTML = `<h4>Mesa ${mesa.numero}</h4>`;
+            ordenDiv.innerHTML = `<h4>Orden Para Llevar ${orden.numero}</h4>`;
             
             ordenesCocina.forEach(orden => {
                 orden.items.forEach(item => {
                     const itemDiv = document.createElement('div');
                     itemDiv.innerHTML = `
                         <p>${item.nombre} - ${item.cantidad} ${item.nota ? `<br><small>Nota: ${item.nota}</small>` : ''}</p>
-                        <select onchange="actualizarEstadoOrden(${mesa.numero}, '${item.nombre}', this.value)">
+                        <select onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.value)">
                             <option value="en preparación" ${item.estado === 'en preparación' ? 'selected' : ''}>En preparación</option>
                             <option value="terminado" ${item.estado === 'terminado' ? 'selected' : ''}>Terminado</option>
                         </select>
@@ -278,9 +246,9 @@ function mostrarCocina() {
 }
 
 // Función para actualizar el estado de un ítem en la orden
-function actualizarEstadoOrden(mesaNumero, itemNombre, estado) {
-    const mesa = mesas.find(m => m.numero === mesaNumero) || paraLlevarOrdenes.find(m => m.numero === mesaNumero);
-    mesa.ordenes.forEach(orden => {
+function actualizarEstadoOrden(ordenNumero, itemNombre, estado) {
+    const orden = paraLlevarOrdenes.find(o => o.numero === ordenNumero);
+    orden.ordenes.forEach(orden => {
         orden.items.forEach(item => {
             if (item.nombre === itemNombre) {
                 item.estado = estado;
@@ -292,6 +260,6 @@ function actualizarEstadoOrden(mesaNumero, itemNombre, estado) {
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
     showScreen('login-screen');
-    mostrarMesas();
+    mostrarParaLlevar();
     mostrarCocina();
 });
