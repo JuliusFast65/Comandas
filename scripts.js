@@ -155,6 +155,7 @@ function enviarCocina() {
     mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: ordenNueva.items });
     mesaSeleccionada.ocupada = true;
     mostrarMesas();
+    mostrarCocina();
     alert('Orden enviada a la cocina');
     showScreen('mesas-screen');
 }
