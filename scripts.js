@@ -407,17 +407,20 @@ function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
 
     let ordenTerminada = true; // Inicializamos la bandera de orden terminada
 
+    // Iterar sobre cada orden y sus ítems
     orden.ordenes.forEach(o => {
         o.items.forEach(item => {
             if (item.nombre === itemNombre) {
-                if (area === 'cocina') {
+                if (area === 'cocina' && item.enCocina) {
                     item.enCocina = estado === 'terminado';
-                } else {
+                }
+                if (area === 'bar' && item.enBar) {
                     item.enBar = estado === 'terminado';
                 }
             }
-            if (!item.enCocina && !item.enBar) {
-                ordenTerminada = false; // Si hay algún ítem que no esté terminado, la orden no está completa
+            // Si hay algún ítem que no esté terminado, la orden no está completa
+            if (!item.enCocina || !item.enBar) {
+                ordenTerminada = false;
             }
         });
     });
