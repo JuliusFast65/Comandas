@@ -296,11 +296,14 @@ function mostrarCocina() {
                 orden.items.forEach(item => {
                     const itemDiv = document.createElement('div');
                     itemDiv.style.display = "flex";
-                    itemDiv.style.justifyContent = "space-between"; // Alinear el checkbox al final
-                    itemDiv.style.alignItems = "center"; // Centrar verticalmente el contenido
+                    itemDiv.style.flexDirection = "column"; // Cambiar para dos líneas por ítem
+                    itemDiv.style.alignItems = "flex-start"; // Alinear los elementos a la izquierda
                     itemDiv.innerHTML = `
-                        <span>${item.nombre} - ${item.cantidad}${item.nota ? ` <small>(Nota: ${item.nota})</small>` : ''}</span>
-                        <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación')" style="margin-left: 10px;">
+                        <div style="display: flex; justify-content: space-between; width: 100%;">
+                            <span>${item.nombre} - ${item.cantidad}</span>
+                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación')">
+                        </div>
+                        ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
                     `;
                     ordenDiv.appendChild(itemDiv);
                 });
