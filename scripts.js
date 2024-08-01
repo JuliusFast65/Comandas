@@ -115,7 +115,7 @@ function actualizarOrden() {
     orden.filter(item => !item.enCocina).forEach(item => {
         const listItem = document.createElement('li');
         listItem.innerHTML = `
-            ${item.nombre} - ${item.cantidad} (Cuenta ${item.cuenta})
+            ${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}
             <div class="quantity-controls">
                 <button onclick="disminuirCantidad('${item.nombre}', ${item.cuenta})">-</button>
                 <button onclick="agregarProducto('${item.nombre}')">+</button>
@@ -138,7 +138,7 @@ function confirmarOrden() {
     
     orden.filter(item => !item.enCocina).forEach(item => {
         const listItem = document.createElement('li');
-        listItem.textContent = `${item.nombre} - ${item.cantidad} (Cuenta ${item.cuenta})`;
+        listItem.textContent = `${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}`;
         confirmacionList.appendChild(listItem);
     });
     
@@ -178,8 +178,43 @@ function actualizarCuentas() {
     actualizarOrden();
 }
 
+function mostrarCocina() {
+    const cocinaList = document.getElementById('cocina-list');
+    cocinaList.innerHTML = '';
+
+    mesas.forEach(mesa => {
+        mesa.ordenes.filter(o => o.estado === 'en cocina').forEach(orden => {
+            orden.items.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'cocina-item';
+                itemDiv.innerHTML = `
+                    <h4>Mesa ${mesa.numero}</h4>
+                    <p>${item.nombre} - ${item.cantidad}</p>
+                    <select onchange="actualizarEstadoOrden(${mesa.numero}, '${item.nombre}', this.value)">
+                        <option value="en preparación" ${item.estado === 'en preparación' ? 'selected' : ''}>En preparación</option>
+                        <option value="terminado" ${item.estado === 'terminado' ? 'selected' : ''}>Terminado</option>
+                    </select>
+                `;
+                cocinaList.appendChild(itemDiv);
+            });
+        });
+    });
+}
+
+function actualizarEstadoOrden(mesaNumero, itemNombre, estado) {
+    const mesa = mesas.find(m => m.numero === mesaNumero);
+    mesa.ordenes.forEach(orden => {
+        orden.items.forEach(item => {
+            if (item.nombre === itemNombre) {
+                item.estado = estado;
+            }
+        });
+    });
+}
+
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
     showScreen('login-screen');
     mostrarMesas();
+    mostrarCocina();
 });
