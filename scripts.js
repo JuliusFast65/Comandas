@@ -25,6 +25,8 @@ let ordenEnCocina = [];
 let mesaSeleccionada = null;
 let cuentas = 1;
 let notaIndex = null;
+let paraLlevarCounter = 1;
+let paraLlevarOrdenes = [];
 
 function showScreen(screenId) {
     const screens = document.querySelectorAll('.screen');
@@ -41,20 +43,47 @@ function mostrarMesas() {
         const mesaDiv = document.createElement('div');
         mesaDiv.className = `mesa ${mesa.ocupada ? 'ocupada' : 'libre'}`;
         mesaDiv.textContent = `Mesa ${mesa.numero}`;
-        mesaDiv.onclick = () => seleccionarMesa(mesa.numero);
+        mesaDiv.onclick = () => seleccionarMesa(mesa.numero, false);
         mesasDiv.appendChild(mesaDiv);
+    });
+
+    const paraLlevarDiv = document.getElementById('para-llevar');
+    paraLlevarDiv.innerHTML = '';
+    paraLlevarOrdenes.forEach(orden => {
+        const ordenDiv = document.createElement('div');
+        ordenDiv.className = 'mesa';
+        ordenDiv.textContent = `Para Llevar ${orden.numero}`;
+        ordenDiv.onclick = () => seleccionarMesa(orden.numero, true);
+        paraLlevarDiv.appendChild(ordenDiv);
     });
 }
 
-function seleccionarMesa(numero) {
-    const mesa = mesas.find(m => m.numero === numero);
-    mesaSeleccionada = mesa;
-    document.getElementById('mesa-numero').textContent = mesa.numero;
-    document.getElementById('mesa-seleccionada').textContent = mesa.numero;
-    ordenEnCocina = mesa.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
-    orden = mesa.ordenes.find(o => o.estado === 'nueva')?.items || [];
+function seleccionarMesa(numero, esParaLlevar) {
+    if (esParaLlevar) {
+        mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
+        document.getElementById('para-llevar-checkbox').checked = true;
+    } else {
+        mesaSeleccionada = mesas.find(m => m.numero === numero);
+        document.getElementById('para-llevar-checkbox').checked = false;
+    }
+    
+    document.getElementById('mesa-numero').textContent = mesaSeleccionada.numero;
+    document.getElementById('mesa-seleccionada').textContent = mesaSeleccionada.numero;
+    ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
+    orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     showScreen('toma-ordenes-screen');
+}
+
+function crearParaLlevar() {
+    const nuevaOrden = {
+        numero: paraLlevarCounter,
+        ocupada: false,
+        ordenes: [{ estado: 'nueva', items: [] }]
+    };
+    paraLlevarCounter += 1;
+    paraLlevarOrdenes.push(nuevaOrden);
+    mostrarMesas();
 }
 
 function showProducts(categoria) {
@@ -204,7 +233,7 @@ function mostrarCocina() {
     const cocinaList = document.getElementById('cocina-list');
     cocinaList.innerHTML = '';
 
-    mesas.forEach(mesa => {
+    [...mesas, ...paraLlevarOrdenes].forEach(mesa => {
         const ordenesCocina = mesa.ordenes.filter(o => o.estado === 'en cocina');
         if (ordenesCocina.length > 0) {
             const ordenDiv = document.createElement('div');
@@ -231,7 +260,7 @@ function mostrarCocina() {
 }
 
 function actualizarEstadoOrden(mesaNumero, itemNombre, estado) {
-    const mesa = mesas.find(m => m.numero === mesaNumero);
+    const mesa = mesas.find(m => m.numero === mesaNumero) || paraLlevarOrdenes.find(m => m.numero === mesaNumero);
     mesa.ordenes.forEach(orden => {
         orden.items.forEach(item => {
             if (item.nombre === itemNombre) {
