@@ -36,6 +36,30 @@
                 <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()">
             </label>
         </div>
+
+            <div class="container">
+                <div id="selection" class="selection scrollable">
+                    <div id="categories" class="categories">
+                        <div class="category" onclick="showProducts('entradas')">Entradas</div>
+                        <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
+                        <div class="category" onclick="showProducts('postres')">Postres</div>
+                        <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+                        <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
+                        <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
+                    </div>
+                    <div id="products" class="products"></div>
+                    <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+                </div>
+                <div id="order" class="order scrollable">
+                    <ul id="orden-list"></ul>
+                </div>
+            </div>
+            <div class="footer">
+                <button onclick="confirmarOrden()">Confirmar Orden</button>
+                <button onclick="cancelarOrden()">Cancelar Orden</button>
+            </div>
+
+<!--
         <div id="categories" class="categories">
             <div class="category" onclick="showProducts('entradas')">Entradas</div>
             <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
@@ -54,7 +78,8 @@
             </div>
         </div>
     </div>
-
+-->
+        
     <!-- Pantalla de confirmación de órdenes -->
     <div id="confirmacion-screen" class="screen">
         <h2>Confirmar Orden</h2>
