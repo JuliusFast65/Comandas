@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="app">
+    <!--<div id="app">
        <!-- Pantalla de inicio de sesión -->
     <div id="login-screen" class="screen active">
         <h2>Inicio de Sesión</h2>
@@ -38,28 +38,28 @@
         </div>
 
         <!--
-       <div class="container">
-           <div id="selection" class="selection scrollable">
-               <div id="categories" class="categories">
-                   <div class="category" onclick="showProducts('entradas')">Entradas</div>
-                   <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
-                   <div class="category" onclick="showProducts('postres')">Postres</div>
-                   <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
-                   <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
-                   <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
+           <div class="container">
+               <div id="selection" class="selection scrollable">
+                   <div id="categories" class="categories">
+                       <div class="category" onclick="showProducts('entradas')">Entradas</div>
+                       <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
+                       <div class="category" onclick="showProducts('postres')">Postres</div>
+                       <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
+                       <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
+                       <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
+                   </div>
+                   <div id="products" class="products"></div>
+                   <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
                </div>
-               <div id="products" class="products"></div>
-               <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+               <div id="order" class="order scrollable">
+                   <ul id="orden-list"></ul>
+               </div>
            </div>
-           <div id="order" class="order scrollable">
-               <ul id="orden-list"></ul>
+           <div class="footer">
+               <button onclick="confirmarOrden()">Confirmar Orden</button>
+               <button onclick="cancelarOrden()">Cancelar Orden</button>
            </div>
-       </div>
-       <div class="footer">
-           <button onclick="confirmarOrden()">Confirmar Orden</button>
-           <button onclick="cancelarOrden()">Cancelar Orden</button>
-       </div>
-    -->
+        -->
 
         <div id="categories" class="categories">
             <div class="category" onclick="showProducts('entradas')">Entradas</div>
@@ -79,35 +79,35 @@
             </div>
         </div>
     </div>
-   
-        <!-- Pantalla de confirmación de órdenes -->
-        <div id="confirmacion-screen" class="screen">
-            <h2>Confirmar Orden</h2>
-            <ul id="confirmacion-list" class="orden-list scrollable"></ul>
-            <div class="footer">
-                <div class="button-group">
-                    <button onclick="enviarCocina()">Enviar a Preparación</button>
-                    <button onclick="showScreen('toma-ordenes-screen')">Volver a la Orden</button>
-                </div>
+
+    <!-- Pantalla de confirmación de órdenes -->
+    <div id="confirmacion-screen" class="screen">
+        <h2>Confirmar Orden</h2>
+        <ul id="confirmacion-list" class="orden-list scrollable"></ul>
+        <div class="footer">
+            <div class="button-group">
+                <button onclick="enviarCocina()">Enviar a Preparación</button>
+                <button onclick="showScreen('toma-ordenes-screen')">Volver a la Orden</button>
             </div>
         </div>
-
-        <!-- Pantalla de cocina -->
-        <div id="cocina-screen" class="screen">
-            <h2>Órdenes en Cocina</h2>
-            <div id="cocina-list" class="cocina-list"></div>
-            <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
-        </div>
-
-        <!-- Pantalla de bar -->
-        <div id="bar-screen" class="screen">
-            <h2>Órdenes en Bar</h2>
-            <div id="bar-list" class="bar-list"></div>
-            <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
-        </div>
     </div>
 
+    <!-- Pantalla de cocina -->
+    <div id="cocina-screen" class="screen">
+        <h2>Órdenes en Cocina</h2>
+        <div id="cocina-list" class="cocina-list"></div>
+        <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
     </div>
+
+    <!-- Pantalla de bar -->
+    <div id="bar-screen" class="screen">
+        <h2>Órdenes en Bar</h2>
+        <div id="bar-list" class="bar-list"></div>
+        <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
+    </div>
+    </div>
+
+    <!--</div>
 
     <!-- Modal para añadir notas -->
     <div id="nota-modal" class="modal">
