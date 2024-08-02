@@ -218,9 +218,6 @@ function actualizarOrden() {
     // Mostrar los items que aún no están en preparación
     orden.filter(item => !item.enCocina && !item.enBar).forEach((item, index) => {
         const listItem = document.createElement('li');
-        listItem.style.display = 'flex';
-        listItem.style.flexDirection = 'column';
-        listItem.style.marginBottom = '10px';
         listItem.innerHTML = `
             <div>${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}</div>
             <div class="quantity-controls">
