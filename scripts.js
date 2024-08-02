@@ -142,26 +142,37 @@ function showCategories() {
 function agregarProducto(producto) {
     const cuenta = parseInt(document.getElementById('cuentas').value);
     console.log(`Agregando producto: ${producto} a la cuenta: ${cuenta}`); // Debug
-    // Actualizamos el código para evitar duplicaciones
+
+    // Buscar si el producto ya está en la orden para esta cuenta
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
+    
     if (index > -1) {
+        // Si el producto ya está, aumentamos la cantidad
         orden[index].cantidad += 1;
     } else {
+        // Si no está, lo añadimos a la orden
         orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false, enBar: false, nota: '' });
     }
+    
     actualizarOrden();
 }
 
 // Función para disminuir la cantidad de un producto en la orden
 function disminuirCantidad(producto, cuenta) {
     console.log(`Disminuyendo cantidad de producto: ${producto} para la cuenta: ${cuenta}`); // Debug
+
+    // Buscar el producto en la orden
     const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
+    
     if (index > -1) {
+        // Reducimos la cantidad
         orden[index].cantidad -= 1;
+        // Si la cantidad llega a 0, removemos el producto de la orden
         if (orden[index].cantidad === 0) {
             orden.splice(index, 1);
         }
     }
+    
     actualizarOrden();
 }
 
@@ -266,6 +277,7 @@ function confirmarOrden() {
 
 // Función para enviar la orden a preparación (cocina o bar)
 function enviarCocina() {
+    // Encontrar la orden nueva
     let ordenNueva = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva');
     if (!ordenNueva) {
         ordenNueva = { estado: 'nueva', items: [] };
@@ -274,7 +286,7 @@ function enviarCocina() {
     
     // Separar los ítems para bar y cocina
     ordenNueva.items = orden.filter(item => !item.enCocina && !item.enBar).map(item => {
-        if (productos.bebidasAlcoolicas.includes(item.nombre)) {
+        if (productos.bebidasAlcoolicas.includes(item.nombre) || productos.bebidas.includes(item.nombre)) {
             item.enBar = true; // Marcar como ítem de bar
         } else {
             item.enCocina = true; // Marcar como ítem de cocina
@@ -342,7 +354,8 @@ function mostrarCocina() {
         const ordenesCocina = orden.ordenes.filter(o => o.estado === 'en cocina');
         if (ordenesCocina.length > 0) {
             const ordenDiv = document.createElement('div');
-            // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
+
+// Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
             ordenDiv.className = 'cocina-item';
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
