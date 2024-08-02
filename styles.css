@@ -491,3 +491,18 @@ textarea {
     border-radius: 4px;
     resize: none;
 }
+
+/* Estilo para cada elemento de la lista de órdenes */
+ul#orden-list li {
+    display: block; /* Asegúrate de que cada elemento sea un bloque */
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Si deseas que la nota aparezca en una línea separada */
+ul#orden-list li div {
+    margin-top: 5px;
+}
