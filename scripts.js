@@ -274,7 +274,13 @@ function confirmarOrden() {
     ordenEnCocina.forEach(item => {
         const listItem = document.createElement('li');
         listItem.style.marginBottom = '10px'; // Asegurar separación entre items
-        listItem.textContent = `${item.nombre} - ${item.cantidad} (En cocina)`;
+        listItem.innerHTML = `
+            <div>${item.nombre} - ${item.cantidad} (En cocina)</div>
+            <div class="quantity-controls">
+                <button disabled>-</button>
+                <button disabled>+</button>
+            </div>
+        `;
         confirmacionList.appendChild(listItem);
     });
 
@@ -282,7 +288,13 @@ function confirmarOrden() {
     ordenEnBar.forEach(item => {
         const listItem = document.createElement('li');
         listItem.style.marginBottom = '10px'; // Asegurar separación entre items
-        listItem.textContent = `${item.nombre} - ${item.cantidad} (En bar)`;
+        listItem.innerHTML = `
+            <div>${item.nombre} - ${item.cantidad} (En bar)</div>
+            <div class="quantity-controls">
+                <button disabled>-</button>
+                <button disabled>+</button>
+            </div>
+        `;
         confirmacionList.appendChild(listItem);
     });
 
@@ -290,7 +302,13 @@ function confirmarOrden() {
     orden.filter(item => !item.enCocina && !item.enBar).forEach(item => {
         const listItem = document.createElement('li');
         listItem.style.marginBottom = '10px'; // Asegurar separación entre items
-        listItem.textContent = `${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}`;
+        listItem.innerHTML = `
+            <div>${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}</div>
+            <div class="quantity-controls">
+                <button disabled>-</button>
+                <button disabled>+</button>
+            </div>
+        `;
         confirmacionList.appendChild(listItem);
     });
     
