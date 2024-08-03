@@ -332,20 +332,33 @@ ul#confirmacion-list li {
     background-color: #0056b3;
 }
 
+/* Cambios en la distribución de la pantalla de toma de órdenes */
 .container {
     display: flex;
-    height: calc(100vh - 200px);
-    gap: 10px;
+    height: calc(100vh - 200px); /* Mantener el 100% de la altura menos la cabecera y pie */
+    gap: 20px; /* Aumenta el espacio entre las secciones */
 }
 
 .selection {
-    flex: 2; /* Dar más espacio a la sección de selección */
+    flex: 3; /* 75% del espacio total para categorías/productos */
     overflow-y: auto;
 }
 
 .order {
-    flex: 1; /* Menos espacio para la lista de productos seleccionados */
+    flex: 1; /* 25% del espacio total para la lista de productos seleccionados */
     overflow-y: auto;
+}
+
+/* Espacio entre botones en el footer */
+.footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    gap: 20px; /* Aumentar el espacio entre los botones */
+}
+
+.footer button {
+    width: 150px; /* Ajustar el tamaño de los botones si es necesario */
 }
 
 .categories, .products, .mesas {
@@ -450,10 +463,6 @@ ul#confirmacion-list li {
 
 .header {
     top: 0;
-}
-
-.footer {
-    bottom: 0;
 }
 
 .scrollable {
