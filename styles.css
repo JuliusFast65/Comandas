@@ -148,14 +148,6 @@ h2 {
     background-color: #388e3c;
 }
 
-ul#confirmacion-list li {
-    padding: 10px;
-    border-bottom: 1px solid #ddd;
-    display: flex;
-    flex-direction: column; /* Para asegurar que cada item esté en una línea separada */
-    margin-bottom: 10px;
-}
-
 .cocina-item, .bar-item {
     border: 1px solid #ccc;
     margin: 10px;
@@ -176,6 +168,12 @@ ul#confirmacion-list li {
 .cocina-item input[type="checkbox"], .bar-item input[type="checkbox"] {
     transform: scale(1); /* Mantener tamaño constante */
     margin-right: 10px;
+}
+
+.cocina-item div, .bar-item div {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Espacio entre elementos */
 }
 
 .modal {
@@ -287,6 +285,29 @@ ul li {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+ul#orden-list li {
+    display: block; /* Asegúrate de que cada elemento sea un bloque */
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Si deseas que la nota aparezca en una línea separada */
+ul#orden-list li div {
+    margin-top: 5px;
+}
+
+ul#confirmacion-list li {
+    display: block; /* Asegúrate de que cada elemento sea un bloque */
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    flex-direction: column; /* Para asegurar que cada item esté en una línea separada */
+    margin-bottom: 10px;
 }
 
 .quantity-controls {
@@ -492,19 +513,4 @@ textarea {
     border: 1px solid #ddd;
     border-radius: 4px;
     resize: none;
-}
-
-/* Estilo para cada elemento de la lista de órdenes */
-ul#orden-list li {
-    display: block; /* Asegúrate de que cada elemento sea un bloque */
-    padding: 10px;
-    border-bottom: 1px solid #ddd;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* Si deseas que la nota aparezca en una línea separada */
-ul#orden-list li div {
-    margin-top: 5px;
 }
