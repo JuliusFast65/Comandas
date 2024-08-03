@@ -1,12 +1,11 @@
-const productos = {
-    entradas: ['Bruschetta', 'Nachos', 'Quesadilla', 'Calamares', 'Alitas de Pollo', 'Tacos', 'Ceviche', 'Empanadas', 'Hummus', 'Mozzarella Sticks', 'Samosas', 'Spring Rolls', 'Dumplings', 'Guacamole', 'Carpaccio'],
-    platos: ['Pizza', 'Pasta', 'Hamburguesa', 'Ensalada', 'Sushi', 'Burrito', 'Paella', 'Risotto', 'Pollo Asado', 'Steak', 'Lasaña', 'Fajitas', 'Costillas BBQ', 'Shawarma', 'Fish & Chips'],
+platos: ['Pizza', 'Pasta', 'Hamburguesa', 'Ensalada', 'Sushi', 'Burrito', 'Paella', 'Risotto', 'Pollo Asado', 'Steak', 'Lasaña', 'Fajitas', 'Costillas BBQ', 'Shawarma', 'Fish & Chips'],
     postres: ['Tarta de Queso', 'Brownie', 'Helado', 'Fruta', 'Tiramisú', 'Crème Brûlée', 'Panna Cotta', 'Pastel de Zanahoria', 'Mousse de Chocolate', 'Gelatina', 'Flan', 'Profiteroles', 'Trifle', 'Tarta de Manzana', 'Tarta de Limón'],
     bebidas: ['Coca-Cola', 'Jugo de Naranja', 'Agua', 'Té Helado', 'Limonada', 'Café', 'Chocolate Caliente', 'Batido de Fresa', 'Batido de Chocolate', 'Agua con Gas', 'Red Bull', 'Sprite', 'Fanta'],
     bebidasAlcoolicas: ['Vino Tinto', 'Vino Blanco', 'Cerveza', 'Whisky', 'Tequila', 'Vodka', 'Ginebra', 'Ron', 'Brandy', 'Licor', 'Champán', 'Sangría', 'Margarita', 'Martini', 'Bloody Mary'],
     adicionales: ['Papas Fritas', 'Arroz', 'Ensalada', 'Guacamole', 'Queso', 'Tortillas', 'Frijoles', 'Salsa', 'Pan', 'Aguacate', 'Tocino', 'Champiñones', 'Aros de Cebolla', 'Purée de Papas', 'Maíz']
 };
 
+// Reducir el número de mesas a 9
 const mesas = [
     { numero: 1, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 2, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
@@ -16,8 +15,7 @@ const mesas = [
     { numero: 6, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 7, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
     { numero: 8, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 9, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 10, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] }
+    { numero: 9, ocupada: false, terminada: false, ordenes: [{ estado: 'nueva', items: [] }] }
 ];
 
 let orden = [];
@@ -123,7 +121,7 @@ function showProducts(categoria) {
     productsDiv.innerHTML = ''; // Limpiar el contenedor de productos
     productos[categoria].forEach(producto => {
         const productDiv = document.createElement('div');
-        productDiv.className = 'product';
+        productDiv.className = `product ${categoria}`;
         productDiv.textContent = producto;
         productDiv.onclick = () => agregarProducto(producto);
         productsDiv.appendChild(productDiv);
@@ -354,8 +352,7 @@ function mostrarCocina() {
         const ordenesCocina = orden.ordenes.filter(o => o.estado === 'en cocina');
         if (ordenesCocina.length > 0) {
             const ordenDiv = document.createElement('div');
-
-// Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
+            // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
             ordenDiv.className = 'cocina-item';
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
@@ -363,7 +360,7 @@ function mostrarCocina() {
             // Iterar sobre cada ítem de la orden
             ordenesCocina.forEach(o => {
                 o.items.forEach(item => {
-                    const itemDiv = document.createElement('div');
+               const itemDiv = document.createElement('div');
                     itemDiv.style.display = "flex";
                     itemDiv.style.flexDirection = "column"; // Cambiar para dos líneas por ítem
                     itemDiv.style.alignItems = "flex-start"; // Alinear los elementos a la izquierda
