@@ -148,6 +148,14 @@ h2 {
     background-color: #388e3c;
 }
 
+ul#confirmacion-list li {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    flex-direction: column; /* Para asegurar que cada item esté en una línea separada */
+    margin-bottom: 10px;
+}
+
 .cocina-item, .bar-item {
     border: 1px solid #ccc;
     margin: 10px;
@@ -157,11 +165,17 @@ h2 {
     width: 90%;
     max-width: 400px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    text-align: left;
 }
 
 .cocina-item h4, .bar-item h4 {
     margin: 0 0 10px 0;
     font-size: 20px;
+}
+
+.cocina-item input[type="checkbox"], .bar-item input[type="checkbox"] {
+    transform: scale(1); /* Mantener tamaño constante */
+    margin-right: 10px;
 }
 
 .modal {
