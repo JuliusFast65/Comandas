@@ -304,7 +304,6 @@ ul#orden-list li div {
 }
 
 ul#confirmacion-list li {
-    display: block; /* Asegúrate de que cada elemento sea un bloque */
     padding: 10px;
     border-bottom: 1px solid #ddd;
     display: flex;
