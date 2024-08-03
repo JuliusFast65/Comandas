@@ -1,4 +1,6 @@
-platos: ['Pizza', 'Pasta', 'Hamburguesa', 'Ensalada', 'Sushi', 'Burrito', 'Paella', 'Risotto', 'Pollo Asado', 'Steak', 'Lasaña', 'Fajitas', 'Costillas BBQ', 'Shawarma', 'Fish & Chips'],
+const productos = {
+    entradas: ['Bruschetta', 'Nachos', 'Quesadilla', 'Calamares', 'Alitas de Pollo', 'Tacos', 'Ceviche', 'Empanadas', 'Hummus', 'Mozzarella Sticks', 'Samosas', 'Spring Rolls', 'Dumplings', 'Guacamole', 'Carpaccio'],
+    platos: ['Pizza', 'Pasta', 'Hamburguesa', 'Ensalada', 'Sushi', 'Burrito', 'Paella', 'Risotto', 'Pollo Asado', 'Steak', 'Lasaña', 'Fajitas', 'Costillas BBQ', 'Shawarma', 'Fish & Chips'],
     postres: ['Tarta de Queso', 'Brownie', 'Helado', 'Fruta', 'Tiramisú', 'Crème Brûlée', 'Panna Cotta', 'Pastel de Zanahoria', 'Mousse de Chocolate', 'Gelatina', 'Flan', 'Profiteroles', 'Trifle', 'Tarta de Manzana', 'Tarta de Limón'],
     bebidas: ['Coca-Cola', 'Jugo de Naranja', 'Agua', 'Té Helado', 'Limonada', 'Café', 'Chocolate Caliente', 'Batido de Fresa', 'Batido de Chocolate', 'Agua con Gas', 'Red Bull', 'Sprite', 'Fanta'],
     bebidasAlcoolicas: ['Vino Tinto', 'Vino Blanco', 'Cerveza', 'Whisky', 'Tequila', 'Vodka', 'Ginebra', 'Ron', 'Brandy', 'Licor', 'Champán', 'Sangría', 'Margarita', 'Martini', 'Bloody Mary'],
@@ -26,6 +28,26 @@ let cuentas = 1;
 let notaIndex = null;
 let paraLlevarCounter = 1;
 let paraLlevarOrdenes = [];
+
+// Función para manejar el inicio de sesión
+function iniciarSesion() {
+    const usuario = document.getElementById('usuario').value.trim();
+    const contrasena = document.getElementById('contrasena').value.trim();
+
+    if (usuario === '' || contrasena === '') {
+        alert('Por favor, ingresa el usuario y la contraseña.');
+        return;
+    }
+
+    // Simulamos una verificación básica de usuario y contraseña
+    if (usuario === 'admin' && contrasena === '1234') {
+        showScreen('seleccion-mesas-screen');
+        console.log("Inicio de sesión exitoso"); // Debug
+    } else {
+        alert('Usuario o contraseña incorrectos.');
+        console.log("Fallo en el inicio de sesión"); // Debug
+    }
+}
 
 // Función para mostrar la pantalla deseada
 function showScreen(screenId) {
@@ -114,8 +136,8 @@ function crearParaLlevar() {
 // Función para mostrar productos según la categoría seleccionada
 function showProducts(categoria) {
     console.log(`Mostrando productos de la categoría: ${categoria}`); // Debug
-    document.getElementById('categories').style.display = 'none';
-    document.getElementById('back-to-categories').style.display = 'block';
+    
+document.getElementById('back-to-categories').style.display = 'block';
     const productsDiv = document.getElementById('products');
     productsDiv.style.display = 'flex';
     productsDiv.innerHTML = ''; // Limpiar el contenedor de productos
@@ -319,19 +341,6 @@ function cancelarOrden() {
     console.log("Orden cancelada, volviendo a selección de mesas"); // Debug
 }
 
-// Función para autorizar cambios con un código
-function autorizar() {
-    const authCode = document.getElementById('auth-code').value;
-    if (authCode === '1234') { // Simulación de código de autorización
-        alert('Autorización exitosa');
-        showScreen('toma-ordenes-screen');
-        console.log("Autorización exitosa"); // Debug
-    } else {
-        alert('Código incorrecto');
-        console.log("Código de autorización incorrecto"); // Debug
-    }
-}
-
 // Función para actualizar el número de cuentas
 function actualizarCuentas() {
     cuentas = parseInt(document.getElementById('cuentas').value);
@@ -360,7 +369,7 @@ function mostrarCocina() {
             // Iterar sobre cada ítem de la orden
             ordenesCocina.forEach(o => {
                 o.items.forEach(item => {
-               const itemDiv = document.createElement('div');
+                    const itemDiv = document.createElement('div');
                     itemDiv.style.display = "flex";
                     itemDiv.style.flexDirection = "column"; // Cambiar para dos líneas por ítem
                     itemDiv.style.alignItems = "flex-start"; // Alinear los elementos a la izquierda
