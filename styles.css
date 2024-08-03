@@ -335,6 +335,7 @@ ul#confirmacion-list li {
 
 .container {
     display: flex;
+    flex-direction: column;
     height: calc(100vh - 200px); /* Ajustar altura a pantalla menos header y footer */
     gap: 20px; /* Espacio entre secciones */
 }
@@ -347,6 +348,7 @@ ul#confirmacion-list li {
 .order {
     flex: 1; /* 25% del espacio para la lista de productos */
     overflow-y: auto;
+    max-height: 500px;
 }
 
 .categories, .products, .mesas {
