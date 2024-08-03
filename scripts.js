@@ -276,10 +276,6 @@ function confirmarOrden() {
         listItem.style.marginBottom = '10px'; // Asegurar separación entre items
         listItem.innerHTML = `
             <div>${item.nombre} - ${item.cantidad} (En cocina)</div>
-            <div class="quantity-controls">
-                <button disabled>-</button>
-                <button disabled>+</button>
-            </div>
         `;
         confirmacionList.appendChild(listItem);
     });
@@ -290,10 +286,6 @@ function confirmarOrden() {
         listItem.style.marginBottom = '10px'; // Asegurar separación entre items
         listItem.innerHTML = `
             <div>${item.nombre} - ${item.cantidad} (En bar)</div>
-            <div class="quantity-controls">
-                <button disabled>-</button>
-                <button disabled>+</button>
-            </div>
         `;
         confirmacionList.appendChild(listItem);
     });
@@ -304,10 +296,6 @@ function confirmarOrden() {
         listItem.style.marginBottom = '10px'; // Asegurar separación entre items
         listItem.innerHTML = `
             <div>${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}</div>
-            <div class="quantity-controls">
-                <button disabled>-</button>
-                <button disabled>+</button>
-            </div>
         `;
         confirmacionList.appendChild(listItem);
     });
