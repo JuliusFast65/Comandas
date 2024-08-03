@@ -29,8 +29,8 @@
 
         <!-- Pantalla de toma de órdenes -->
         <div id="toma-ordenes-screen" class="screen">
-            <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
-            <div class="header">
+            <div class="order-header">
+                <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
                 <label>
                     Cuentas:
                     <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()">
@@ -40,12 +40,12 @@
             <div class="container">
                 <div id="selection" class="selection scrollable">
                     <div id="categories" class="categories">
-                        <div class="category" onclick="showProducts('entradas')">Entradas</div>
-                        <div class="category" onclick="showProducts('platos')">Platos Fuertes</div>
-                        <div class="category" onclick="showProducts('postres')">Postres</div>
-                        <div class="category" onclick="showProducts('bebidas')">Bebidas</div>
-                        <div class="category" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
-                        <div class="category" onclick="showProducts('adicionales')">Adicionales</div>
+                        <div class="category entradas" onclick="showProducts('entradas')">Entradas</div>
+                        <div class="category platos" onclick="showProducts('platos')">Platos Fuertes</div>
+                        <div class="category postres" onclick="showProducts('postres')">Postres</div>
+                        <div class="category bebidas" onclick="showProducts('bebidas')">Bebidas</div>
+                        <div class="category bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
+                        <div class="category adicionales" onclick="showProducts('adicionales')">Adicionales</div>
                     </div>
                     <div id="products" class="products"></div>
                     <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
@@ -56,7 +56,7 @@
             </div>
             <div class="footer">
                 <button onclick="confirmarOrden()">Confirmar Orden</button>
-                <button onclick="cancelarOrden()">Cancelar Orden</button>
+                <button onclick="cancelarOrden()">Volver a Mesas</button>
             </div>
         </div>
 
