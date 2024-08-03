@@ -343,6 +343,7 @@ ul#confirmacion-list li {
 .selection {
     flex: 3; /* 75% del espacio para selección */
     overflow-y: auto;
+    max-height: 500px;
 }
 
 .order {
