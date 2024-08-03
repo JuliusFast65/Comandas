@@ -309,7 +309,7 @@ ul#confirmacion-list li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-direction: column; /* Asegurar que cada ítem esté en una línea separada */
+    flex-direction: row; /* Mostrar cada ítem en una línea separada */
     margin-bottom: 10px;
 }
 
@@ -335,17 +335,17 @@ ul#confirmacion-list li {
 
 .container {
     display: flex;
-    height: calc(100vh - 200px); /* Mantener el 100% de la altura menos la cabecera y pie */
-    gap: 20px; /* Aumenta el espacio entre las secciones */
+    height: calc(100vh - 200px); /* Ajustar altura a pantalla menos header y footer */
+    gap: 20px; /* Espacio entre secciones */
 }
 
 .selection {
-    flex: 3; /* 75% del espacio total para categorías/productos */
+    flex: 3; /* 75% del espacio para selección */
     overflow-y: auto;
 }
 
 .order {
-    flex: 1; /* 25% del espacio total para la lista de productos seleccionados */
+    flex: 1; /* 25% del espacio para la lista de productos */
     overflow-y: auto;
 }
 
