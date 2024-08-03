@@ -156,7 +156,7 @@ h2 {
     background-color: #f8f8f8;
     border-radius: 5px;
     width: 90%;
-    max-width: 400px;
+    max-width: 500px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     text-align: left;
 }
@@ -167,8 +167,9 @@ h2 {
 }
 
 .cocina-item input[type="checkbox"], .bar-item input[type="checkbox"] {
-    transform: scale(1); /* Mantener tamaño constante */
-    margin-right: 10px;
+    transform: scale(2); /* Mantener tamaño constante */
+    margin-right: 5px;
+    justify-content: flex-end;
 }
 
 .cocina-item div, .bar-item div {
