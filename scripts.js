@@ -136,10 +136,10 @@ function crearParaLlevar() {
 // Función para mostrar productos según la categoría seleccionada
 function showProducts(categoria) {
     console.log(`Mostrando productos de la categoría: ${categoria}`); // Debug
-    
-document.getElementById('back-to-categories').style.display = 'block';
+    document.getElementById('categories').style.display = 'none'; // Ocultar categorías
+    document.getElementById('back-to-categories').style.display = 'block';
     const productsDiv = document.getElementById('products');
-    productsDiv.style.display = 'flex';
+    productsDiv.style.display = 'flex'; // Asegurarse de que el contenedor de productos esté visible
     productsDiv.innerHTML = ''; // Limpiar el contenedor de productos
     productos[categoria].forEach(producto => {
         const productDiv = document.createElement('div');
@@ -273,6 +273,7 @@ function confirmarOrden() {
     // Mostrar los items en cocina
     ordenEnCocina.forEach(item => {
         const listItem = document.createElement('li');
+        listItem.style.marginBottom = '10px'; // Asegurar separación entre items
         listItem.textContent = `${item.nombre} - ${item.cantidad} (En cocina)`;
         confirmacionList.appendChild(listItem);
     });
@@ -280,6 +281,7 @@ function confirmarOrden() {
     // Mostrar los items en bar
     ordenEnBar.forEach(item => {
         const listItem = document.createElement('li');
+        listItem.style.marginBottom = '10px'; // Asegurar separación entre items
         listItem.textContent = `${item.nombre} - ${item.cantidad} (En bar)`;
         confirmacionList.appendChild(listItem);
     });
@@ -287,6 +289,7 @@ function confirmarOrden() {
     // Mostrar los items que aún no están en preparación
     orden.filter(item => !item.enCocina && !item.enBar).forEach(item => {
         const listItem = document.createElement('li');
+        listItem.style.marginBottom = '10px'; // Asegurar separación entre items
         listItem.textContent = `${item.nombre} - ${item.cantidad}${item.cuenta !== 1 ? ` (Cuenta ${item.cuenta})` : ''}`;
         confirmacionList.appendChild(listItem);
     });
@@ -303,26 +306,25 @@ function enviarCocina() {
         ordenNueva = { estado: 'nueva', items: [] };
         mesaSeleccionada.ordenes.push(ordenNueva);
     }
-    
+
     // Separar los ítems para bar y cocina
-    ordenNueva.items = orden.filter(item => !item.enCocina && !item.enBar).map(item => {
+    const itemsParaEnviar = orden.filter(item => !item.enCocina && !item.enBar);
+
+    itemsParaEnviar.forEach(item => {
         if (productos.bebidasAlcoolicas.includes(item.nombre) || productos.bebidas.includes(item.nombre)) {
             item.enBar = true; // Marcar como ítem de bar
         } else {
             item.enCocina = true; // Marcar como ítem de cocina
         }
-        return item;
     });
 
-    // Agrupar ítems por estado de preparación
-    const itemsCocina = ordenNueva.items.filter(item => item.enCocina);
-    const itemsBar = ordenNueva.items.filter(item => item.enBar);
-
-    if (itemsCocina.length > 0) {
-        mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: itemsCocina });
-    }
-    if (itemsBar.length > 0) {
-        mesaSeleccionada.ordenes.push({ estado: 'en bar', items: itemsBar });
+    if (itemsParaEnviar.length > 0) {
+        if (itemsParaEnviar.some(item => item.enCocina)) {
+            mesaSeleccionada.ordenes.push({ estado: 'en cocina', items: itemsParaEnviar.filter(item => item.enCocina) });
+        }
+        if (itemsParaEnviar.some(item => item.enBar)) {
+            mesaSeleccionada.ordenes.push({ estado: 'en bar', items: itemsParaEnviar.filter(item => item.enBar) });
+        }
     }
 
     mesaSeleccionada.ocupada = true; // Marcar la mesa como ocupada
