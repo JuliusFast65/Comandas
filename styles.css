@@ -65,7 +65,7 @@ h2 {
 
 .mesa.terminada {
     background-color: #ccffcc;
-    border: 2px solid #33cc33;
+    border-color: #33cc33;
 }
 
 .para-llevar {
@@ -306,7 +306,9 @@ ul#confirmacion-list li {
     padding: 10px;
     border-bottom: 1px solid #ddd;
     display: flex;
-    flex-direction: column; /* Para asegurar que cada item esté en una línea separada */
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: column; /* Asegurar que cada ítem esté en una línea separada */
     margin-bottom: 10px;
 }
 
@@ -332,18 +334,17 @@ ul#confirmacion-list li {
 
 .container {
     display: flex;
-    flex-direction: column;
-    gap: 20px;
-    height: calc(100vh - 200px); /* Ajusta según necesites */
+    height: calc(100vh - 200px);
+    gap: 10px;
 }
 
 .selection {
-    flex: 2;
+    flex: 2; /* Dar más espacio a la sección de selección */
     overflow-y: auto;
 }
 
 .order {
-    flex: 1;
+    flex: 1; /* Menos espacio para la lista de productos seleccionados */
     overflow-y: auto;
 }
 
@@ -388,6 +389,10 @@ ul#confirmacion-list li {
 
 .mesa.ocupada {
     background-color: #ffecb3;
+}
+
+.mesa.terminada {
+    background-color: #ccffcc;
 }
 
 .mesa:hover {
