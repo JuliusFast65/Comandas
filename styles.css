@@ -311,7 +311,6 @@ ul#confirmacion-list li {
     align-items: center;
     margin-bottom: 10px;
     flex-direction: column;
-    align-content: center;
 }
 
 .quantity-controls {
@@ -438,12 +437,6 @@ ul#confirmacion-list li {
 
 #back-to-categories:hover {
     background-color: #0056b3;
-}
-
-.button-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
 }
 
 .header, .footer {
