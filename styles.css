@@ -35,6 +35,16 @@ h2 {
     margin: 10px 0;
 }
 
+.orden-list {
+    display: flex;
+    display
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 10px 0;
+    flex-direction: column;
+}
+
+
 .mesa, .para-llevar-item, .category, .product {
     border: 1px solid #ddd;
     padding: 10px;
