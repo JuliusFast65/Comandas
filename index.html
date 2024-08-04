@@ -3,97 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comandas</title>
+    <title>Gestión de Pedidos - Restaurante</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div id="app">
-        <!-- Pantalla de inicio de sesión -->
         <div id="login-screen" class="screen active">
-            <h2>Inicio de Sesión</h2>
-            <input type="text" placeholder="Usuario" id="usuario">
-            <input type="password" placeholder="Contraseña" id="contrasena">
-            <button onclick="iniciarSesion()">Entrar</button>
-        </div>
-
-        <!-- Pantalla de selección de mesas -->
-        <div id="seleccion-mesas-screen" class="screen">
-            <h2>Seleccionar Mesa</h2>
-            <div id="mesas" class="mesas"></div>
-            <h2>Para Llevar</h2>
-            <div id="para-llevar" class="para-llevar"></div>
-            <button onclick="crearParaLlevar()">Nueva Orden Para Llevar</button>
-            <button onclick="showScreen('cocina-screen')">Ver Cocina</button>
-            <button onclick="showScreen('bar-screen')">Ver Bar</button>
-        </div>
-
-        <!-- Pantalla de toma de órdenes -->
-        <div id="toma-ordenes-screen" class="screen">
-            <div class="order-header">
-                <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
-                <label>
-                    Cuentas:
-                    <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()">
-                </label>
-            </div>
-
             <div class="container">
-                <div id="selection" class="selection scrollable">
+                <h2><i class="fas fa-utensils"></i> Inicio de Sesión</h2>
+                <input type="text" id="usuario" placeholder="Usuario" required>
+                <input type="password" id="contrasena" placeholder="Contraseña" required>
+                <button onclick="iniciarSesion()"><i class="fas fa-sign-in-alt"></i> Entrar</button>
+            </div>
+        </div>
+
+        <div id="seleccion-mesas-screen" class="screen">
+            <div class="container">
+                <h2><i class="fas fa-chair"></i> Seleccionar Mesa</h2>
+                <div id="mesas" class="mesas"></div>
+                <h2><i class="fas fa-shopping-bag"></i> Para Llevar</h2>
+                <div id="para-llevar" class="para-llevar"></div>
+                <button class="center-button" onclick="crearParaLlevar()"><i class="fas fa-plus"></i> Nueva Orden Para Llevar</button>
+                <div class="footer">
+                    <button onclick="showScreen('cocina-screen')"><i class="fas fa-utensils"></i> Ver Cocina</button>
+                    <button onclick="showScreen('bar-screen')"><i class="fas fa-glass-martini-alt"></i> Ver Bar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="toma-ordenes-screen" class="screen">
+            <div class="container">
+                <div class="order-header">
+                    <h2><i class="fas fa-clipboard-list"></i> Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
+                    <div class="mesa-info">
+                        <label>Cuentas: <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()"></label>
+                    </div>
+                </div>
+                <div class="selection scrollable">
                     <div id="categories" class="categories">
-                        <div class="category entradas" onclick="showProducts('entradas')">Entradas</div>
-                        <div class="category platos" onclick="showProducts('platos')">Platos Fuertes</div>
-                        <div class="category postres" onclick="showProducts('postres')">Postres</div>
-                        <div class="category bebidas" onclick="showProducts('bebidas')">Bebidas</div>
-                        <div class="category bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
-                        <div class="category adicionales" onclick="showProducts('adicionales')">Adicionales</div>
+                        <div class="category entradas" onclick="showProducts('entradas')"><i class="fas fa-carrot"></i> Entradas</div>
+                        <div class="category platos" onclick="showProducts('platos')"><i class="fas fa-drumstick-bite"></i> Platos Fuertes</div>
+                        <div class="category postres" onclick="showProducts('postres')"><i class="fas fa-ice-cream"></i> Postres</div>
+                        <div class="category bebidas" onclick="showProducts('bebidas')"><i class="fas fa-coffee"></i> Bebidas</div>
+                        <div class="category bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')"><i class="fas fa-wine-glass-alt"></i> Bebidas Alcohólicas</div>
+                        <div class="category adicionales" onclick="showProducts('adicionales')"><i class="fas fa-pepper-hot"></i> Adicionales</div>
                     </div>
                     <div id="products" class="products"></div>
-                    <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+                    <button id="back-to-categories" class="center-button" onclick="showCategories()" style="display: none;"><i class="fas fa-arrow-left"></i> Volver a Categorías</button>
                 </div>
-                <div id="order" class="order scrollable">
+                <div class="order scrollable">
+                    <h3><i class="fas fa-list-alt"></i> Orden Actual</h3>
                     <ul id="orden-list"></ul>
                 </div>
-            </div>
-            <div class="footer">
-                <button onclick="confirmarOrden()">Confirmar Orden</button>
-                <button onclick="cancelarOrden()">Volver a Mesas</button>
-            </div>
-        </div>
-
-        <!-- Pantalla de confirmación de órdenes -->
-        <div id="confirmacion-screen" class="screen">
-            <h2>Confirmar Orden</h2>
-            <ul id="confirmacion-list" class="orden-list scrollable"></ul>
-            <div class="footer">
-                <div class="button-group">
-                    <button onclick="enviarCocina()">Enviar a Preparación</button>
-                    <button onclick="showScreen('toma-ordenes-screen')">Volver a la Orden</button>
+                <div class="footer">
+                    <button onclick="confirmarOrden()"><i class="fas fa-check"></i> Confirmar Orden</button>
+                    <button onclick="cancelarOrden()"><i class="fas fa-times"></i> Cancelar</button>
                 </div>
             </div>
         </div>
 
-        <!-- Pantalla de cocina -->
-        <div id="cocina-screen" class="screen">
-            <h2>Órdenes en Cocina</h2>
-            <div id="cocina-list" class="cocina-list"></div>
-            <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
+        <div id="confirmacion-screen" class="screen">
+            <div class="container">
+                <h2><i class="fas fa-clipboard-check"></i> Confirmar Orden</h2>
+                <ul id="confirmacion-list"></ul>
+                <div class="footer">
+                    <button onclick="enviarCocina()"><i class="fas fa-paper-plane"></i> Enviar a Preparación</button>
+                    <button onclick="showScreen('toma-ordenes-screen')"><i class="fas fa-edit"></i> Editar Orden</button>
+                </div>
+            </div>
         </div>
 
-        <!-- Pantalla de bar -->
+        <div id="cocina-screen" class="screen">
+            <div class="container">
+                <h2><i class="fas fa-utensils"></i> Órdenes en Cocina</h2>
+                <div id="cocina-list" class="cocina-list"></div>
+                <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
+            </div>
+        </div>
+
         <div id="bar-screen" class="screen">
-            <h2>Órdenes en Bar</h2>
-            <div id="bar-list" class="bar-list"></div>
-            <button onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button>
+            <div class="container">
+                <h2><i class="fas fa-glass-cheers"></i> Órdenes en Bar</h2>
+                <div id="bar-list" class="bar-list"></div>
+                <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
+            </div>
         </div>
     </div>
 
-    <!-- Modal para añadir notas -->
     <div id="nota-modal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="cerrarModal()">&times;</span>
-            <h3>Añadir Nota</h3>
-            <textarea id="nota-texto" rows="4"></textarea>
-            <button onclick="guardarNota()">Guardar Nota</button>
+            <h3><i class="fas fa-sticky-note"></i> Añadir Nota</h3>
+            <textarea id="nota-texto" placeholder="Escribe la nota aquí..."></textarea>
+            <button onclick="guardarNota()"><i class="fas fa-save"></i> Guardar Nota</button>
         </div>
     </div>
 
