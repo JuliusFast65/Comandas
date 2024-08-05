@@ -358,10 +358,16 @@ function cancelarOrden() {
 }
 
 // Función para actualizar el número de cuentas
-function actualizarCuentas() {
+/*function actualizarCuentas() {
     cuentas = parseInt(document.getElementById('cuentas').value);
     actualizarOrden();
     console.log(`Número de cuentas actualizado a: ${cuentas}`); // Debug
+}*/
+
+function actualizarCuentas() {
+  const cuenta = parseInt(document.getElementById('cuentas').value);
+  actualizarOrden();
+  console.log(`Número de cuenta actualizado a: ${cuenta}`); // Debug
 }
 
 // Función para mostrar las órdenes en la pantalla de cocina
