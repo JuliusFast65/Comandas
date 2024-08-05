@@ -101,6 +101,7 @@
     border: none;
     padding: 20px;
     display: flex;
+    flex
     align-items: center;
     justify-content: center;
     background-color: #fff;
@@ -365,6 +366,7 @@
 
   .products {
     display: grid;
+    flex-wrap: wrap;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 20px;
     margin: 20px 0;
