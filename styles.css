@@ -219,13 +219,11 @@
   } */
 
   /* Removemos las líneas entre productos en las órdenes de cocina */
- .cocina-item div, .bar-item div {
+.cocina-item div, .bar-item div {
   margin: 15px 0;
   padding: 10px 0;
   border-bottom: none;
 }
-
-
 
   
   /* Aumentar espacio para los productos en cocina */
@@ -372,13 +370,18 @@
     margin: 20px 0;
 }
 
+
 .order-content {
   display: flex;
+  flex-direction: column;
   gap: 20px;
+  height: calc(100vh - 200px); /* Ajusta este valor según sea necesario */
+  overflow: hidden;
 }
 
 .selection-area {
   flex: 2;
+  overflow-y: auto;
 }
 
 .order-summary {
@@ -387,6 +390,7 @@
   padding: 20px;
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow);
+  overflow-y: auto;
 }
 
 .mesa-info {
@@ -415,5 +419,23 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 0;
+}
+
+#back-to-categories {
+  display: block;
+  margin: 20px auto;
+  padding: 12px 24px;
+  font-size: 18px;
+  background-color: var(--secondary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+
+#back-to-categories:hover {
+  background-color: #e69100;
 }
 
