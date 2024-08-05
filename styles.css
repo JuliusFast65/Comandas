@@ -372,6 +372,14 @@
     margin: 20px 0;
 }
 
+.categories {
+    display: grid;
+    flex-wrap: wrap;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
 
 .order-content {
   display: flex;
