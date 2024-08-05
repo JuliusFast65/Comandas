@@ -53,21 +53,19 @@
               <div class="category adicionales" onclick="showProducts('adicionales')">Adicionales</div>
             </div>
             <div id="products" class="products"></div>
-            <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+                <button id="back-to-categories" onclick="showCategories()">Volver a Categorías</button>
+            </div>
+            <div class="order-summary">
+                <h3>Orden Actual</h3>
+                <ul id="orden-list" class="orden-list"></ul>
+            </div>
           </div>
-          <div class="order-summary">
-            <h3>Orden Actual</h3>
-            <ul id="orden-list" class="orden-list"></ul>
+          <div class="footer">
+              <button onclick="confirmarOrden()">Confirmar Orden</button>
+              <button onclick="cancelarOrden()">Cancelar</button>
           </div>
         </div>
-    
-        <div class="footer">
-          <button onclick="confirmarOrden()">Confirmar Orden</button>
-          <button onclick="cancelarOrden()">Cancelar</button>
-        </div>
-      </div>
-  </div>
-
+      
         <div id="confirmacion-screen" class="screen">
             <div class="container">
                 <h2><i class="fas fa-clipboard-check"></i> Confirmar Orden</h2>
