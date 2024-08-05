@@ -204,36 +204,20 @@
     gap: 20px;
   }
   
-/*  .cocina-item, .bar-item {
+.cocina-item, .bar-item {
     border: 1px solid #ddd;
-    margin: 15px 0;
-    padding: 20px;
-    background-color: #fff;
-    border-radius: var(--border-radius);
+    padding: 0px 15px 15px;
+    border-radius: .25rem;    
     box-shadow: var(--box-shadow);
   }
 
-  .cocina-item h4, .bar-item h4 {
-    margin: 0 0 15px 0;
-    font-size: 22px;
-    color: var(--primary-color);
-  } */
-
-  /* Removemos las líneas entre productos en las órdenes de cocina */
-.cocina-item div, .bar-item div {
-  margin: 15px 0;
-  padding: 10px 0;
-  border-bottom: none;
-}
-
-  
   /* Aumentar espacio para los productos en cocina */
   .cocina-item div, .bar-item div {
-    margin: 15px 0;
-    padding: 10px 0;
-    border-bottom: 1px solid #eee;
+    margin: 5px 0;
+    padding: 0px 0;
+   /* border-bottom: 1px solid #eee;*/
   }
-  
+
   input[type="checkbox"] {
     transform: scale(1.5);
     margin-right: 10px;
