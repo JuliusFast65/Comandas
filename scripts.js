@@ -24,7 +24,6 @@ let orden = [];
 let ordenEnCocina = [];
 let ordenEnBar = [];
 let mesaSeleccionada = null;
-let cuentas = 1;
 let notaIndex = null;
 let paraLlevarCounter = 1;
 let paraLlevarOrdenes = [];
@@ -78,10 +77,30 @@ function mostrarCaja() {
     cajaList.innerHTML = ''; // Limpiar la lista de la caja
 
     // Iterar sobre cada mesa y cada orden para llevar
-    [...mesas, ...paraLlevarOrdenes].forEach(orden => {
+    mesas.forEach(orden => {
         if (orden.cuentaPedida && !orden.terminada) {
             const ordenDiv = document.createElement('div');
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
+            
+            // Formatear los nombres de las cuentas para mostrarlos en la pantalla de caja
+            const nombresCuentas = Object.entries(orden.nombresCuentas)
+                .map(([cuenta, nombre]) => nombre ? `Cuenta ${cuenta}: ${nombre}` : `Cuenta ${cuenta}`)
+                .filter(Boolean)
+                .join(', ');
+
+            ordenDiv.className = 'caja-item';
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
+            
+            // Al hacer clic, seleccionar la orden para facturación
+            ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
+            cajaList.appendChild(ordenDiv);
+        }
+    });
+
+    paraLlevarOrdenes.forEach(orden => {
+        if (orden.cuentaPedida && !orden.terminada) {
+            const ordenDiv = document.createElement('div');
+            const tipoOrden = 'Para Llevar';
             
             // Formatear los nombres de las cuentas para mostrarlos en la pantalla de caja
             const nombresCuentas = Object.entries(orden.nombresCuentas)
@@ -163,7 +182,8 @@ function seleccionarMesa(numero) {
     mesaSeleccionada = mesas.find(m => m.numero === numero);
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
-    actualizarNombreCuenta();
+    document.getElementById('cuentas').value = 1; // Restablecer el número de cuenta a 1
+    document.getElementById('nombre-cuenta').value = ''; // Restablecer el nombre de la cuenta a vacío
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -177,7 +197,8 @@ function seleccionarOrdenParaLlevar(numero) {
     mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
-    actualizarNombreCuenta();
+    document.getElementById('cuentas').value = 1; // Restablecer el número de cuenta a 1
+    document.getElementById('nombre-cuenta').value = ''; // Restablecer el nombre de la cuenta a vacío
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
