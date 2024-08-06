@@ -9,15 +9,15 @@ const productos = {
 
 // Reducir el número de mesas a 9
 const mesas = [
-    { numero: 1, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 2, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 3, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 4, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 5, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 6, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 7, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 8, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 9, ocupada: false, terminada: false, cuentaPedida: false, ordenes: [{ estado: 'nueva', items: [] }] }
+    { numero: 1, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 2, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 3, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 4, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 5, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 6, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 7, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 8, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 9, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] }
 ];
 
 let orden = [];
@@ -28,6 +28,7 @@ let cuentas = 1;
 let notaIndex = null;
 let paraLlevarCounter = 1;
 let paraLlevarOrdenes = [];
+let ordenParaFacturar = null;
 
 // Función para manejar el inicio de sesión
 function iniciarSesion() {
@@ -81,12 +82,9 @@ function mostrarCaja() {
             const ordenDiv = document.createElement('div');
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
             ordenDiv.className = 'caja-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}</h4>`;
             
-            const facturaButton = document.createElement('button');
-            facturaButton.innerHTML = 'Facturar';
-            facturaButton.onclick = () => confirmarFacturacion(orden);
-            ordenDiv.appendChild(facturaButton);
+            ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
             cajaList.appendChild(ordenDiv);
         }
     });
@@ -108,7 +106,7 @@ function mostrarMesas() {
         } else {
             mesaDiv.className = `mesa ${mesa.ocupada ? (mesa.terminada ? 'terminada' : 'ocupada') : 'libre'}`;
         }
-        mesaDiv.textContent = `Mesa ${mesa.numero}`;
+        mesaDiv.textContent = `Mesa ${mesa.numero} ${mesa.nombreCuenta ? `- ${mesa.nombreCuenta}` : ''}`;
         mesaDiv.onclick = () => seleccionarMesa(mesa.numero);
         mesasDiv.appendChild(mesaDiv);
     });
@@ -129,7 +127,7 @@ function mostrarParaLlevar() {
         } else {
             ordenDiv.className = `mesa ${orden.ocupada ? (orden.terminada ? 'terminada' : 'ocupada') : 'libre'}`; // Cambiar el color según el estado
         }
-        ordenDiv.textContent = `Para Llevar ${orden.numero}`;
+        ordenDiv.textContent = `Para Llevar ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}`;
         ordenDiv.onclick = () => seleccionarOrdenParaLlevar(orden.numero);
         paraLlevarDiv.appendChild(ordenDiv);
     });
@@ -141,6 +139,7 @@ function seleccionarMesa(numero) {
     mesaSeleccionada = mesas.find(m => m.numero === numero);
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
+    document.getElementById('nombre-cuenta').value = mesaSeleccionada.nombreCuenta;
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -154,6 +153,7 @@ function seleccionarOrdenParaLlevar(numero) {
     mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
+    document.getElementById('nombre-cuenta').value = mesaSeleccionada.nombreCuenta;
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -168,6 +168,7 @@ function crearParaLlevar() {
         ocupada: false,
         terminada: false,
         cuentaPedida: false,
+        nombreCuenta: '',
         ordenes: [{ estado: 'nueva', items: [] }]
     };
     paraLlevarCounter += 1;
@@ -404,24 +405,39 @@ function pedirCuenta() {
     }
 }
 
+// Función para seleccionar una orden para facturación
+function seleccionarParaFacturacion(orden) {
+    ordenParaFacturar = orden;
+    const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
+    const facturaInfo = `Facturar ${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}`;
+    document.getElementById('factura-info').textContent = facturaInfo;
+    showScreen('facturacion-screen');
+    console.log(`Orden seleccionada para facturación: ${facturaInfo}`); // Debug
+}
+
 // Función para confirmar la facturación de una orden
-function confirmarFacturacion(orden) {
-    if (confirm(`¿Está seguro de que desea facturar la ${orden.numero}?`)) {
-        facturarOrden(orden);
+function confirmarFacturacion() {
+    if (ordenParaFacturar) {
+        ordenParaFacturar.terminada = true;
+        ordenParaFacturar.ocupada = false;
+        ordenParaFacturar.cuentaPedida = false;
+        ordenParaFacturar.ordenes = [{ estado: 'nueva', items: [] }];
+        mostrarMesas();
+        mostrarParaLlevar();
+        mostrarCaja();
+        alert(`Orden facturada para ${ordenParaFacturar.numero}.`);
+        console.log(`Orden facturada para Mesa/Para Llevar ${ordenParaFacturar.numero}`); // Debug
+        showScreen('caja-screen');
     }
 }
 
-// Función para facturar una orden y liberar la mesa
-function facturarOrden(orden) {
-    orden.terminada = true;
-    orden.ocupada = false;
-    orden.cuentaPedida = false;
-    orden.ordenes = [{ estado: 'nueva', items: [] }];
-    mostrarMesas();
-    mostrarParaLlevar();
-    mostrarCaja();
-    alert(`Orden facturada para ${orden.numero}.`);
-    console.log(`Orden facturada para Mesa/Para Llevar ${orden.numero}`); // Debug
+// Función para actualizar el nombre de la cuenta
+function actualizarNombreCuenta() {
+    if (mesaSeleccionada) {
+        const nombreCuenta = document.getElementById('nombre-cuenta').value.trim();
+        mesaSeleccionada.nombreCuenta = nombreCuenta;
+        console.log(`Nombre de la cuenta actualizado a: ${nombreCuenta}`); // Debug
+    }
 }
 
 // Función para actualizar el número de cuentas
@@ -432,9 +448,9 @@ function facturarOrden(orden) {
 }*/
 
 function actualizarCuentas() {
-  const cuenta = parseInt(document.getElementById('cuentas').value);
-  actualizarOrden();
-  console.log(`Número de cuenta actualizado a: ${cuenta}`); // Debug
+    const cuenta = parseInt(document.getElementById('cuentas').value);
+    actualizarOrden();
+    console.log(`Número de cuenta actualizado a: ${cuenta}`); // Debug
 }
 
 // Función para mostrar las órdenes en la pantalla de cocina
@@ -453,7 +469,7 @@ function mostrarCocina() {
             // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
             ordenDiv.className = 'cocina-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}</h4>`;
             
             // Iterar sobre cada ítem de la orden
             ordenesCocina.forEach(o => {
@@ -495,7 +511,7 @@ function mostrarBar() {
             // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
             ordenDiv.className = 'bar-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}</h4>`;
             
             // Iterar sobre cada ítem de la orden
             ordenesBar.forEach(o => {

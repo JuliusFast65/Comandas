@@ -40,6 +40,7 @@
               <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
               <div class="mesa-info">
                 <label for="cuentas">Cuenta: <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()"></label>
+                <label for="nombre-cuenta">Nombre: <input type="text" id="nombre-cuenta" placeholder="Nombre de la cuenta" onchange="actualizarNombreCuenta()"></label>
               </div>
             </div>
             
@@ -102,6 +103,17 @@
                 <h2><i class="fas fa-cash-register"></i> Caja</h2>
                 <div id="caja-list" class="caja-list"></div>
                 <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
+            </div>
+        </div>
+
+        <div id="facturacion-screen" class="screen">
+            <div class="container">
+                <h2><i class="fas fa-file-invoice"></i> Confirmar Facturación</h2>
+                <p id="factura-info"></p>
+                <div class="footer">
+                    <button onclick="confirmarFacturacion()"><i class="fas fa-check"></i> Confirmar</button>
+                    <button onclick="showScreen('caja-screen')"><i class="fas fa-times"></i> Cancelar</button>
+                </div>
             </div>
         </div>
     </div>
