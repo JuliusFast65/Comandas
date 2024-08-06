@@ -100,7 +100,6 @@ h2 {
   border: none;
   padding: 20px;
   display: flex;
-  flex
   align-items: center;
   justify-content: center;
   background-color: #fff;
@@ -112,7 +111,6 @@ h2 {
   text-align: center;
   height: 120px;
 }
-
 
 .mesa:hover, .para-llevar-item:hover, .category:hover, .product:hover {
   transform: translateY(-5px);

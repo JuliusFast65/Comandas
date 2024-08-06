@@ -35,40 +35,40 @@
         </div>
 
         <div id="toma-ordenes-screen" class="screen">
-          <div class="container">
-            <div class="order-header">
-              <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
-              <div class="mesa-info">
-                <label for="cuentas">Cuenta: <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()"></label>
-                <label for="nombre-cuenta">Nombre: <input type="text" id="nombre-cuenta" placeholder="Nombre de la cuenta" onchange="actualizarNombreCuenta()"></label>
-              </div>
-            </div>
-            
-            <div class="order-content">
-              <div class="selection-area">
-                <div id="categories" class="categories">
-                  <div class="category entradas" onclick="showProducts('entradas')">Entradas</div>
-                  <div class="category platos" onclick="showProducts('platos')">Platos Fuertes</div>
-                  <div class="category postres" onclick="showProducts('postres')">Postres</div>
-                  <div class="category bebidas" onclick="showProducts('bebidas')">Bebidas</div>
-                  <div class="category bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
-                  <div class="category adicionales" onclick="showProducts('adicionales')">Adicionales</div>
+            <div class="container">
+                <div class="order-header">
+                    <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
+                    <div class="mesa-info">
+                        <label for="cuentas">Cuenta: <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()"></label>
+                        <label for="nombre-cuenta">Nombre: <input type="text" id="nombre-cuenta" placeholder="Nombre de la cuenta" onchange="actualizarNombreCuenta()"></label>
+                    </div>
                 </div>
-                <div id="products" class="products"></div>
-                <button id="back-to-categories" class="center-button" onclick="showCategories()">Volver a Categorías</button>
-              </div>
-              <div class="order-summary">
-                <h3>Orden Actual</h3>
-                <ul id="orden-list" class="orden-list"></ul>
-              </div>
+                
+                <div class="order-content">
+                    <div class="selection-area">
+                        <div id="categories" class="categories">
+                            <div class="category entradas" onclick="showProducts('entradas')">Entradas</div>
+                            <div class="category platos" onclick="showProducts('platos')">Platos Fuertes</div>
+                            <div class="category postres" onclick="showProducts('postres')">Postres</div>
+                            <div class="category bebidas" onclick="showProducts('bebidas')">Bebidas</div>
+                            <div class="category bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
+                            <div class="category adicionales" onclick="showProducts('adicionales')">Adicionales</div>
+                        </div>
+                        <div id="products" class="products"></div>
+                        <button id="back-to-categories" class="center-button" onclick="showCategories()">Volver a Categorías</button>
+                    </div>
+                    <div class="order-summary">
+                        <h3>Orden Actual</h3>
+                        <ul id="orden-list" class="orden-list"></ul>
+                    </div>
+                </div>
+            
+                <div class="footer">
+                    <button onclick="confirmarOrden()">Confirmar Orden</button>
+                    <button onclick="cancelarOrden()">Cancelar</button>
+                    <button onclick="pedirCuenta()">Pedir Cuenta</button>
+                </div>
             </div>
-        
-            <div class="footer">
-              <button onclick="confirmarOrden()">Confirmar Orden</button>
-              <button onclick="cancelarOrden()">Cancelar</button>
-              <button onclick="pedirCuenta()">Pedir Cuenta</button>
-            </div>
-          </div>
         </div>
       
         <div id="confirmacion-screen" class="screen">

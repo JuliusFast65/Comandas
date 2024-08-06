@@ -9,15 +9,15 @@ const productos = {
 
 // Reducir el número de mesas a 9
 const mesas = [
-    { numero: 1, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 2, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 3, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 4, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 5, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 6, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 7, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 8, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] },
-    { numero: 9, ocupada: false, terminada: false, cuentaPedida: false, nombreCuenta: '', ordenes: [{ estado: 'nueva', items: [] }] }
+    { numero: 1, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 2, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 3, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 4, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 5, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 6, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 7, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 8, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
+    { numero: 9, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] }
 ];
 
 let orden = [];
@@ -81,8 +81,9 @@ function mostrarCaja() {
         if (orden.cuentaPedida && !orden.terminada) {
             const ordenDiv = document.createElement('div');
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
+            const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
             ordenDiv.className = 'caja-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}</h4>`;
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
             ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
             cajaList.appendChild(ordenDiv);
@@ -101,12 +102,13 @@ function mostrarMesas() {
     mesasDiv.innerHTML = ''; // Limpiar el contenedor de mesas
     mesas.forEach(mesa => {
         const mesaDiv = document.createElement('div');
+        const nombresCuentas = Object.values(mesa.nombresCuentas).filter(Boolean).join(', ');
         if (mesa.cuentaPedida) {
             mesaDiv.className = `mesa cuenta-pedida`;
         } else {
             mesaDiv.className = `mesa ${mesa.ocupada ? (mesa.terminada ? 'terminada' : 'ocupada') : 'libre'}`;
         }
-        mesaDiv.textContent = `Mesa ${mesa.numero} ${mesa.nombreCuenta ? `- ${mesa.nombreCuenta}` : ''}`;
+        mesaDiv.textContent = `Mesa ${mesa.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}`;
         mesaDiv.onclick = () => seleccionarMesa(mesa.numero);
         mesasDiv.appendChild(mesaDiv);
     });
@@ -122,12 +124,13 @@ function mostrarParaLlevar() {
     paraLlevarDiv.innerHTML = ''; // Limpiar el contenedor de órdenes para llevar
     paraLlevarOrdenes.forEach(orden => {
         const ordenDiv = document.createElement('div');
+        const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
         if (orden.cuentaPedida) {
             ordenDiv.className = `mesa cuenta-pedida`;
         } else {
             ordenDiv.className = `mesa ${orden.ocupada ? (orden.terminada ? 'terminada' : 'ocupada') : 'libre'}`; // Cambiar el color según el estado
         }
-        ordenDiv.textContent = `Para Llevar ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}`;
+        ordenDiv.textContent = `Para Llevar ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}`;
         ordenDiv.onclick = () => seleccionarOrdenParaLlevar(orden.numero);
         paraLlevarDiv.appendChild(ordenDiv);
     });
@@ -139,7 +142,7 @@ function seleccionarMesa(numero) {
     mesaSeleccionada = mesas.find(m => m.numero === numero);
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
-    document.getElementById('nombre-cuenta').value = mesaSeleccionada.nombreCuenta;
+    actualizarNombreCuenta();
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -153,7 +156,7 @@ function seleccionarOrdenParaLlevar(numero) {
     mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
-    document.getElementById('nombre-cuenta').value = mesaSeleccionada.nombreCuenta;
+    actualizarNombreCuenta();
     ordenEnCocina = mesaSeleccionada.ordenes.filter(o => o.estado === 'en cocina').flatMap(o => o.items);
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
@@ -168,7 +171,7 @@ function crearParaLlevar() {
         ocupada: false,
         terminada: false,
         cuentaPedida: false,
-        nombreCuenta: '',
+        nombresCuentas: {},
         ordenes: [{ estado: 'nueva', items: [] }]
     };
     paraLlevarCounter += 1;
@@ -409,7 +412,8 @@ function pedirCuenta() {
 function seleccionarParaFacturacion(orden) {
     ordenParaFacturar = orden;
     const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-    const facturaInfo = `Facturar ${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}`;
+    const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
+    const facturaInfo = `Facturar ${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}`;
     document.getElementById('factura-info').textContent = facturaInfo;
     showScreen('facturacion-screen');
     console.log(`Orden seleccionada para facturación: ${facturaInfo}`); // Debug
@@ -434,23 +438,22 @@ function confirmarFacturacion() {
 // Función para actualizar el nombre de la cuenta
 function actualizarNombreCuenta() {
     if (mesaSeleccionada) {
+        const cuentaActual = parseInt(document.getElementById('cuentas').value);
         const nombreCuenta = document.getElementById('nombre-cuenta').value.trim();
-        mesaSeleccionada.nombreCuenta = nombreCuenta;
-        console.log(`Nombre de la cuenta actualizado a: ${nombreCuenta}`); // Debug
+        mesaSeleccionada.nombresCuentas[cuentaActual] = nombreCuenta;
+        console.log(`Nombre de la cuenta ${cuentaActual} actualizado a: ${nombreCuenta}`); // Debug
     }
 }
 
 // Función para actualizar el número de cuentas
-/*function actualizarCuentas() {
-    cuentas = parseInt(document.getElementById('cuentas').value);
-    actualizarOrden();
-    console.log(`Número de cuentas actualizado a: ${cuentas}`); // Debug
-}*/
-
 function actualizarCuentas() {
-    const cuenta = parseInt(document.getElementById('cuentas').value);
-    actualizarOrden();
-    console.log(`Número de cuenta actualizado a: ${cuenta}`); // Debug
+    const cuentaActual = parseInt(document.getElementById('cuentas').value);
+    const nombreInput = document.getElementById('nombre-cuenta');
+    
+    // Mostrar el nombre de la cuenta seleccionada
+    nombreInput.value = mesaSeleccionada.nombresCuentas[cuentaActual] || '';
+    
+    console.log(`Número de cuenta actualizado a: ${cuentaActual}`); // Debug
 }
 
 // Función para mostrar las órdenes en la pantalla de cocina
@@ -468,8 +471,9 @@ function mostrarCocina() {
             const ordenDiv = document.createElement('div');
             // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
+            const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
             ordenDiv.className = 'cocina-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}</h4>`;
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
             // Iterar sobre cada ítem de la orden
             ordenesCocina.forEach(o => {
@@ -510,8 +514,9 @@ function mostrarBar() {
             const ordenDiv = document.createElement('div');
             // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
+            const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
             ordenDiv.className = 'bar-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${orden.nombreCuenta ? `- ${orden.nombreCuenta}` : ''}</h4>`;
+            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
             // Iterar sobre cada ítem de la orden
             ordenesBar.forEach(o => {
