@@ -29,6 +29,7 @@
                 <div class="footer">
                     <button onclick="showScreen('cocina-screen')"><i class="fas fa-utensils"></i> Ver Cocina</button>
                     <button onclick="showScreen('bar-screen')"><i class="fas fa-glass-martini-alt"></i> Ver Bar</button>
+                    <button onclick="showScreen('caja-screen')"><i class="fas fa-cash-register"></i> Ir a Caja</button>
                 </div>
             </div>
         </div>
@@ -64,6 +65,7 @@
             <div class="footer">
               <button onclick="confirmarOrden()">Confirmar Orden</button>
               <button onclick="cancelarOrden()">Cancelar</button>
+              <button onclick="pedirCuenta()">Pedir Cuenta</button>
             </div>
           </div>
         </div>
@@ -91,6 +93,14 @@
             <div class="container">
                 <h2><i class="fas fa-glass-cheers"></i> Órdenes en Bar</h2>
                 <div id="bar-list" class="bar-list"></div>
+                <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
+            </div>
+        </div>
+
+        <div id="caja-screen" class="screen">
+            <div class="container">
+                <h2><i class="fas fa-cash-register"></i> Caja</h2>
+                <div id="caja-list" class="caja-list"></div>
                 <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
             </div>
         </div>
