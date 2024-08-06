@@ -77,18 +77,27 @@ function mostrarCaja() {
     }
     cajaList.innerHTML = ''; // Limpiar la lista de la caja
 
+    // Iterar sobre cada mesa y cada orden para llevar
     [...mesas, ...paraLlevarOrdenes].forEach(orden => {
         if (orden.cuentaPedida && !orden.terminada) {
             const ordenDiv = document.createElement('div');
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-            const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
+            
+            // Formatear los nombres de las cuentas para mostrarlos en la pantalla de caja
+            const nombresCuentas = Object.entries(orden.nombresCuentas)
+                .map(([cuenta, nombre]) => nombre ? `Cuenta ${cuenta}: ${nombre}` : `Cuenta ${cuenta}`)
+                .filter(Boolean)
+                .join(', ');
+
             ordenDiv.className = 'caja-item';
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
+            // Al hacer clic, seleccionar la orden para facturación
             ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
             cajaList.appendChild(ordenDiv);
         }
     });
+
     console.log("Órdenes en caja mostradas"); // Debug
 }
 
@@ -102,7 +111,13 @@ function mostrarMesas() {
     mesasDiv.innerHTML = ''; // Limpiar el contenedor de mesas
     mesas.forEach(mesa => {
         const mesaDiv = document.createElement('div');
-        const nombresCuentas = Object.values(mesa.nombresCuentas).filter(Boolean).join(', ');
+
+        // Formatear los nombres de las cuentas para mostrarlos en la pantalla de selección de mesas
+        const nombresCuentas = Object.entries(mesa.nombresCuentas)
+            .map(([cuenta, nombre]) => nombre ? `Cuenta ${cuenta}: ${nombre}` : `Cuenta ${cuenta}`)
+            .filter(Boolean)
+            .join(', ');
+
         if (mesa.cuentaPedida) {
             mesaDiv.className = `mesa cuenta-pedida`;
         } else {
@@ -124,7 +139,13 @@ function mostrarParaLlevar() {
     paraLlevarDiv.innerHTML = ''; // Limpiar el contenedor de órdenes para llevar
     paraLlevarOrdenes.forEach(orden => {
         const ordenDiv = document.createElement('div');
-        const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
+
+        // Formatear los nombres de las cuentas para mostrarlos en la pantalla de selección de órdenes para llevar
+        const nombresCuentas = Object.entries(orden.nombresCuentas)
+            .map(([cuenta, nombre]) => nombre ? `Cuenta ${cuenta}: ${nombre}` : `Cuenta ${cuenta}`)
+            .filter(Boolean)
+            .join(', ');
+
         if (orden.cuentaPedida) {
             ordenDiv.className = `mesa cuenta-pedida`;
         } else {
@@ -412,7 +433,11 @@ function pedirCuenta() {
 function seleccionarParaFacturacion(orden) {
     ordenParaFacturar = orden;
     const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-    const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
+    const nombresCuentas = Object.entries(orden.nombresCuentas)
+        .map(([cuenta, nombre]) => nombre ? `Cuenta ${cuenta}: ${nombre}` : `Cuenta ${cuenta}`)
+        .filter(Boolean)
+        .join(', ');
+
     const facturaInfo = `Facturar ${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}`;
     document.getElementById('factura-info').textContent = facturaInfo;
     showScreen('facturacion-screen');
@@ -471,7 +496,10 @@ function mostrarCocina() {
             const ordenDiv = document.createElement('div');
             // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-            const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
+            const nombresCuentas = Object.entries(orden.nombresCuentas)
+                .map(([cuenta, nombre]) => nombre ? `Cuenta ${cuenta}: ${nombre}` : `Cuenta ${cuenta}`)
+                .filter(Boolean)
+                .join(', ');
             ordenDiv.className = 'cocina-item';
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
@@ -514,7 +542,10 @@ function mostrarBar() {
             const ordenDiv = document.createElement('div');
             // Usar el tipo correcto (Mesa o Para Llevar) para el encabezado
             const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-            const nombresCuentas = Object.values(orden.nombresCuentas).filter(Boolean).join(', ');
+            const nombresCuentas = Object.entries(orden.nombresCuentas)
+                .map(([cuenta, nombre]) => nombre ? `Cuenta ${cuenta}: ${nombre}` : `Cuenta ${cuenta}`)
+                .filter(Boolean)
+                .join(', ');
             ordenDiv.className = 'bar-item';
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
