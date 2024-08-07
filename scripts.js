@@ -81,7 +81,7 @@ function mostrarCaja() {
     // Iterar sobre cada mesa
     mesas.forEach(orden => {
         console.log(`Revisando mesa: ${orden.numero}, cuentaPedida: ${orden.cuentaPedida}, terminada: ${orden.terminada}`); // Debug
-        if (orden.cuentaPedida && !orden.terminada) {
+        if (orden.cuentaPedida && orden.terminada) {
             console.log(`Mesa ${orden.numero} cumple las condiciones para ser mostrada.`); // Debug
             const ordenDiv = document.createElement('div');
             const tipoOrden = 'Mesa';
@@ -110,7 +110,7 @@ function mostrarCaja() {
     // Iterar sobre cada orden para llevar
     paraLlevarOrdenes.forEach(orden => {
         console.log(`Revisando orden para llevar: ${orden.numero}, cuentaPedida: ${orden.cuentaPedida}, terminada: ${orden.terminada}`); // Debug
-        if (orden.cuentaPedida && !orden.terminada) {
+        if (orden.cuentaPedida && orden.terminada) {
             console.log(`Para Llevar ${orden.numero} cumple las condiciones para ser mostrado.`); // Debug
             const ordenDiv = document.createElement('div');
             const tipoOrden = 'Para Llevar';
@@ -468,6 +468,7 @@ function pedirCuenta() {
         mesaSeleccionada.cuentaPedida = true; // Cambiar el estado de cuentaPedida
         console.log(`Cuenta pedida para mesa: ${mesaSeleccionada.numero}, Estado nuevo: cuentaPedida=${mesaSeleccionada.cuentaPedida}`); // Debug
         mostrarMesas();
+        mostrarCaja();
         mostrarParaLlevar();
         alert(`Cuenta solicitada para ${mesaSeleccionada.numero}.`);
         showScreen('seleccion-mesas-screen');
