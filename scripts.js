@@ -76,11 +76,15 @@ function mostrarCaja() {
     }
     cajaList.innerHTML = ''; // Limpiar la lista de la caja
 
-    // Iterar sobre cada mesa y cada orden para llevar
+    console.log("Iniciando el proceso de mostrar las órdenes en caja."); // Debug
+
+    // Iterar sobre cada mesa
     mesas.forEach(orden => {
+        console.log(`Revisando mesa: ${orden.numero}, cuentaPedida: ${orden.cuentaPedida}, terminada: ${orden.terminada}`); // Debug
         if (orden.cuentaPedida && !orden.terminada) {
+            console.log(`Mesa ${orden.numero} cumple las condiciones para ser mostrada.`); // Debug
             const ordenDiv = document.createElement('div');
-            const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
+            const tipoOrden = 'Mesa';
             
             // Formatear los nombres de las cuentas para mostrarlos en la pantalla de caja
             const nombresCuentas = Object.entries(orden.nombresCuentas)
@@ -88,17 +92,26 @@ function mostrarCaja() {
                 .filter(Boolean)
                 .join(', ');
 
+            console.log(`Nombres de cuentas formateados: ${nombresCuentas}`); // Debug
+
             ordenDiv.className = 'caja-item';
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
             // Al hacer clic, seleccionar la orden para facturación
             ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
             cajaList.appendChild(ordenDiv);
+
+            console.log(`Mesa ${orden.numero} añadida a la lista de caja.`); // Debug
+        } else {
+            console.log(`Mesa ${orden.numero} no cumple las condiciones: cuentaPedida=${orden.cuentaPedida}, terminada=${orden.terminada}`); // Debug
         }
     });
 
+    // Iterar sobre cada orden para llevar
     paraLlevarOrdenes.forEach(orden => {
+        console.log(`Revisando orden para llevar: ${orden.numero}, cuentaPedida: ${orden.cuentaPedida}, terminada: ${orden.terminada}`); // Debug
         if (orden.cuentaPedida && !orden.terminada) {
+            console.log(`Para Llevar ${orden.numero} cumple las condiciones para ser mostrado.`); // Debug
             const ordenDiv = document.createElement('div');
             const tipoOrden = 'Para Llevar';
             
@@ -108,17 +121,25 @@ function mostrarCaja() {
                 .filter(Boolean)
                 .join(', ');
 
+            console.log(`Nombres de cuentas formateados: ${nombresCuentas}`); // Debug
+
             ordenDiv.className = 'caja-item';
             ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero} ${nombresCuentas ? `- ${nombresCuentas}` : ''}</h4>`;
             
             // Al hacer clic, seleccionar la orden para facturación
             ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
             cajaList.appendChild(ordenDiv);
+
+            console.log(`Para Llevar ${orden.numero} añadido a la lista de caja.`); // Debug
+        } else {
+            console.log(`Para Llevar ${orden.numero} no cumple las condiciones: cuentaPedida=${orden.cuentaPedida}, terminada=${orden.terminada}`); // Debug
         }
     });
 
-    console.log("Órdenes en caja mostradas"); // Debug
+    console.log("Órdenes en caja mostradas."); // Debug
 }
+
+
 
 // Función para mostrar las mesas
 function mostrarMesas() {
@@ -190,6 +211,7 @@ function seleccionarMesa(numero) {
     actualizarOrden();
     showScreen('toma-ordenes-screen');
 }
+
 
 // Función para seleccionar una orden para llevar
 function seleccionarOrdenParaLlevar(numero) {
@@ -438,17 +460,23 @@ function cancelarOrden() {
     console.log("Orden cancelada, volviendo a selección de mesas"); // Debug
 }
 
+
 // Función para pedir la cuenta
 function pedirCuenta() {
+    console.log(`Intentando pedir cuenta para mesa: ${mesaSeleccionada.numero}, Estado actual: cuentaPedida=${mesaSeleccionada.cuentaPedida}`); // Debug
     if (!mesaSeleccionada.cuentaPedida) {
-        mesaSeleccionada.cuentaPedida = true;
+        mesaSeleccionada.cuentaPedida = true; // Cambiar el estado de cuentaPedida
+        console.log(`Cuenta pedida para mesa: ${mesaSeleccionada.numero}, Estado nuevo: cuentaPedida=${mesaSeleccionada.cuentaPedida}`); // Debug
         mostrarMesas();
         mostrarParaLlevar();
         alert(`Cuenta solicitada para ${mesaSeleccionada.numero}.`);
         showScreen('seleccion-mesas-screen');
-        console.log(`Cuenta solicitada para Mesa/Para Llevar ${mesaSeleccionada.numero}`); // Debug
+        console.log(`Cuenta solicitada para Mesa ${mesaSeleccionada.numero}`); // Debug
+    } else {
+        console.log(`La cuenta ya fue pedida para mesa: ${mesaSeleccionada.numero}`); // Debug
     }
 }
+
 
 // Función para seleccionar una orden para facturación
 function seleccionarParaFacturacion(orden) {
@@ -465,21 +493,28 @@ function seleccionarParaFacturacion(orden) {
     console.log(`Orden seleccionada para facturación: ${facturaInfo}`); // Debug
 }
 
+
 // Función para confirmar la facturación de una orden
 function confirmarFacturacion() {
     if (ordenParaFacturar) {
-        ordenParaFacturar.terminada = true;
-        ordenParaFacturar.ocupada = false;
-        ordenParaFacturar.cuentaPedida = false;
-        ordenParaFacturar.ordenes = [{ estado: 'nueva', items: [] }];
+        console.log(`Confirmando facturación para orden: ${ordenParaFacturar.numero}, tipo: ${mesas.includes(ordenParaFacturar) ? 'Mesa' : 'Para Llevar'}`); // Debug
+        
+        ordenParaFacturar.terminada = true; // Marcar la orden como terminada
+        ordenParaFacturar.ocupada = false; // Liberar la mesa
+        ordenParaFacturar.cuentaPedida = false; // Resetear el estado de cuentaPedida
+        ordenParaFacturar.ordenes = [{ estado: 'nueva', items: [] }]; // Resetear las órdenes
+
         mostrarMesas();
         mostrarParaLlevar();
         mostrarCaja();
+
         alert(`Orden facturada para ${ordenParaFacturar.numero}.`);
         console.log(`Orden facturada para Mesa/Para Llevar ${ordenParaFacturar.numero}`); // Debug
         showScreen('caja-screen');
     }
 }
+
+
 
 // Función para actualizar el nombre de la cuenta
 function actualizarNombreCuenta() {
