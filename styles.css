@@ -430,3 +430,27 @@ textarea {
 #back-to-categories:hover {
   background-color: #e69100;
 }
+
+/* Estilos para el formulario de información del cliente */
+.client-info {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+}
+
+.client-info label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.client-info input {
+    width: calc(100% - 22px);
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    margin-bottom: 20px;
+}

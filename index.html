@@ -110,8 +110,39 @@
             <div class="container">
                 <h2><i class="fas fa-file-invoice"></i> Confirmar Facturación</h2>
                 <p id="factura-info"></p>
+                
+                <!-- Formulario para datos del cliente -->
+                <div class="client-info">
+                    <label for="cedula">Cédula/RUC:</label>
+                    <input type="text" id="cedula" placeholder="Ingrese su Cédula o RUC" required>
+                    
+                    <label for="nombre-completo">Nombre Completo:</label>
+                    <input type="text" id="nombre-completo" placeholder="Ingrese su nombre completo" required>
+                    
+                    <label for="direccion">Dirección:</label>
+                    <input type="text" id="direccion" placeholder="Ingrese su dirección" required>
+                    
+                    <label for="telefono">Teléfono:</label>
+                    <input type="text" id="telefono" placeholder="Ingrese su teléfono" required>
+                    
+                    <label for="correo">Correo Electrónico:</label>
+                    <input type="email" id="correo" placeholder="Ingrese su correo electrónico" required>
+                </div>
+                
                 <div class="footer">
                     <button onclick="confirmarFacturacion()"><i class="fas fa-check"></i> Confirmar</button>
+                    <button onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-times"></i> Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="confirmacion-facturacion-screen" class="screen">
+            <div class="container">
+                <h2><i class="fas fa-file-invoice"></i> Confirmar Facturación Final</h2>
+                <p id="factura-info"></p>
+                <ul id="confirmacion-list"></ul>
+                <div class="footer">
+                    <button onclick="confirmarFacturacionFinal()"><i class="fas fa-check"></i> Confirmar Facturación</button>
                     <button onclick="showScreen('caja-screen')"><i class="fas fa-times"></i> Cancelar</button>
                 </div>
             </div>
