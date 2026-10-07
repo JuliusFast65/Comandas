@@ -672,7 +672,7 @@ function cancelarOrden() {
 function pedirCuenta() {
     console.log(`Intentando pedir cuenta para mesa: ${mesaSeleccionada.numero}, Estado actual: cuentaPedida=${mesaSeleccionada.cuentaPedida}`); // Debug
 
-    if (!mesaSeleccionada.cuentaPedida) {
+    if (mesaSeleccionada) {
         mesaSeleccionada.cuentaPedida = true; // Cambiar el estado de cuentaPedida
         console.log(`Cuenta pedida para mesa: ${mesaSeleccionada.numero}, Estado nuevo: cuentaPedida=${mesaSeleccionada.cuentaPedida}`); // Debug
 
@@ -712,13 +712,23 @@ function seleccionarParaFacturacion(orden) {
 }
 
 // Función para pedir datos de facturación por cuenta
+function cuentasParaFacturar(pedido) {
+    return [...new Set(pedido.ordenes.flatMap(grupo => grupo.items.map(item => String(item.cuenta))))]
+        .sort((a, b) => Number(a) - Number(b));
+}
+
 function pedirDatosFacturaPorCuenta() {
-    const cuentas = Object.keys(ordenParaFacturar.nombresCuentas);
+    const cuentas = cuentasParaFacturar(ordenParaFacturar);
     if (cuentaIndex < cuentas.length) {
         const cuenta = cuentas[cuentaIndex];
-        const nombreCuenta = ordenParaFacturar.nombresCuentas[cuenta];
+        const nombreCuenta = ordenParaFacturar.nombresCuentas[cuenta] || `Cuenta ${cuenta}`;
         const facturaInfo = `Facturar ${mesas.includes(ordenParaFacturar) ? 'Mesa' : 'Para Llevar'} ${ordenParaFacturar.numero} - Cuenta ${cuenta}: ${nombreCuenta}`;
         document.getElementById('factura-info').textContent = facturaInfo;
+        const datos = ordenParaFacturar.factura?.[cuenta] || {};
+        for (const [id, campo] of [['cedula', 'cedula'], ['nombre-completo', 'nombreCompleto'],
+            ['direccion', 'direccion'], ['telefono', 'telefono'], ['correo', 'correo']]) {
+            document.getElementById(id).value = datos[campo] || '';
+        }
         showScreen('facturacion-screen');
     } else {
         // Si ya se pidieron los datos para todas las cuentas, regresar a selección de mesas
@@ -740,7 +750,7 @@ function confirmarFacturacion() {
         return;
     }
 
-    const cuentas = Object.keys(ordenParaFacturar.nombresCuentas);
+    const cuentas = cuentasParaFacturar(ordenParaFacturar);
     if (cuentaIndex < cuentas.length) {
         const cuenta = cuentas[cuentaIndex];
         ordenParaFacturar.factura = ordenParaFacturar.factura || {};

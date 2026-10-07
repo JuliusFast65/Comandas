@@ -366,3 +366,20 @@ test('search spans categories, ignores accents, and preserves account quantities
     assert.ok(w.document.querySelector('[data-producto="Café"]'));
     w.close();
 });
+
+test('request bill opens unnamed product accounts and can be reopened', async () => {
+    const w = await open();
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza');
+    w.enviarCocina();
+    w.marcarPreparado('mesa', 1, 1, 0, true);
+    w.retirarTodoListo('mesa', 1);
+    w.seleccionarMesa(1);
+    w.pedirCuenta();
+    assert.equal(w.document.querySelector('.screen.active').id, 'facturacion-screen');
+    w.showScreen('seleccion-mesas-screen');
+    w.pedirCuenta();
+    assert.equal(w.document.querySelector('.screen.active').id, 'facturacion-screen');
+    assert.match(w.document.getElementById('factura-info').textContent, /Cuenta 1/);
+    w.close();
+});
