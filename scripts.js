@@ -31,6 +31,77 @@ let ordenParaFacturar = null;
 let cuentaIndex = 0; // Índice para la cuenta actual
 let tiemposDePreparacion = []; // Array para almacenar tiempos de inicio de cada ítem
 
+const CLAVE_ESTADO = 'comandas.estado.v1';
+let almacenamientoDisponible = true;
+
+function mostrarEstadoGuardado(mensaje) {
+    const indicador = document.getElementById('estado-guardado');
+    if (indicador) indicador.textContent = mensaje;
+}
+
+function guardarEstado() {
+    if (!almacenamientoDisponible) return;
+    try {
+        // Los datos personales de facturación no se guardan en este dispositivo.
+        const sinFactura = ({ factura, ...pedido }) => pedido;
+        localStorage.setItem(CLAVE_ESTADO, JSON.stringify({
+            version: 1,
+            mesas: mesas.map(sinFactura),
+            paraLlevarOrdenes: paraLlevarOrdenes.map(sinFactura),
+            paraLlevarCounter,
+            tiemposDePreparacion
+        }));
+        mostrarEstadoGuardado('Pedidos guardados en este navegador');
+    } catch (error) {
+        mostrarEstadoGuardado('No se pudo guardar. Mantén esta página abierta.');
+        console.warn('No se pudo guardar el estado de Comandas.', error.name);
+    }
+}
+
+function restaurarEstado() {
+    try {
+        const contenido = localStorage.getItem(CLAVE_ESTADO);
+        if (!contenido) return;
+        const estado = JSON.parse(contenido);
+        const pedidoValido = pedido => pedido && Number.isInteger(pedido.numero)
+            && typeof pedido.ocupada === 'boolean' && typeof pedido.terminada === 'boolean'
+            && typeof pedido.cuentaPedida === 'boolean'
+            && pedido.nombresCuentas && typeof pedido.nombresCuentas === 'object'
+            && Array.isArray(pedido.ordenes) && pedido.ordenes.every(grupo =>
+                grupo && typeof grupo.estado === 'string' && Array.isArray(grupo.items)
+                && grupo.items.every(item => item && typeof item.nombre === 'string'
+                    && Number.isInteger(item.cantidad) && item.cantidad > 0
+                    && Number.isInteger(item.cuenta) && item.cuenta > 0
+                    && typeof item.nota === 'string'));
+        if (estado.version !== 1 || !Array.isArray(estado.mesas)
+            || estado.mesas.length !== mesas.length
+            || !estado.mesas.every((mesa, index) => pedidoValido(mesa) && mesa.numero === index + 1)
+            || !Array.isArray(estado.paraLlevarOrdenes) || !estado.paraLlevarOrdenes.every(pedidoValido)
+            || !Number.isInteger(estado.paraLlevarCounter)
+            || estado.paraLlevarCounter <= Math.max(0, ...estado.paraLlevarOrdenes.map(p => p.numero))
+            || !Array.isArray(estado.tiemposDePreparacion)
+            || !estado.tiemposDePreparacion.every(t => t && Number.isFinite(new Date(t.inicio).getTime()))) {
+            throw new Error('Formato de datos guardados inválido');
+        }
+        // JSON separa las referencias compartidas. Retiramos los ítems enviados
+        // del borrador para que no vuelvan a aparecer como pedidos nuevos.
+        const reconstruir = pedido => ({ ...pedido, ordenes: pedido.ordenes.map(grupo =>
+            grupo.estado === 'nueva'
+                ? { ...grupo, items: grupo.items.filter(item => !item.enCocina && !item.enBar) }
+                : grupo) });
+        mesas.splice(0, mesas.length, ...estado.mesas.map(reconstruir));
+        paraLlevarOrdenes = estado.paraLlevarOrdenes.map(reconstruir);
+        paraLlevarCounter = estado.paraLlevarCounter;
+        tiemposDePreparacion = estado.tiemposDePreparacion.map(t => ({ ...t, inicio: new Date(t.inicio) }));
+        mostrarEstadoGuardado('Pedidos recuperados de este navegador');
+    } catch (error) {
+        // Conservamos el contenido anterior para evitar sobrescribir datos recuperables.
+        almacenamientoDisponible = false;
+        mostrarEstadoGuardado('No se pudieron recuperar los pedidos. Los datos anteriores se conservaron.');
+        console.warn('No se pudo recuperar el estado de Comandas.', error.name);
+    }
+}
+
 // Función para manejar el inicio de sesión
 function iniciarSesion() {
     const usuario = document.getElementById('usuario').value.trim();
@@ -211,6 +282,7 @@ function crearParaLlevar() {
     paraLlevarOrdenes.push(nuevaOrden);
     mostrarParaLlevar();
     console.log(`Creada nueva orden para llevar: ${nuevaOrden.numero}`); // Debug
+    guardarEstado();
 }
 
 // Función para mostrar productos según la categoría seleccionada
@@ -260,6 +332,7 @@ function agregarProducto(producto) {
     }
 
     actualizarOrden();
+    guardarEstado();
 }
 
 // Función para disminuir la cantidad de un producto en la orden
@@ -279,6 +352,7 @@ function disminuirCantidad(producto, cuenta) {
     }
 
     actualizarOrden();
+    guardarEstado();
 }
 
 // Función para abrir el modal para añadir notas a un producto
@@ -304,6 +378,7 @@ function guardarNota() {
         actualizarOrden();
     }
     cerrarModal();
+    guardarEstado();
 }
 
 // Función para actualizar la lista de la orden
@@ -426,6 +501,7 @@ function enviarCocina() {
     alert('Orden enviada a preparación');
     showScreen('seleccion-mesas-screen');
     console.log(`Orden enviada a cocina/bar para Mesa/Para Llevar ${mesaSeleccionada.numero}`); // Debug
+    guardarEstado();
 }
 
 // Función para cancelar la orden y volver a la pantalla de selección de mesas
@@ -448,6 +524,7 @@ function pedirCuenta() {
     } else {
         console.log(`La cuenta ya fue pedida para mesa: ${mesaSeleccionada.numero}`); // Debug
     }
+    guardarEstado();
 }
 
 // Función para seleccionar una orden para facturación
@@ -539,6 +616,7 @@ function confirmarFacturacionFinal() {
         console.log(`Orden facturada y completada para Mesa/Para Llevar ${ordenParaFacturar.numero}`); // Debug
         showScreen('caja-screen');
     }
+    guardarEstado();
 }
 
 // Función para actualizar el nombre de la cuenta
@@ -549,6 +627,7 @@ function actualizarNombreCuenta() {
         mesaSeleccionada.nombresCuentas[cuentaActual] = nombreCuenta;
         console.log(`Nombre de la cuenta ${cuentaActual} actualizado a: ${nombreCuenta}`); // Debug
     }
+    guardarEstado();
 }
 
 // Función para actualizar el número de cuentas
@@ -694,6 +773,7 @@ function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
     mostrarParaLlevar();
     mostrarCocina();
     mostrarBar();
+    guardarEstado();
 }
 
 // Función para calcular el tiempo de preparación
@@ -717,6 +797,7 @@ function aumentarCantidadCocina(ordenNumero, itemNombre, itemIndex) {
         mostrarCocina();
         console.log(`Cantidad de ${itemNombre} aumentada a ${item.cantidad} en la cocina para orden ${ordenNumero}`); // Debug
     }
+    guardarEstado();
 }
 
 // Función para disminuir la cantidad de ítems en cocina
@@ -736,10 +817,12 @@ function disminuirCantidadCocina(ordenNumero, itemNombre, itemIndex) {
         mostrarCocina();
         console.log(`Cantidad de ${itemNombre} disminuida a ${item.cantidad} en la cocina para orden ${ordenNumero}`); // Debug
     }
+    guardarEstado();
 }
 
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
+    restaurarEstado();
     showScreen('login-screen');
     mostrarMesas();
     mostrarParaLlevar();

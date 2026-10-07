@@ -7,6 +7,20 @@
   --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.demo-banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding: 14px 24px;
+  background: #173b60;
+  color: white;
+  font-size: 14px;
+}
+
+.demo-banner small { flex-basis: 100%; opacity: .85; }
+.demo-access { text-align: center; color: #555; }
+
 body {
   font-family: 'Roboto', sans-serif;
   margin: 0;
