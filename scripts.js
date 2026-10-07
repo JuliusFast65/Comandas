@@ -742,6 +742,8 @@ function confirmarFacturacionFinal() {
         mostrarMesas();
         mostrarParaLlevar();
         mostrarCaja();
+        mostrarCocina();
+        mostrarBar();
 
         console.log(`Orden facturada y completada para Mesa/Para Llevar ${ordenParaFacturar.numero}`); // Debug
         showScreen('caja-screen');
@@ -830,8 +832,20 @@ function mostrarArea(area) {
     actualizarPendientes();
     const lista = document.getElementById(`${area}-list`);
     lista.replaceChildren();
+    const historial = document.getElementById(`${area}-retirados`);
+    historial.replaceChildren();
+    let unidadesRetiradas = 0;
     [...mesas, ...paraLlevarOrdenes].forEach(pedido => {
-        const items = itemsEnviados(pedido).filter(i => i.area === area);
+        const enviados = itemsEnviados(pedido).filter(i => i.area === area);
+        const nombrePedido = `${mesas.includes(pedido) ? 'Mesa' : 'Para Llevar'} ${pedido.numero}`;
+        enviados.filter(({ item }) => (item.retirados || 0) > 0).forEach(({ item }) => {
+            unidadesRetiradas += item.retirados;
+            const fila = document.createElement('p');
+            fila.className = 'withdrawn-row';
+            fila.textContent = `${nombrePedido} · ${item.nombre} · ${item.retirados} retirados · Cuenta ${item.cuenta}${item.adicional ? ' · Adicional' : ''}${item.nota ? ` · Nota: ${item.nota}` : ''}`;
+            historial.appendChild(fila);
+        });
+        const items = enviados.filter(({ item }) => (item.retirados || 0) < item.cantidad);
         if (!items.length) return;
         const tipo = mesas.includes(pedido) ? 'mesa' : 'llevar';
         const tarjeta = document.createElement('section');
@@ -897,6 +911,18 @@ function mostrarArea(area) {
         });
         lista.appendChild(tarjeta);
     });
+    document.getElementById(`${area}-retirados-titulo`).textContent = `Ver retirados (${unidadesRetiradas})`;
+    if (!lista.children.length) {
+        const mensaje = document.createElement('p');
+        mensaje.className = 'area-empty';
+        mensaje.textContent = 'Todo al día. No hay productos pendientes de preparar o retirar.';
+        lista.appendChild(mensaje);
+    }
+    if (!historial.children.length) {
+        const mensaje = document.createElement('p');
+        mensaje.textContent = 'No hay retiros en los pedidos actuales.';
+        historial.appendChild(mensaje);
+    }
 }
 
 function mostrarCocina() { mostrarArea('cocina'); }
