@@ -654,3 +654,52 @@ textarea {
 .app-brand { justify-self: center; }
 #user-name { display: block; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 480px) { #user-name { max-width: 100px; } .app-topbar { gap: 8px; padding: 8px; } .app-brand { font-size: 18px; } }
+
+/* Toma de orden: catálogo principal y revisión adaptable. */
+#toma-ordenes-screen .order-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; }
+#toma-ordenes-screen .order-header h2 { margin: 0; font-size: 18px; white-space: nowrap; }
+#toma-ordenes-screen .mesa-info { flex: 1; display: flex; flex-wrap: nowrap; gap: 8px; margin: 0; justify-content: flex-start; }
+#toma-ordenes-screen .mesa-info label { gap: 4px; font-size: 13px; min-width: 0; }
+#toma-ordenes-screen .mesa-info label:last-child { flex: 1; }
+#toma-ordenes-screen .mesa-info input { box-sizing: border-box; min-height: 44px; margin: 0; font-size: 16px; }
+#toma-ordenes-screen #cuentas { width: 54px; }
+#toma-ordenes-screen #nombre-cuenta { width: 100%; min-width: 0; max-width: none; }
+#toma-ordenes-screen .waiter-assignment { order: 3; width: 100%; margin: 0; font-size: 12px; gap: 8px; }
+#toma-ordenes-screen .waiter-assignment select { flex: 1; }
+#toma-ordenes-screen .order-content { height: auto; overflow: visible; gap: 16px; }
+#toma-ordenes-screen .selection-area { min-width: 0; overflow: visible; }
+#toma-ordenes-screen #categories { padding: 4px 0; position: static; align-items: center; }
+#categories .menu-search { flex: 0 0 min(280px, 75vw); margin: 0; }
+.menu-search[hidden], .search-controls button[hidden] { display: none; }
+.search-chip { width: 44px; display: grid; place-items: center; }
+.search-chip .fas { display: none; }
+.search-symbol { font-size: 26px; line-height: 1; }
+#buscar-resultados:empty { display: none; }
+#toma-ordenes-screen .menu-heading h3 { margin: 6px 0; font-size: 16px; }
+#toma-ordenes-screen .menu-help { margin-bottom: 8px; }
+#toma-ordenes-screen > .container { padding-bottom: 96px; }
+#toma-ordenes-screen .order-content > .order-summary { display: none; }
+.mobile-order-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 5; background: white; border-top: 1px solid #dce3e9; box-shadow: 0 -4px 16px #173b6010; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+.mobile-order-bar > div { display: grid; gap: 2px; font-size: 12px; color: #59636d; }
+.mobile-order-bar strong { font-size: 20px; color: #173b60; }
+.mobile-order-bar button, #cerrar-detalle { min-height: 44px; border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+.mobile-order-bar button { background: #173b60; color: white; }
+#detalle-dialogo { box-sizing: border-box; width: 100%; max-width: 640px; max-height: 88dvh; padding: 0; border: 0; border-radius: 20px 20px 0 0; margin: auto auto 0; overflow: auto; }
+#detalle-dialogo::backdrop { background: #102a4380; }
+#detalle-dialogo .order-summary { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: none; }
+.summary-heading, .summary-total { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.summary-heading h3 { margin: 0; font-size: 18px; }
+#cerrar-detalle { background: #eef2f6; color: #173b60; }
+#toma-ordenes-screen #orden-list { max-height: none; margin: 8px 0; overflow: visible; }
+#toma-ordenes-screen #orden-list li { gap: 8px; padding: 8px 0; flex-wrap: wrap; }
+#toma-ordenes-screen .quantity-controls button { min-width: 44px; min-height: 44px; margin: 0; }
+#toma-ordenes-screen .footer { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+#toma-ordenes-screen .footer button { min-height: 44px; flex: 1; margin: 0; font-size: 14px; }
+#toma-ordenes-screen .footer button:first-child { flex-basis: 100%; }
+@media (max-width: 599px) { #toma-ordenes-screen .mesa-info { flex-basis: 100%; } }
+@media (min-width: 900px) {
+  #toma-ordenes-screen .order-content { flex-direction: row; align-items: flex-start; }
+  #toma-ordenes-screen .order-content > .order-summary { display: block; flex: 0 0 320px; box-sizing: border-box; padding: 16px; position: sticky; top: 16px; max-height: calc(100dvh - 32px); }
+  #toma-ordenes-screen > .container { padding-bottom: 20px; }
+  .mobile-order-bar, #cerrar-detalle { display: none; }
+}

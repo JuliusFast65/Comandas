@@ -6,7 +6,7 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=roles-1">
+    <link rel="stylesheet" href="styles.css?v=orden-movil-1">
 </head>
 <body>
     <div id="app">
@@ -19,7 +19,7 @@
             </details>
         </header>
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Roles 1</strong>
+            <strong>Comandas · Demo · Orden móvil 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales. Los datos de facturación se guardan en este navegador.</small>
         </aside>
@@ -80,7 +80,7 @@
         <div id="toma-ordenes-screen" class="screen">
             <div class="container">
                 <div class="order-header">
-                    <h2>Orden de <span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
+                    <h2><span id="orden-tipo"></span> <span id="orden-numero"></span></h2>
                     <label class="waiter-assignment" for="mesero-mesa">Mesero responsable <select id="mesero-mesa" onchange="reasignarMesa()"></select></label>
                     <div class="mesa-info">
                         <label for="cuentas">Cuenta: <input type="number" id="cuentas" value="1" min="1" onchange="actualizarCuentas()"></label>
@@ -90,15 +90,14 @@
                 
                 <div class="order-content">
                     <div class="selection-area">
-                        <div class="menu-search">
-                            <label for="buscar-producto">Buscar en todo el menú</label>
-                            <div class="search-controls">
-                                <input id="buscar-producto" type="search" placeholder="Ej. pizza, café, cerveza…" autocomplete="off">
-                                <button id="limpiar-busqueda" type="button" hidden>Limpiar</button>
-                            </div>
-                            <small id="buscar-resultados" role="status" aria-live="polite"></small>
-                        </div>
                         <nav id="categories" class="categories" aria-label="Categorías del menú">
+                            <button id="abrir-busqueda" type="button" class="category search-chip" aria-label="Buscar productos" aria-expanded="false" aria-controls="menu-search" onclick="alternarBusqueda()"><i class="fas fa-search" aria-hidden="true"></i><span class="search-symbol" aria-hidden="true">⌕</span></button>
+                            <div id="menu-search" class="menu-search" hidden>
+                                <div class="search-controls">
+                                    <input id="buscar-producto" type="search" aria-label="Buscar en todo el menú" placeholder="Buscar productos…" autocomplete="off">
+                                    <button id="limpiar-busqueda" type="button" hidden>Limpiar</button>
+                                </div>
+                            </div>
                             <button type="button" class="category" data-categoria="entradas" onclick="showProducts('entradas')">Entradas</button>
                             <button type="button" class="category" data-categoria="platos" onclick="showProducts('platos')">Platos fuertes</button>
                             <button type="button" class="category" data-categoria="postres" onclick="showProducts('postres')">Postres</button>
@@ -106,22 +105,25 @@
                             <button type="button" class="category" data-categoria="bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')">Bebidas alcohólicas</button>
                             <button type="button" class="category" data-categoria="adicionales" onclick="showProducts('adicionales')">Adicionales</button>
                         </nav>
+                        <small id="buscar-resultados" role="status" aria-live="polite"></small>
                         <div class="menu-heading"><h3 id="menu-titulo">Entradas</h3><span id="menu-cuenta">Añadiendo a Cuenta 1</span></div>
                         <p class="menu-help">Toca un producto para añadirlo. Las cantidades muestran el borrador de esta cuenta.</p>
                         <div id="products" class="products"></div>
                     </div>
-                    <div class="order-summary">
-                        <h3>Orden Actual</h3>
+                    <div id="order-summary" class="order-summary">
+                        <div class="summary-heading"><h3 id="detalle-titulo">Detalle de la orden</h3><button id="cerrar-detalle" type="button" onclick="cerrarDetalleOrden()" aria-label="Cerrar detalle">✕</button></div>
                         <ul id="orden-list" class="orden-list"></ul>
+                        <p class="summary-total">Total <strong id="detalle-total">$0.00</strong></p>
+                        <div class="footer">
+                            <button onclick="confirmarOrden()">Confirmar Orden</button>
+                            <button onclick="cancelarOrden()">Cancelar</button>
+                            <button onclick="pedirCuenta()">Pedir Cuenta</button>
+                        </div>
+                        <button id="retirar-listos-mesa" class="pickup-button" disabled>No hay productos listos para retirar</button>
                     </div>
                 </div>
-            
-                <div class="footer">
-                    <button onclick="confirmarOrden()">Confirmar Orden</button>
-                    <button onclick="cancelarOrden()">Cancelar</button>
-                    <button onclick="pedirCuenta()">Pedir Cuenta</button>
-                </div>
-                <button id="retirar-listos-mesa" class="pickup-button" disabled>No hay productos listos para retirar</button>
+                <div class="mobile-order-bar"><div aria-live="polite"><span id="resumen-cantidad">Orden vacía</span><strong id="resumen-total">$0.00</strong></div><button id="ver-orden" type="button" onclick="abrirDetalleOrden()" aria-haspopup="dialog">Ver orden</button></div>
+                <dialog id="detalle-dialogo" aria-labelledby="detalle-titulo"></dialog>
             </div>
         </div>
       
@@ -255,6 +257,6 @@
         </nav>
     </dialog>
     <section id="precuenta-impresion" aria-hidden="true"></section>
-    <script src="scripts.js?v=roles-1"></script>
+    <script src="scripts.js?v=orden-movil-1"></script>
 </body>
 </html>

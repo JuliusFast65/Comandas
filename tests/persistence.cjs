@@ -295,7 +295,7 @@ test('menu categories stay available and product badges follow the selected acco
     const category = w.document.querySelector('[data-categoria="platos"]');
     category.click();
     assert.equal(category.getAttribute('aria-pressed'), 'true');
-    assert.equal(w.document.querySelectorAll('#categories button').length, 6);
+    assert.equal(w.document.querySelectorAll('#categories [data-categoria]').length, 6);
     const pizza = () => w.document.querySelector('[data-producto="Pizza"]');
     pizza().click();
     pizza().click();
@@ -732,5 +732,41 @@ test('demo users land in their roles and cannot perform other roles actions', as
     w.abrirUsuariosDemo();
     assert.equal(w.document.querySelector('.screen.active').id, 'usuarios-screen');
     assert.match(w.document.getElementById('usuarios-demo-lista').textContent, /mesero2/);
+    w.close();
+});
+
+
+test('mobile order review preserves search, totals and note editing', async () => {
+    const w = await open();
+    w.innerWidth = 390;
+    w.seleccionarMesa(1);
+    const d = w.document;
+    assert.equal(d.getElementById('menu-search').hidden, true);
+    d.getElementById('abrir-busqueda').click();
+    assert.equal(d.activeElement.id, 'buscar-producto');
+    const campo = d.getElementById('buscar-producto');
+    campo.value = 'pizza';
+    campo.dispatchEvent(new w.Event('input'));
+    d.querySelector('[data-producto="Pizza"]').click();
+    assert.match(d.getElementById('resumen-cantidad').textContent, /1 artículo/);
+    assert.equal(d.getElementById('resumen-total').textContent, '$10.00');
+    d.getElementById('ver-orden').click();
+    const panel = d.getElementById('detalle-dialogo');
+    assert.equal(panel.open, true);
+    w.abrirModalNota(0);
+    assert.equal(panel.contains(d.getElementById('nota-modal')), true);
+    d.getElementById('nota-texto').value = 'Sin cebolla';
+    w.guardarNota();
+    w.cerrarDetalleOrden();
+    assert.equal(panel.open, false);
+    assert.equal(campo.value, 'pizza');
+    assert.equal(d.querySelector('.order-content').contains(d.getElementById('order-summary')), true);
+    w.abrirDetalleOrden();
+    w.abrirModalNota(0);
+    assert.equal(d.getElementById('nota-texto').value, 'Sin cebolla');
+    w.cerrarModal();
+    w.confirmarOrden();
+    assert.equal(panel.open, false);
+    assert.match(d.getElementById('confirmacion-list').textContent, /Pizza/);
     w.close();
 });

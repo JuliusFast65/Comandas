@@ -596,6 +596,7 @@ function iniciarSesion() {
 // Función para mostrar la pantalla deseada
 function showScreen(screenId) {
     if (!pantallaPermitida(screenId)) { mostrarAviso('Esta pantalla no está disponible para tu rol.', 'Acceso restringido', 'aviso'); return; }
+    cerrarDetalleOrden();
     document.getElementById('app-topbar').hidden = screenId === 'login-screen' || !usuarioLogueado;
     console.log(`Intentando mostrar pantalla: ${screenId}`); // Debug
     const screens = document.querySelectorAll('.screen');
@@ -938,13 +939,17 @@ function abrirModalNota(index) {
     notaIndex = index;
     console.log(`Abriendo modal para añadir nota al producto en el índice: ${index}`); // Debug
     document.getElementById('nota-texto').value = orden[index].nota || '';
+    const panel = document.getElementById('detalle-dialogo');
+    if (panel.open) panel.append(document.getElementById('nota-modal'));
     document.getElementById('nota-modal').style.display = 'block';
+    document.getElementById('nota-texto').focus();
 }
 
 // Función para cerrar el modal de notas
 function cerrarModal() {
     console.log("Cerrando modal de notas"); // Debug
     document.getElementById('nota-modal').style.display = 'none';
+    document.body.append(document.getElementById('nota-modal'));
 }
 
 // Función para guardar la nota del modal
@@ -958,6 +963,32 @@ function guardarNota() {
     }
     cerrarModal();
     guardarEstado();
+}
+
+function alternarBusqueda() {
+    const campo = document.getElementById('buscar-producto');
+    const contenedor = document.getElementById('menu-search');
+    if (!contenedor.hidden && campo.value.trim()) { campo.focus(); return; }
+    contenedor.hidden = !contenedor.hidden;
+    document.getElementById('abrir-busqueda').setAttribute('aria-expanded', String(!contenedor.hidden));
+    if (!contenedor.hidden) campo.focus();
+}
+
+function abrirDetalleOrden() {
+    if (window.innerWidth >= 900) return;
+    const dialogo = document.getElementById('detalle-dialogo');
+    dialogo.append(document.getElementById('order-summary'));
+    dialogo.showModal();
+}
+
+function cerrarDetalleOrden() {
+    const dialogo = document.getElementById('detalle-dialogo');
+    if (dialogo?.open) dialogo.close();
+    if (dialogo?.contains(document.getElementById('nota-modal'))) cerrarModal();
+    const detalle = document.getElementById('order-summary');
+    if (detalle && dialogo?.contains(detalle)) {
+        document.querySelector('#toma-ordenes-screen .order-content').append(detalle);
+    }
 }
 
 // Función para actualizar la lista de la orden
@@ -1002,6 +1033,13 @@ function actualizarOrden() {
     // Hacer scroll al final de la lista para mostrar el último item añadido
     ordenList.scrollTop = ordenList.scrollHeight;
     actualizarCantidadesProductos();
+    const items = [...ordenEnCocina, ...ordenEnBar, ...orden.filter(item => !item.enCocina && !item.enBar)];
+    const cantidad = items.reduce((total, item) => total + item.cantidad, 0);
+    const total = items.reduce((total, item) => total + calcularImportes(item.tarifa || tarifaProducto(item.nombre), item.cantidad).total, 0);
+    document.getElementById('resumen-cantidad').textContent = cantidad ? `${cantidad} ${cantidad === 1 ? 'artículo' : 'artículos'} · Todas las cuentas` : 'Orden vacía';
+    document.getElementById('resumen-total').textContent = dinero(total);
+    document.getElementById('detalle-total').textContent = dinero(total);
+    if (!cantidad) ordenList.innerHTML = '<li class="order-empty">Añade productos para empezar.</li>';
     console.log("Orden actualizada", orden); // Debug
 }
 
@@ -1600,6 +1638,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (usuario.open) { usuario.open = false; usuario.querySelector('summary').focus(); }
         }
     });
+    document.getElementById('detalle-dialogo').addEventListener('close', cerrarDetalleOrden);
+    document.getElementById('detalle-dialogo').addEventListener('click', evento => {
+        if (evento.target === evento.currentTarget) cerrarDetalleOrden();
+    });
+    window.addEventListener('resize', () => { if (window.innerWidth >= 900) cerrarDetalleOrden(); });
     document.getElementById('buscar-producto').addEventListener('input', renderizarMenu);
     document.getElementById('limpiar-busqueda').addEventListener('click', () => {
         document.getElementById('buscar-producto').value = '';
