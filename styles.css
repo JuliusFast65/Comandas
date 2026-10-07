@@ -576,6 +576,14 @@ textarea {
 .withdrawn-row { padding: 12px 0; border-top: 1px solid #dce3e9; line-height: 1.5; }
 .area-empty { padding: 24px; text-align: center; color: #59636d; background: #f0f7ff; border-radius: 12px; }
 
+.menu-search { margin: 0 0 8px; }
+.menu-search > label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.search-controls { display: flex; align-items: center; gap: 8px; }
+.search-controls input { min-width: 0; flex: 1; box-sizing: border-box; min-height: 44px; padding: 10px 12px; border: 1px solid #a3adb7; border-radius: 8px; font-size: 16px; }
+.search-controls button { min-height: 44px; background: #eef2f6; color: #173b60; border: 0; border-radius: 8px; padding: 10px; cursor: pointer; }
+#buscar-resultados { display: block; color: #59636d; margin-top: 6px; }
+.search-empty { grid-column: 1 / -1; padding: 16px; color: #59636d; }
+
 .client-info label {
     display: block;
     margin-bottom: 10px;

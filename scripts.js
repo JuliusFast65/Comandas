@@ -399,17 +399,33 @@ function actualizarCantidadesProductos() {
 function showProducts(categoria) {
     if (!productos[categoria]) return;
     categoriaSeleccionada = categoria;
+    document.getElementById('buscar-producto').value = '';
+    renderizarMenu();
+}
+
+function renderizarMenu() {
+    const categoria = categoriaSeleccionada;
+    const consulta = document.getElementById('buscar-producto').value.trim();
+    const normalizar = texto => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const coincidencias = consulta
+        ? [...new Map(Object.entries(productos).flatMap(([grupo, nombres]) =>
+            nombres.filter(nombre => normalizar(nombre).includes(normalizar(consulta)))
+                .map(nombre => [nombre, { nombre, grupo }]))).values()]
+        : productos[categoria].map(nombre => ({ nombre, grupo: categoria }));
     document.querySelectorAll('#categories .category').forEach(boton => {
-        const seleccionada = boton.dataset.categoria === categoria;
+        const seleccionada = !consulta && boton.dataset.categoria === categoria;
         boton.classList.toggle('category-active', seleccionada);
         boton.setAttribute('aria-pressed', String(seleccionada));
     });
-    document.getElementById('menu-titulo').textContent = nombresCategorias[categoria];
+    document.getElementById('menu-titulo').textContent = consulta ? 'Resultados en todo el menú' : nombresCategorias[categoria];
+    document.getElementById('buscar-resultados').textContent = consulta
+        ? `${coincidencias.length} ${coincidencias.length === 1 ? 'producto encontrado' : 'productos encontrados'}` : '';
+    document.getElementById('limpiar-busqueda').hidden = !consulta;
     const contenedor = document.getElementById('products');
-    contenedor.replaceChildren(...productos[categoria].map(producto => {
+    contenedor.replaceChildren(...coincidencias.map(({ nombre: producto, grupo }) => {
         const tarjeta = document.createElement('button');
         tarjeta.type = 'button';
-        tarjeta.className = `product ${categoria}`;
+        tarjeta.className = `product ${grupo}`;
         tarjeta.dataset.producto = producto;
         const nombre = document.createElement('span');
         nombre.className = 'product-name';
@@ -417,9 +433,20 @@ function showProducts(categoria) {
         const cantidad = document.createElement('span');
         cantidad.className = 'product-quantity';
         tarjeta.append(nombre, cantidad);
+        if (consulta) {
+            const etiqueta = document.createElement('small');
+            etiqueta.textContent = nombresCategorias[grupo];
+            tarjeta.appendChild(etiqueta);
+        }
         tarjeta.onclick = () => agregarProducto(producto);
         return tarjeta;
     }));
+    if (!coincidencias.length) {
+        const vacio = document.createElement('p');
+        vacio.className = 'search-empty';
+        vacio.textContent = 'No encontramos productos. Prueba con otro nombre.';
+        contenedor.appendChild(vacio);
+    }
     actualizarCantidadesProductos();
 }
 
@@ -974,6 +1001,12 @@ function disminuirCantidadCocina(ordenNumero, itemNombre, itemIndex) {
 
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('buscar-producto').addEventListener('input', renderizarMenu);
+    document.getElementById('limpiar-busqueda').addEventListener('click', () => {
+        document.getElementById('buscar-producto').value = '';
+        renderizarMenu();
+        document.getElementById('buscar-producto').focus();
+    });
     recuperarAcceso();
     document.getElementById('contrasena').addEventListener('keydown', evento => {
         if (evento.key === 'Enter' && !evento.isComposing && !evento.repeat) {
