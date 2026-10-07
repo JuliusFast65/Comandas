@@ -6,12 +6,12 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=cuenta-1">
+    <link rel="stylesheet" href="styles.css?v=precuenta-1">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Cuenta 1</strong>
+            <strong>Comandas · Demo · Precuenta 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
         </aside>
@@ -135,8 +135,10 @@
 
         <div id="facturacion-screen" class="screen">
             <div class="container">
-                <h2><i class="fas fa-file-invoice"></i> Confirmar Facturación</h2>
+                <h2><i class="fas fa-file-invoice"></i> Precuenta</h2>
                 <p id="factura-info"></p>
+                <div id="precuenta-consumo"></div>
+                <p class="menu-help">Menú sin precios configurados: se muestran cantidades, sin total monetario. Esta precuenta no es una factura fiscal.</p>
                 
                 <!-- Formulario para datos del cliente -->
                 <div class="client-info">
@@ -154,10 +156,14 @@
                     
                     <label for="correo">Correo Electrónico:</label>
                     <input type="email" id="correo" placeholder="Ingrese su correo electrónico" required>
+                    <label for="propina">Propina voluntaria (importe):</label>
+                    <input type="number" id="propina" placeholder="Sin propina" min="0" step="0.01" inputmode="decimal">
+                    <small>Opcional. Déjala vacía o en 0 si no deseas añadir propina.</small>
                 </div>
                 
                 <div class="footer">
-                    <button onclick="confirmarFacturacion()"><i class="fas fa-check"></i> Confirmar</button>
+                    <button onclick="confirmarFacturacion()"><i class="fas fa-check"></i> Guardar datos y continuar</button>
+                    <button onclick="imprimirPrecuenta()">Imprimir precuenta</button>
                     <button onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-times"></i> Cancelar</button>
                 </div>
             </div>
@@ -166,8 +172,8 @@
         <div id="confirmacion-facturacion-screen" class="screen">
             <div class="container">
                 <h2><i class="fas fa-file-invoice"></i> Confirmar Facturación Final</h2>
-                <p id="factura-info"></p>
-                <ul id="confirmacion-list"></ul>
+                <p id="factura-final-info"></p>
+                <div id="factura-final-list"></div>
                 <div class="footer">
                     <button onclick="confirmarFacturacionFinal()"><i class="fas fa-check"></i> Confirmar Facturación</button>
                     <button onclick="showScreen('caja-screen')"><i class="fas fa-times"></i> Cancelar</button>
@@ -194,6 +200,7 @@
         </form>
     </dialog>
 
-    <script src="scripts.js?v=cuenta-1"></script>
+    <section id="precuenta-impresion" aria-hidden="true"></section>
+    <script src="scripts.js?v=precuenta-1"></script>
 </body>
 </html>

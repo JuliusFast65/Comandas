@@ -213,7 +213,7 @@ function mostrarCaja() {
     // Iterar sobre cada orden para llevar
     paraLlevarOrdenes.forEach(orden => {
         console.log(`Revisando orden para llevar: ${orden.numero}, cuentaPedida: ${orden.cuentaPedida}, terminada: ${orden.terminada}`); // Debug
-        if (orden.cuentaPedida && !orden.terminada) {
+        if (orden.cuentaPedida && orden.terminada) {
             console.log(`Para Llevar ${orden.numero} cumple las condiciones para ser mostrado.`); // Debug
             const ordenDiv = document.createElement('div');
             const tipoOrden = 'Para Llevar';
@@ -670,6 +670,10 @@ function cancelarOrden() {
 
 // Función para pedir la cuenta y mostrar la pantalla de facturación
 function pedirCuenta() {
+    if (!mesaSeleccionada || !cuentasParaFacturar(mesaSeleccionada).length) {
+        mostrarAviso('Esta mesa todavía no tiene consumo enviado a preparación.', 'Sin consumo', 'aviso');
+        return;
+    }
     console.log(`Intentando pedir cuenta para mesa: ${mesaSeleccionada.numero}, Estado actual: cuentaPedida=${mesaSeleccionada.cuentaPedida}`); // Debug
 
     if (mesaSeleccionada) {
@@ -686,34 +690,75 @@ function pedirCuenta() {
 }
 
 // Función para seleccionar una orden para facturación
-function seleccionarParaFacturacion(orden) {
-    ordenParaFacturar = orden;
-    const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-    const facturaInfo = `Facturar ${tipoOrden} ${orden.numero}`;
-    document.getElementById('factura-info').textContent = facturaInfo;
-
-    // Mostrar detalles de la orden
-    const confirmacionList = document.getElementById('confirmacion-list');
-    confirmacionList.innerHTML = ''; // Limpiar la lista de confirmación
-    orden.ordenes.forEach(o => {
-        o.items.forEach(item => {
-            const listItem = document.createElement('li');
-            listItem.style.marginBottom = '10px'; // Asegurar separación entre items
-            listItem.innerHTML = `
-                <div>${item.nombre} - ${item.cantidad}</div>
-                ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
-            `;
-            confirmacionList.appendChild(listItem);
-        });
+function seleccionarParaFacturacion(pedido) {
+    ordenParaFacturar = pedido;
+    document.getElementById('factura-final-info').textContent =
+        `${mesas.includes(pedido) ? 'Mesa' : 'Para Llevar'} ${pedido.numero}`;
+    const lista = document.getElementById('factura-final-list');
+    lista.replaceChildren();
+    cuentasParaFacturar(pedido).forEach(cuenta => {
+        const titulo = document.createElement('h3');
+        titulo.textContent = `Cuenta ${cuenta}: ${pedido.nombresCuentas[cuenta] || 'Sin nombre'}`;
+        const datos = pedido.factura?.[cuenta];
+        const detalle = document.createElement('p');
+        detalle.textContent = datos ?
+            `${datos.nombreCompleto} · ${datos.cedula} · ${datos.direccion} · ${datos.telefono} · ${datos.correo} · Propina voluntaria: ${(datos.propina || 0).toFixed(2)}`
+            : 'Datos de facturación pendientes';
+        lista.append(titulo, tablaConsumo(pedido, cuenta), detalle);
     });
+    showScreen('confirmacion-facturacion-screen');
+}
 
-    showScreen('confirmacion-facturacion-screen'); // Mostrar pantalla de confirmación de facturación
-    console.log(`Orden seleccionada para facturación: ${facturaInfo}`); // Debug
+function tablaConsumo(pedido, cuenta) {
+    const tabla = document.createElement('table');
+    tabla.className = 'consumption-table';
+    const encabezado = document.createElement('thead');
+    encabezado.innerHTML = '<tr><th scope="col">Producto</th><th scope="col">Cantidad</th></tr>';
+    const cuerpo = document.createElement('tbody');
+    const cantidades = new Map();
+    itemsEnviados(pedido).filter(({ item }) => String(item.cuenta) === String(cuenta)).forEach(({ item }) => {
+        cantidades.set(item.nombre, (cantidades.get(item.nombre) || 0) + item.cantidad);
+    });
+    cantidades.forEach((cantidad, nombre) => {
+        const fila = document.createElement('tr');
+        for (const valor of [nombre, cantidad]) {
+            const celda = document.createElement('td');
+            celda.textContent = valor;
+            fila.appendChild(celda);
+        }
+        cuerpo.appendChild(fila);
+    });
+    tabla.append(encabezado, cuerpo);
+    return tabla;
+}
+
+function imprimirPrecuenta() {
+    if (!ordenParaFacturar) return;
+    const cuenta = cuentasParaFacturar(ordenParaFacturar)[cuentaIndex];
+    if (!cuenta) return;
+    const hoja = document.getElementById('precuenta-impresion');
+    hoja.replaceChildren();
+    const titulo = document.createElement('h1');
+    titulo.textContent = 'Comandas · Precuenta';
+    const referencia = document.createElement('p');
+    referencia.textContent = document.getElementById('factura-info').textContent;
+    hoja.append(titulo, referencia, tablaConsumo(ordenParaFacturar, cuenta));
+    for (const [id, nombre] of [['cedula', 'Cédula/RUC'], ['nombre-completo', 'Nombre completo'],
+        ['direccion', 'Dirección'], ['telefono', 'Teléfono'], ['correo', 'Correo electrónico'],
+        ['propina', 'Propina voluntaria (importe)']]) {
+        const linea = document.createElement('p');
+        linea.textContent = `${nombre}: ${document.getElementById(id).value.trim() || '________________________________'}`;
+        hoja.appendChild(linea);
+    }
+    const aviso = document.createElement('p');
+    aviso.textContent = 'Sin precios configurados: no se calcula total monetario. Documento de demostración, no válido como factura fiscal.';
+    hoja.appendChild(aviso);
+    window.print();
 }
 
 // Función para pedir datos de facturación por cuenta
 function cuentasParaFacturar(pedido) {
-    return [...new Set(pedido.ordenes.flatMap(grupo => grupo.items.map(item => String(item.cuenta))))]
+    return [...new Set(itemsEnviados(pedido).map(({ item }) => String(item.cuenta)))]
         .sort((a, b) => Number(a) - Number(b));
 }
 
@@ -729,10 +774,15 @@ function pedirDatosFacturaPorCuenta() {
             ['direccion', 'direccion'], ['telefono', 'telefono'], ['correo', 'correo']]) {
             document.getElementById(id).value = datos[campo] || '';
         }
+        document.getElementById('propina').value = datos.propina ?? '';
+        document.getElementById('precuenta-consumo').replaceChildren(tablaConsumo(ordenParaFacturar, cuenta));
         showScreen('facturacion-screen');
     } else {
-        // Si ya se pidieron los datos para todas las cuentas, regresar a selección de mesas
+        mostrarMesas();
+        mostrarParaLlevar();
+        mostrarCaja();
         showScreen('seleccion-mesas-screen');
+        mostrarAviso('Los datos de las cuentas se guardaron para Caja. La mesa permanece abierta hasta cerrar la orden.', 'Precuenta completada');
     }
 }
 
@@ -750,6 +800,17 @@ function confirmarFacturacion() {
         return;
     }
 
+    const entradaPropina = document.getElementById('propina');
+    const propina = entradaPropina.value === '' ? 0 : Number(entradaPropina.value);
+    if (entradaPropina.validity.badInput || !Number.isFinite(propina) || propina < 0
+        || Math.abs(propina * 100 - Math.round(propina * 100)) > 0.000001) {
+        mostrarAviso('La propina debe ser un importe positivo o cero, con hasta dos decimales.', 'Revisa la propina', 'aviso');
+        return;
+    }
+    if (!document.getElementById('correo').checkValidity()) {
+        mostrarAviso('Ingresa un correo electrónico válido.', 'Revisa el correo', 'aviso');
+        return;
+    }
     const cuentas = cuentasParaFacturar(ordenParaFacturar);
     if (cuentaIndex < cuentas.length) {
         const cuenta = cuentas[cuentaIndex];
@@ -759,7 +820,8 @@ function confirmarFacturacion() {
             nombreCompleto,
             direccion,
             telefono,
-            correo
+            correo,
+            propina
         };
         cuentaIndex++; // Incrementar el índice para la siguiente cuenta
         pedirDatosFacturaPorCuenta(); // Pedir datos para la siguiente cuenta
@@ -774,6 +836,8 @@ function confirmarFacturacionFinal() {
         ordenParaFacturar.terminada = true; // Marcar la orden como terminada
         ordenParaFacturar.ocupada = false; // Liberar la mesa
         ordenParaFacturar.cuentaPedida = false; // Resetear el estado de cuentaPedida
+        ordenParaFacturar.factura = {};
+        ordenParaFacturar.nombresCuentas = {};
         ordenParaFacturar.ordenes = [{ estado: 'nueva', items: [] }]; // Resetear las órdenes
 
         mostrarMesas();

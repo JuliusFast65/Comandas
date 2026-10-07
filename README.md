@@ -36,6 +36,14 @@ La facturación es demostrativa; no emite comprobantes fiscales.
 
 ## Comprobaciones
 
+Al pedir cuenta se muestra una precuenta por cada cuenta con productos enviados y
+cantidades. Completa los datos y una propina voluntaria, o imprime con los campos
+vacíos para llenarlos en papel. La impresión usa el diálogo del navegador y permite
+guardar como PDF cuando el dispositivo lo ofrece. No hay precios configurados, por
+lo que no se calculan subtotales ni total monetario. Los datos de facturación y la
+propina se conservan solo durante la sesión abierta, no al recargar. Guardarlos no
+libera la mesa; el cierre se realiza en Caja.
+
 En el entorno Codex preparado:
 
 ```sh

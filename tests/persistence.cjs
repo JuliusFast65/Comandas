@@ -383,3 +383,49 @@ test('request bill opens unnamed product accounts and can be reopened', async ()
     assert.match(w.document.getElementById('factura-info').textContent, /Cuenta 1/);
     w.close();
 });
+
+test('prebill separates consumption by account, prints blank fields and saves optional tips', async () => {
+    const w = await open();
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza');
+    w.agregarProducto('Pizza');
+    w.document.getElementById('cuentas').value = '2';
+    w.agregarProducto('Coca-Cola');
+    w.enviarCocina();
+    w.pedirCuenta();
+    const consumption = () => w.document.getElementById('precuenta-consumo').textContent;
+    assert.match(consumption(), /Pizza/);
+    assert.doesNotMatch(consumption(), /Coca-Cola/);
+    assert.equal(w.document.querySelector('#precuenta-consumo tbody td:last-child').textContent, '2');
+    let prints = 0;
+    w.print = () => prints++;
+    w.imprimirPrecuenta();
+    assert.equal(prints, 1);
+    assert.match(w.document.getElementById('precuenta-impresion').textContent, /Cédula\/RUC: _/);
+    const fill = () => {
+        for (const [id, value] of Object.entries({ cedula: '1234567890', 'nombre-completo': 'Cliente demo',
+            direccion: 'Dirección demo', telefono: '0999999999', correo: 'demo@example.test' })) {
+            w.document.getElementById(id).value = value;
+        }
+    };
+    fill();
+    w.document.getElementById('propina').value = '-1';
+    w.confirmarFacturacion();
+    assert.match(w.document.getElementById('aviso-titulo').textContent, /propina/);
+    w.document.getElementById('propina').value = '2.50';
+    w.imprimirPrecuenta();
+    assert.match(w.document.getElementById('precuenta-impresion').textContent, /2.50/);
+    w.confirmarFacturacion();
+    assert.match(consumption(), /Coca-Cola/);
+    assert.doesNotMatch(consumption(), /Pizza/);
+    assert.equal(w.document.getElementById('cedula').value, '');
+    assert.equal(w.document.getElementById('propina').value, '');
+    fill();
+    w.confirmarFacturacion();
+    w.seleccionarMesa(1);
+    w.pedirCuenta();
+    assert.equal(w.document.getElementById('propina').value, '2.5');
+    assert.equal(w.document.getElementById('nombre-completo').value, 'Cliente demo');
+    assert.ok(w.document.querySelector('#mesas .mesa.ocupada'));
+    w.close();
+});
