@@ -14,7 +14,13 @@ async function open(saved, unavailable = false) {
         url: 'https://example.test/Comandas/', runScripts: 'dangerously', virtualConsole
     });
     const w = dom.window;
-    w.alert = () => {};
+    w.alert = () => { throw new Error('Unexpected native alert'); };
+    // jsdom does not implement the browser dialog API.
+    w.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+    w.HTMLDialogElement.prototype.close = function () {
+        this.removeAttribute('open');
+        this.dispatchEvent(new w.Event('close'));
+    };
     if (saved) w.localStorage.setItem(key, saved);
     if (unavailable) Object.defineProperty(w, 'localStorage', { get() { throw new Error('Unavailable'); } });
     w.eval(fs.readFileSync(path.join(root, 'scripts.js'), 'utf8') + '\nwindow.inicioRestaurado = () => tiemposDePreparacion[0]?.inicio;');
@@ -116,4 +122,36 @@ test('pending counters track units, takeaway, completion, reopening and reload',
     restored.document.querySelector('#bar-list input[type=checkbox]').click();
     assert.equal(count(restored, 'bar'), '· 0 pendientes');
     restored.close();
+});
+
+test('styled notices show validation and success with accessible focus', async () => {
+    const w = await open();
+    const dialog = w.document.getElementById('aviso-dialogo');
+    const user = w.document.getElementById('usuario');
+    user.focus();
+    w.iniciarSesion();
+    assert.ok(dialog.open);
+    assert.equal(dialog.dataset.tipo, 'aviso');
+    assert.match(w.document.getElementById('aviso-mensaje').textContent, /usuario y la contraseña/);
+    assert.equal(w.document.activeElement.id, 'aviso-aceptar');
+    dialog.close();
+    assert.equal(w.document.activeElement, user);
+    user.value = 'incorrecto';
+    w.document.getElementById('contrasena').value = 'incorrecto';
+    w.iniciarSesion();
+    assert.match(w.document.getElementById('aviso-titulo').textContent, /Revisa/);
+    dialog.close();
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza');
+    w.enviarCocina();
+    assert.ok(dialog.open);
+    assert.equal(dialog.dataset.tipo, 'exito');
+    assert.equal(w.document.getElementById('aviso-titulo').textContent, 'Orden enviada');
+    assert.equal(w.document.querySelector('.screen.active').id, 'seleccion-mesas-screen');
+    dialog.close();
+    assert.ok(w.document.querySelector('.screen.active').contains(w.document.activeElement));
+    w.confirmarFacturacion();
+    assert.equal(dialog.dataset.tipo, 'aviso');
+    assert.equal(w.document.getElementById('aviso-titulo').textContent, 'Faltan datos del cliente');
+    w.close();
 });
