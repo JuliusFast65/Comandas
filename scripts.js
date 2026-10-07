@@ -7,6 +7,93 @@ const productos = {
     adicionales: ['Papas Fritas', 'Arroz', 'Ensalada', 'Guacamole', 'Queso', 'Tortillas', 'Frijoles', 'Salsa', 'Pan', 'Aguacate', 'Tocino', 'Champiñones', 'Aros de Cebolla', 'Purée de Papas', 'Maíz']
 };
 
+const CLAVE_PRECIOS = 'comandas.precios.v1';
+let configuracionPrecios = { iva: 15, servicio: 10, incluidos: true, precios: {} };
+const dinero = centavos => `$${(centavos / 100).toFixed(2)}`;
+const centavos = valor => Math.round(Number(valor) * 100);
+
+function iniciarPrecios() {
+    const valoresDemo = { entradas: 5, platos: 10, postres: 4, bebidas: 2.5, bebidasAlcoolicas: 6, adicionales: 2 };
+    Object.entries(productos).forEach(([grupo, nombres]) => nombres.forEach(nombre => {
+        if (configuracionPrecios.precios[nombre] === undefined) configuracionPrecios.precios[nombre] = centavos(valoresDemo[grupo]);
+    }));
+    try {
+        const guardada = JSON.parse(localStorage.getItem(CLAVE_PRECIOS));
+        if (guardada && typeof guardada.incluidos === 'boolean'
+            && [guardada.iva, guardada.servicio].every(n => Number.isFinite(n) && n >= 0 && n <= 100)
+            && guardada.precios && Object.values(guardada.precios).every(n => Number.isSafeInteger(n) && n >= 0)) {
+            configuracionPrecios = { ...guardada, precios: { ...configuracionPrecios.precios, ...guardada.precios } };
+        }
+    } catch { console.warn('No se pudo recuperar la configuración de precios.'); }
+    // Los pedidos anteriores reciben la tarifa vigente al activar esta versión.
+    [...mesas, ...paraLlevarOrdenes].forEach(pedido => pedido.ordenes.forEach(grupo => grupo.items.forEach(item => {
+        if (!item.tarifa) item.tarifa = tarifaProducto(item.nombre);
+    })));
+}
+
+function tarifaProducto(nombre) {
+    return { precio: configuracionPrecios.precios[nombre] || 0, iva: configuracionPrecios.iva,
+        servicio: configuracionPrecios.servicio, incluidos: configuracionPrecios.incluidos };
+}
+
+function calcularImportes(tarifa, cantidad = 1) {
+    const importe = tarifa.precio * cantidad;
+    if (tarifa.incluidos) {
+        const base = Math.round(importe / (1 + (tarifa.iva + tarifa.servicio) / 100));
+        const iva = tarifa.servicio === 0 ? importe - base : Math.round(base * tarifa.iva / 100);
+        // Asignamos el redondeo al servicio para conservar exactamente el precio final.
+        const servicio = importe - base - iva;
+        return { base, iva, servicio, total: importe };
+    }
+    const iva = Math.round(importe * tarifa.iva / 100);
+    const servicio = Math.round(importe * tarifa.servicio / 100);
+    return { base: importe, iva, servicio, total: importe + iva + servicio };
+}
+
+function abrirConfiguracion() {
+    document.getElementById('config-iva').value = configuracionPrecios.iva;
+    document.getElementById('config-servicio').value = configuracionPrecios.servicio;
+    document.getElementById('config-incluidos').value = configuracionPrecios.incluidos ? 'incluidos' : 'separados';
+    const lista = document.getElementById('config-precios');
+    lista.replaceChildren();
+    Object.entries(configuracionPrecios.precios).forEach(([nombre, precio]) => {
+        const etiqueta = document.createElement('label');
+        etiqueta.textContent = nombre;
+        const input = document.createElement('input');
+        input.type = 'number'; input.min = '0'; input.max = '100000'; input.step = '0.01'; input.required = true;
+        input.value = (precio / 100).toFixed(2); input.dataset.producto = nombre;
+        input.setAttribute('aria-label', `Precio de ${nombre}`);
+        etiqueta.appendChild(input); lista.appendChild(etiqueta);
+    });
+    showScreen('configuracion-screen');
+}
+
+function guardarConfiguracion() {
+    const iva = Number(document.getElementById('config-iva').value);
+    const servicio = Number(document.getElementById('config-servicio').value);
+    const inputs = [...document.querySelectorAll('#configuracion-screen input')];
+    if (inputs.some(input => !input.checkValidity() || input.value === '')
+        || ![iva, servicio].every(n => Number.isFinite(n) && n >= 0 && n <= 100)) {
+        mostrarAviso('Revisa los porcentajes y precios. Los valores deben ser positivos o cero.', 'Configuración inválida', 'aviso'); return;
+    }
+    const nueva = { iva, servicio, incluidos: document.getElementById('config-incluidos').value === 'incluidos', precios: {} };
+    document.querySelectorAll('#config-precios input').forEach(input => nueva.precios[input.dataset.producto] = centavos(input.value));
+    try { localStorage.setItem(CLAVE_PRECIOS, JSON.stringify(nueva)); }
+    catch { mostrarAviso('No se pudo guardar la configuración en este navegador.', 'No se guardó', 'aviso'); return; }
+    configuracionPrecios = nueva;
+    guardarEstado();
+    showScreen('seleccion-mesas-screen');
+    mostrarAviso('Los nuevos productos usarán estos precios y cargos. Los ya pedidos conservan su tarifa.', 'Configuración guardada');
+}
+
+function totalesCuenta(pedido, cuenta) {
+    return itemsEnviados(pedido).filter(({ item }) => String(item.cuenta) === String(cuenta)).reduce((suma, { item }) => {
+        const importes = calcularImportes(item.tarifa || tarifaProducto(item.nombre), item.cantidad);
+        for (const clave of ['base', 'iva', 'servicio', 'total']) suma[clave] += importes[clave];
+        return suma;
+    }, { base: 0, iva: 0, servicio: 0, total: 0 });
+}
+
 // Reducir el número de mesas a 9
 const mesas = [
     { numero: 1, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
@@ -432,7 +519,11 @@ function renderizarMenu() {
         nombre.textContent = producto;
         const cantidad = document.createElement('span');
         cantidad.className = 'product-quantity';
-        tarjeta.append(nombre, cantidad);
+        const precio = document.createElement('strong');
+        precio.className = 'product-price';
+        const tarifa = tarifaProducto(producto);
+        precio.textContent = `${dinero(tarifa.precio)}${tarifa.incluidos ? '' : ' + cargos'}`;
+        tarjeta.append(nombre, precio, cantidad);
         if (consulta) {
             const etiqueta = document.createElement('small');
             etiqueta.textContent = nombresCategorias[grupo];
@@ -463,14 +554,16 @@ function agregarProducto(producto) {
     console.log(`Agregando producto: ${producto} a la cuenta: ${cuenta}`); // Debug
 
     // Buscar si el producto ya está en la orden para esta cuenta
-    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar);
+    const tarifa = tarifaProducto(producto);
+    const index = orden.findIndex(item => item.nombre === producto && item.cuenta === cuenta && !item.enCocina && !item.enBar
+        && JSON.stringify(item.tarifa) === JSON.stringify(tarifa));
 
     if (index > -1) {
         // Si el producto ya está, aumentamos la cantidad
         orden[index].cantidad += 1;
     } else {
         // Si no está, lo añadimos a la orden
-        orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false, enBar: false, nota: '' });
+        orden.push({ nombre: producto, cantidad: 1, cuenta: cuenta, enCocina: false, enBar: false, nota: '', tarifa });
     }
 
     // Guardar tiempo de inicio para el producto si es la primera vez que se añade
@@ -709,27 +802,40 @@ function seleccionarParaFacturacion(pedido) {
     showScreen('confirmacion-facturacion-screen');
 }
 
-function tablaConsumo(pedido, cuenta) {
+function tablaConsumo(pedido, cuenta, propina = pedido.factura?.[cuenta]?.propina || 0) {
     const tabla = document.createElement('table');
     tabla.className = 'consumption-table';
     const encabezado = document.createElement('thead');
-    encabezado.innerHTML = '<tr><th scope="col">Producto</th><th scope="col">Cantidad</th></tr>';
+    encabezado.innerHTML = '<tr><th scope="col">Producto</th><th scope="col">Cant.</th><th scope="col">Unitario final</th><th scope="col">Importe</th></tr>';
     const cuerpo = document.createElement('tbody');
-    const cantidades = new Map();
     itemsEnviados(pedido).filter(({ item }) => String(item.cuenta) === String(cuenta)).forEach(({ item }) => {
-        cantidades.set(item.nombre, (cantidades.get(item.nombre) || 0) + item.cantidad);
-    });
-    cantidades.forEach((cantidad, nombre) => {
+        const tarifa = item.tarifa || tarifaProducto(item.nombre);
         const fila = document.createElement('tr');
-        for (const valor of [nombre, cantidad]) {
-            const celda = document.createElement('td');
-            celda.textContent = valor;
-            fila.appendChild(celda);
+        for (const valor of [item.nombre, item.cantidad, dinero(calcularImportes(tarifa).total), dinero(calcularImportes(tarifa, item.cantidad).total)]) {
+            const celda = document.createElement('td'); celda.textContent = valor; fila.appendChild(celda);
         }
         cuerpo.appendChild(fila);
     });
-    tabla.append(encabezado, cuerpo);
+    const pie = document.createElement('tfoot');
+    const totales = totalesCuenta(pedido, cuenta);
+    for (const [texto, valor] of [['Consumo base', totales.base], ['IVA (sin gravar servicio)', totales.iva],
+        ['Servicio', totales.servicio], ['Total consumo', totales.total], ['Propina voluntaria', centavos(propina)],
+        ['Total a pagar', totales.total + centavos(propina)]]) {
+        const fila = document.createElement('tr');
+        const etiqueta = document.createElement('th'); etiqueta.colSpan = 3; etiqueta.scope = 'row'; etiqueta.textContent = texto;
+        const importe = document.createElement('td'); importe.textContent = dinero(valor); fila.append(etiqueta, importe); pie.appendChild(fila);
+    }
+    tabla.append(encabezado, cuerpo, pie);
     return tabla;
+}
+
+function actualizarTotalPrecuenta() {
+    if (!ordenParaFacturar) return;
+    const cuenta = cuentasParaFacturar(ordenParaFacturar)[cuentaIndex];
+    if (!cuenta) return;
+    const valor = Number(document.getElementById('propina').value);
+    const propina = Number.isFinite(valor) && valor >= 0 ? valor : 0;
+    document.getElementById('precuenta-consumo').replaceChildren(tablaConsumo(ordenParaFacturar, cuenta, propina));
 }
 
 function imprimirPrecuenta() {
@@ -742,7 +848,7 @@ function imprimirPrecuenta() {
     titulo.textContent = 'Comandas · Precuenta';
     const referencia = document.createElement('p');
     referencia.textContent = document.getElementById('factura-info').textContent;
-    hoja.append(titulo, referencia, tablaConsumo(ordenParaFacturar, cuenta));
+    hoja.append(titulo, referencia, tablaConsumo(ordenParaFacturar, cuenta, Math.max(0, Number(document.getElementById('propina').value) || 0)));
     for (const [id, nombre] of [['cedula', 'Cédula/RUC'], ['nombre-completo', 'Nombre completo'],
         ['direccion', 'Dirección'], ['telefono', 'Teléfono'], ['correo', 'Correo electrónico'],
         ['propina', 'Propina voluntaria (importe)']]) {
@@ -751,7 +857,7 @@ function imprimirPrecuenta() {
         hoja.appendChild(linea);
     }
     const aviso = document.createElement('p');
-    aviso.textContent = 'Sin precios configurados: no se calcula total monetario. Documento de demostración, no válido como factura fiscal.';
+    aviso.textContent = 'IVA calculado sobre consumo base, sin gravar servicio. Propina voluntaria independiente. Documento de demostración, no válido como factura fiscal.';
     hoja.appendChild(aviso);
     window.print();
 }
@@ -1081,6 +1187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderizarMenu();
         document.getElementById('buscar-producto').focus();
     });
+    document.getElementById('propina').addEventListener('input', actualizarTotalPrecuenta);
     recuperarAcceso();
     document.getElementById('contrasena').addEventListener('keydown', evento => {
         if (evento.key === 'Enter' && !evento.isComposing && !evento.repeat) {
@@ -1096,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         focoAntesDelAviso = null;
     });
     restaurarEstado();
+    iniciarPrecios();
     showScreen('login-screen');
     mostrarMesas();
     mostrarParaLlevar();

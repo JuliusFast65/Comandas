@@ -6,7 +6,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const root = path.join(__dirname, '..');
 const key = 'comandas.estado.v1';
 
-async function open(saved, unavailable = false, acceso = null) {
+async function open(saved, unavailable = false, acceso = null, precios = null) {
     const errors = [];
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', error => errors.push(error));
@@ -22,6 +22,7 @@ async function open(saved, unavailable = false, acceso = null) {
         this.dispatchEvent(new w.Event('close'));
     };
     if (saved) w.localStorage.setItem(key, saved);
+    if (precios) w.localStorage.setItem('comandas.precios.v1', precios);
     if (acceso) w.localStorage.setItem('comandas.ultimoAcceso.v1', acceso);
     if (unavailable) Object.defineProperty(w, 'localStorage', { get() { throw new Error('Unavailable'); } });
     w.eval(fs.readFileSync(path.join(root, 'scripts.js'), 'utf8') + '\nwindow.inicioRestaurado = () => tiemposDePreparacion[0]?.inicio;');
@@ -396,7 +397,7 @@ test('prebill separates consumption by account, prints blank fields and saves op
     const consumption = () => w.document.getElementById('precuenta-consumo').textContent;
     assert.match(consumption(), /Pizza/);
     assert.doesNotMatch(consumption(), /Coca-Cola/);
-    assert.equal(w.document.querySelector('#precuenta-consumo tbody td:last-child').textContent, '2');
+    assert.equal(w.document.querySelector('#precuenta-consumo tbody td:nth-child(2)').textContent, '2');
     let prints = 0;
     w.print = () => prints++;
     w.imprimirPrecuenta();
@@ -428,4 +429,63 @@ test('prebill separates consumption by account, prints blank fields and saves op
     assert.equal(w.document.getElementById('nombre-completo').value, 'Cliente demo');
     assert.ok(w.document.querySelector('#mesas .mesa.ocupada'));
     w.close();
+});
+
+
+test('prices include additive IVA and service, separate mode and existing orders retain rates', async () => {
+    const w = await open();
+    w.abrirConfiguracion();
+    w.document.querySelector('#config-precios input[data-producto="Pizza"]').value = '12.50';
+    w.guardarConfiguracion();
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza');
+    w.enviarCocina();
+    w.pedirCuenta();
+    const totals = () => [...w.document.querySelectorAll('#precuenta-consumo tfoot td')].map(td => td.textContent);
+    assert.deepEqual(totals(), ['$10.00', '$1.50', '$1.00', '$12.50', '$0.00', '$12.50']);
+    w.document.getElementById('propina').value = '2';
+    w.document.getElementById('propina').dispatchEvent(new w.Event('input'));
+    assert.equal(totals().at(-1), '$14.50');
+    w.abrirConfiguracion();
+    w.document.getElementById('config-incluidos').value = 'separados';
+    w.document.querySelector('#config-precios input[data-producto="Pizza"]').value = '10';
+    w.guardarConfiguracion();
+    w.seleccionarMesa(1);
+    w.pedirCuenta();
+    assert.equal(totals()[3], '$12.50');
+    w.seleccionarMesa(2);
+    w.agregarProducto('Pizza');
+    w.enviarCocina();
+    w.pedirCuenta();
+    assert.deepEqual(totals(), ['$10.00', '$1.50', '$1.00', '$12.50', '$0.00', '$12.50']);
+    const saved = JSON.parse(w.localStorage.getItem('comandas.precios.v1'));
+    assert.equal(saved.iva, 15);
+    assert.equal(saved.servicio, 10);
+    assert.equal(saved.incluidos, false);
+    w.close();
+});
+
+
+test('price settings reload, disabled service and invalid settings preserve configuration', async () => {
+    const w = await open();
+    w.abrirConfiguracion();
+    w.document.getElementById('config-servicio').value = '0';
+    w.document.querySelector('#config-precios input[data-producto="Pizza"]').value = '11.50';
+    w.guardarConfiguracion();
+    const saved = w.localStorage.getItem('comandas.precios.v1');
+    w.abrirConfiguracion();
+    w.document.getElementById('config-iva').value = '-1';
+    w.guardarConfiguracion();
+    assert.equal(w.localStorage.getItem('comandas.precios.v1'), saved);
+    w.close();
+    const restored = await open(null, false, null, saved);
+    restored.seleccionarMesa(1);
+    restored.showProducts('platos');
+    assert.match(restored.document.querySelector('[data-producto="Pizza"] .product-price').textContent, /11.50/);
+    restored.agregarProducto('Pizza');
+    restored.enviarCocina();
+    restored.pedirCuenta();
+    const amounts = [...restored.document.querySelectorAll('#precuenta-consumo tfoot td')].map(td => td.textContent);
+    assert.deepEqual(amounts, ['$10.00', '$1.50', '$0.00', '$11.50', '$0.00', '$11.50']);
+    restored.close();
 });

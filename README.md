@@ -39,8 +39,14 @@ La facturación es demostrativa; no emite comprobantes fiscales.
 Al pedir cuenta se muestra una precuenta por cada cuenta con productos enviados y
 cantidades. Completa los datos y una propina voluntaria, o imprime con los campos
 vacíos para llenarlos en papel. La impresión usa el diálogo del navegador y permite
-guardar como PDF cuando el dispositivo lo ofrece. No hay precios configurados, por
-lo que no se calculan subtotales ni total monetario. Los datos de facturación y la
+guardar como PDF cuando el dispositivo lo ofrece. Los precios iniciales son de demostración. En **Configurar precios y cargos**,
+edita el menú, el IVA (15% por defecto), servicio (10%, o 0 para desactivarlo),
+y si los precios incluyen cargos o son base más cargos. IVA y servicio usan
+la misma base: el IVA no grava el servicio. Los cálculos usan centavos y
+el precio final incluido se conserva asignando el ajuste de redondeo al servicio.
+Cada producto conserva la tarifa con la que se añadió; la configuración solo
+afecta a productos nuevos. Los pedidos de versiones sin precios reciben
+las tarifas de demostración al activar esta versión. La configuración es local al navegador. Los datos de facturación y la
 propina se conservan solo durante la sesión abierta, no al recargar. Guardarlos no
 libera la mesa; el cierre se realiza en Caja.
 

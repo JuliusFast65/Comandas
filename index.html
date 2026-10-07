@@ -6,12 +6,12 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=precuenta-1">
+    <link rel="stylesheet" href="styles.css?v=precios-1">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Precuenta 1</strong>
+            <strong>Comandas · Demo · Precios 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
         </aside>
@@ -25,9 +25,26 @@
             </div>
         </div>
 
+        <div id="configuracion-screen" class="screen">
+            <div class="container">
+                <h2>Precios y cargos</h2>
+                <p>Precios iniciales de demostración, editables. Configuración guardada en este navegador.</p>
+                <div class="client-info">
+                    <label for="config-iva">IVA (%)</label><input id="config-iva" type="number" min="0" max="100" step="0.01" required>
+                    <label for="config-servicio">Servicio (%) — 0 para desactivar</label><input id="config-servicio" type="number" min="0" max="100" step="0.01" required>
+                    <label for="config-incluidos">Interpretación de los precios del menú</label>
+                    <select id="config-incluidos"><option value="incluidos">Precio final: incluye IVA y servicio</option><option value="separados">Precio base: añadir IVA y servicio aparte</option></select>
+                </div>
+                <p>IVA y servicio se calculan sobre la misma base. El IVA no grava el servicio. La propina voluntaria va aparte.</p>
+                <p>Cambiar el modo conserva los números escritos y cambia su interpretación. Revisa los precios antes de guardar. Solo afecta a productos nuevos.</p>
+                <div id="config-precios" class="price-settings"></div>
+                <div class="footer"><button onclick="guardarConfiguracion()">Guardar configuración</button><button onclick="showScreen('seleccion-mesas-screen')">Cancelar</button></div>
+            </div>
+        </div>
         <div id="seleccion-mesas-screen" class="screen">
             <div class="container">
                 <h2><i class="fas fa-chair"></i> Seleccionar Mesa</h2>
+                <button class="pickup-button" onclick="abrirConfiguracion()">Configurar precios y cargos</button>
                 <p class="table-legend"><span>🔵 En preparación</span> <span>🟠 Listo para retirar</span> <span>🟢 Todo retirado</span></p>
                 <div id="mesas" class="mesas"></div>
                 <h2><i class="fas fa-shopping-bag"></i> Para Llevar</h2>
@@ -138,7 +155,7 @@
                 <h2><i class="fas fa-file-invoice"></i> Precuenta</h2>
                 <p id="factura-info"></p>
                 <div id="precuenta-consumo"></div>
-                <p class="menu-help">Menú sin precios configurados: se muestran cantidades, sin total monetario. Esta precuenta no es una factura fiscal.</p>
+                <p class="menu-help">IVA sobre el consumo base; servicio y propina separados. Esta precuenta no es una factura fiscal.</p>
                 
                 <!-- Formulario para datos del cliente -->
                 <div class="client-info">
@@ -201,6 +218,6 @@
     </dialog>
 
     <section id="precuenta-impresion" aria-hidden="true"></section>
-    <script src="scripts.js?v=precuenta-1"></script>
+    <script src="scripts.js?v=precios-1"></script>
 </body>
 </html>
