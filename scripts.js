@@ -339,6 +339,7 @@ function seleccionarMesa(numero) {
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     actualizarRetiroSeleccionado();
+    showProducts(categoriaSeleccionada);
     showScreen('toma-ordenes-screen');
 }
 
@@ -355,6 +356,7 @@ function seleccionarOrdenParaLlevar(numero) {
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
     actualizarRetiroSeleccionado();
+    showProducts(categoriaSeleccionada);
     showScreen('toma-ordenes-screen');
 }
 
@@ -375,34 +377,62 @@ function crearParaLlevar() {
     guardarEstado();
 }
 
-// Función para mostrar productos según la categoría seleccionada
-function showProducts(categoria) {
-    console.log(`Mostrando productos de la categoría: ${categoria}`); // Debug
-    document.getElementById('categories').style.display = 'none'; // Ocultar categorías
-    document.getElementById('back-to-categories').style.display = 'block';
-    const productsDiv = document.getElementById('products');
-    productsDiv.style.display = 'flex'; // Asegurarse de que el contenedor de productos esté visible
-    productsDiv.innerHTML = ''; // Limpiar el contenedor de productos
-    productos[categoria].forEach(producto => {
-        const productDiv = document.createElement('div');
-        productDiv.className = `product ${categoria}`;
-        productDiv.textContent = producto;
-        productDiv.onclick = () => agregarProducto(producto);
-        productsDiv.appendChild(productDiv);
+let categoriaSeleccionada = 'entradas';
+const nombresCategorias = {
+    entradas: 'Entradas', platos: 'Platos fuertes', postres: 'Postres',
+    bebidas: 'Bebidas', bebidasAlcoolicas: 'Bebidas alcohólicas', adicionales: 'Adicionales'
+};
+
+function actualizarCantidadesProductos() {
+    const cuenta = Number(document.getElementById('cuentas').value);
+    document.getElementById('menu-cuenta').textContent = `Añadiendo a Cuenta ${cuenta}`;
+    document.querySelectorAll('#products .product').forEach(tarjeta => {
+        const cantidad = orden.filter(item => item.nombre === tarjeta.dataset.producto
+            && item.cuenta === cuenta && !item.enCocina && !item.enBar)
+            .reduce((total, item) => total + item.cantidad, 0);
+        tarjeta.querySelector('.product-quantity').textContent = cantidad ? `${cantidad} en esta cuenta` : '+ Añadir';
+        tarjeta.classList.toggle('product-selected', cantidad > 0);
+        tarjeta.setAttribute('aria-label', `${tarjeta.dataset.producto}, ${cantidad} en el borrador de cuenta ${cuenta}. Añadir uno`);
     });
 }
 
-// Función para volver a mostrar las categorías
-function showCategories() {
-    console.log("Volviendo a mostrar categorías"); // Debug
-    document.getElementById('categories').style.display = 'flex';
-    document.getElementById('back-to-categories').style.display = 'none';
-    document.getElementById('products').style.display = 'none';
+function showProducts(categoria) {
+    if (!productos[categoria]) return;
+    categoriaSeleccionada = categoria;
+    document.querySelectorAll('#categories .category').forEach(boton => {
+        const seleccionada = boton.dataset.categoria === categoria;
+        boton.classList.toggle('category-active', seleccionada);
+        boton.setAttribute('aria-pressed', String(seleccionada));
+    });
+    document.getElementById('menu-titulo').textContent = nombresCategorias[categoria];
+    const contenedor = document.getElementById('products');
+    contenedor.replaceChildren(...productos[categoria].map(producto => {
+        const tarjeta = document.createElement('button');
+        tarjeta.type = 'button';
+        tarjeta.className = `product ${categoria}`;
+        tarjeta.dataset.producto = producto;
+        const nombre = document.createElement('span');
+        nombre.className = 'product-name';
+        nombre.textContent = producto;
+        const cantidad = document.createElement('span');
+        cantidad.className = 'product-quantity';
+        tarjeta.append(nombre, cantidad);
+        tarjeta.onclick = () => agregarProducto(producto);
+        return tarjeta;
+    }));
+    actualizarCantidadesProductos();
 }
+
+// Compatibilidad con llamadas anteriores: las categorías ya no se ocultan.
+function showCategories() { showProducts(categoriaSeleccionada); }
 
 // Función para agregar un producto a la orden
 function agregarProducto(producto) {
-    const cuenta = parseInt(document.getElementById('cuentas').value);
+    const cuenta = Number(document.getElementById('cuentas').value);
+    if (!Number.isInteger(cuenta) || cuenta < 1) {
+        mostrarAviso('Selecciona una cuenta válida antes de añadir productos.', 'Revisa la cuenta', 'aviso');
+        return;
+    }
     console.log(`Agregando producto: ${producto} a la cuenta: ${cuenta}`); // Debug
 
     // Buscar si el producto ya está en la orden para esta cuenta
@@ -512,6 +542,7 @@ function actualizarOrden() {
 
     // Hacer scroll al final de la lista para mostrar el último item añadido
     ordenList.scrollTop = ordenList.scrollHeight;
+    actualizarCantidadesProductos();
     console.log("Orden actualizada", orden); // Debug
 }
 
@@ -738,6 +769,7 @@ function actualizarCuentas() {
     // Mostrar el nombre de la cuenta seleccionada
     nombreInput.value = mesaSeleccionada.nombresCuentas[cuentaActual] || '';
 
+    actualizarCantidadesProductos();
     console.log(`Número de cuenta actualizado a: ${cuentaActual}`); // Debug
 }
 
