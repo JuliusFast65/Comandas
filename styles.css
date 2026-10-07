@@ -604,6 +604,25 @@ textarea {
 .lsoft-controls p { flex-basis: 100%; margin: 0 0 8px; }
 .lsoft-controls select { min-height: 44px; font-size: 16px; max-width: 100%; }
 #lsoft-json, #cierres-lista pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px; background: #eef2f6; }
+.app-topbar { position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 10px 16px; background: white; border-bottom: 1px solid #dce3e9; color: #173b60; }
+.app-topbar[hidden] { display: none; }
+.menu-toggle { justify-self: start; width: 44px; min-height: 44px; border: 0; border-radius: 10px; background: #eef2f6; color: #173b60; font-size: 24px; cursor: pointer; }
+.app-brand { font-size: 20px; }
+.user-menu { justify-self: end; position: relative; }
+.user-menu summary { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 24px; background: #eef2f6; min-height: 32px; cursor: pointer; font-size: 14px; list-style: none; }
+.user-menu summary::-webkit-details-marker { display: none; }
+.user-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #173b60; color: white; font-weight: 700; }
+.user-dropdown { position: absolute; right: 0; top: calc(100% + 8px); width: 160px; background: white; border: 1px solid #dce3e9; border-radius: 12px; padding: 8px; box-shadow: var(--box-shadow); }
+.user-dropdown button { width: 100%; border: 0; background: transparent; color: #173b60; padding: 12px; min-height: 44px; text-align: left; cursor: pointer; }
+.app-drawer { box-sizing: border-box; margin: 0 auto 0 0; width: min(320px, 88vw); height: 100dvh; max-height: 100dvh; border: 0; padding: 0; color: #173b60; box-shadow: 8px 0 40px rgba(0,0,0,.2); }
+.app-drawer::backdrop { background: rgba(15,35,55,.6); }
+.drawer-content { padding: 20px; }
+.drawer-heading { display: flex; align-items: center; justify-content: space-between; }
+.drawer-heading h2 { margin: 0; font-size: 24px; }
+.drawer-content button { display: block; width: 100%; min-height: 48px; border: 0; border-radius: 10px; margin: 8px 0; padding: 12px; text-align: left; background: #eef2f6; color: #173b60; font: inherit; cursor: pointer; }
+.drawer-heading button { width: 44px; font-size: 24px; text-align: center; }
+.drawer-content h3 { margin-top: 28px; font-size: 13px; text-transform: uppercase; color: #59636d; }
+.app-topbar button:focus-visible, .user-menu summary:focus-visible, .app-drawer button:focus-visible { outline: 3px solid #3973ac; outline-offset: 2px; }
 #config-incluidos { max-width: 100%; min-height: 44px; font-size: 16px; }
 #precuenta-impresion { display: none; }
 @media print {

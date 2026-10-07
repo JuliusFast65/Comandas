@@ -6,12 +6,20 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=lsoft-1">
+    <link rel="stylesheet" href="styles.css?v=interfaz-1">
 </head>
 <body>
     <div id="app">
+        <header id="app-topbar" class="app-topbar" hidden>
+            <button id="abrir-menu" class="menu-toggle" type="button" aria-label="Abrir menú" aria-controls="app-menu" aria-expanded="false" onclick="abrirMenu()">☰</button>
+            <strong class="app-brand">Comandas</strong>
+            <details id="user-menu" class="user-menu">
+                <summary aria-label="Opciones del usuario"><span id="user-avatar" class="user-avatar" aria-hidden="true">A</span><span id="user-name">admin</span></summary>
+                <div class="user-dropdown"><button type="button" onclick="cerrarSesion()">Cerrar sesión</button></div>
+            </details>
+        </header>
         <aside class="demo-banner">
-            <strong>Comandas · Demo · LSoft 1</strong>
+            <strong>Comandas · Demo · Interfaz 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales. Los datos de facturación se guardan en este navegador.</small>
         </aside>
@@ -51,11 +59,9 @@
         <div id="seleccion-mesas-screen" class="screen">
             <div class="container">
                 <h2><i class="fas fa-chair"></i> Seleccionar Mesa</h2>
-                <button class="pickup-button" onclick="abrirConfiguracion()">Configurar precios y cargos</button>
                 <div class="waiter-toolbar">
                     <label for="mesero-activo">Estoy atendiendo como <select id="mesero-activo" onchange="cambiarMeseroActivo()"></select></label>
                     <label for="filtro-mesas">Mostrar <select id="filtro-mesas" onchange="cambiarFiltroMesas()"><option value="todas">Todas</option><option value="mis">Mis mesas y libres sin asignar</option></select></label>
-                    <button class="pickup-button" onclick="configurarMeseros()">Configurar meseros</button>
                 </div>
                 <p class="table-legend"><span>🔵 En preparación</span> <span>🟠 Listo para retirar</span> <span>🟢 Todo retirado</span></p>
                 <div id="mesas" class="mesas"></div>
@@ -233,7 +239,15 @@
         </form>
     </dialog>
 
+    <dialog id="app-menu" class="app-drawer" aria-labelledby="app-menu-title">
+        <nav class="drawer-content" aria-label="Menú principal">
+            <div class="drawer-heading"><h2 id="app-menu-title">Comandas</h2><button type="button" aria-label="Cerrar menú" onclick="cerrarMenu()">×</button></div>
+            <h3>Configuración</h3>
+            <button type="button" onclick="cerrarMenu(); abrirConfiguracion()">Precios y cargos</button>
+            <button type="button" onclick="cerrarMenu(); configurarMeseros()">Equipo de meseros</button>
+        </nav>
+    </dialog>
     <section id="precuenta-impresion" aria-hidden="true"></section>
-    <script src="scripts.js?v=lsoft-1"></script>
+    <script src="scripts.js?v=interfaz-1"></script>
 </body>
 </html>
