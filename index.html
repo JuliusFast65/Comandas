@@ -6,12 +6,12 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=dialogos-2">
+    <link rel="stylesheet" href="styles.css?v=retiros-1">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Diálogos 2</strong>
+            <strong>Comandas · Demo · Retiros 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
         </aside>
@@ -28,13 +28,14 @@
         <div id="seleccion-mesas-screen" class="screen">
             <div class="container">
                 <h2><i class="fas fa-chair"></i> Seleccionar Mesa</h2>
+                <p class="table-legend"><span>🔵 En preparación</span> <span>🟠 Listo para retirar</span> <span>🟢 Todo retirado</span></p>
                 <div id="mesas" class="mesas"></div>
                 <h2><i class="fas fa-shopping-bag"></i> Para Llevar</h2>
                 <div id="para-llevar" class="para-llevar"></div>
                 <button class="center-button" onclick="crearParaLlevar()"><i class="fas fa-plus"></i> Nueva Orden Para Llevar</button>
                 <div class="footer">
-                    <button onclick="showScreen('cocina-screen')"><i class="fas fa-utensils"></i> Ver Cocina <span id="pendientes-cocina" class="pending-count" aria-live="polite">· 0 pendientes</span></button>
-                    <button onclick="showScreen('bar-screen')"><i class="fas fa-glass-martini-alt"></i> Ver Bar <span id="pendientes-bar" class="pending-count" aria-live="polite">· 0 pendientes</span></button>
+                    <button onclick="showScreen('cocina-screen')"><i class="fas fa-utensils"></i> Ver Cocina <span id="pendientes-cocina" class="pending-count" aria-live="polite">· 0 pendientes</span> <span id="listos-cocina" class="pending-count" aria-live="polite">· 0 por retirar</span></button>
+                    <button onclick="showScreen('bar-screen')"><i class="fas fa-glass-martini-alt"></i> Ver Bar <span id="pendientes-bar" class="pending-count" aria-live="polite">· 0 pendientes</span> <span id="listos-bar" class="pending-count" aria-live="polite">· 0 por retirar</span></button>
                     <button onclick="showScreen('caja-screen')"><i class="fas fa-cash-register"></i> Ir a Caja</button>
                 </div>
             </div>
@@ -74,6 +75,7 @@
                     <button onclick="cancelarOrden()">Cancelar</button>
                     <button onclick="pedirCuenta()">Pedir Cuenta</button>
                 </div>
+                <button id="retirar-listos-mesa" class="pickup-button" disabled>No hay productos listos para retirar</button>
             </div>
         </div>
       
@@ -173,6 +175,6 @@
         </form>
     </dialog>
 
-    <script src="scripts.js?v=dialogos-2"></script>
+    <script src="scripts.js?v=retiros-1"></script>
 </body>
 </html>

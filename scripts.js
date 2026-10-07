@@ -72,7 +72,9 @@ function restaurarEstado() {
                 && grupo.items.every(item => item && typeof item.nombre === 'string'
                     && Number.isInteger(item.cantidad) && item.cantidad > 0
                     && Number.isInteger(item.cuenta) && item.cuenta > 0
-                    && typeof item.nota === 'string'));
+                    && typeof item.nota === 'string'
+                    && (item.retirados === undefined || (Number.isInteger(item.retirados)
+                        && item.retirados >= 0 && item.retirados <= item.cantidad)))) ;
         if (estado.version !== 1 || !Array.isArray(estado.mesas)
             || estado.mesas.length !== mesas.length
             || !estado.mesas.every((mesa, index) => pedidoValido(mesa) && mesa.numero === index + 1)
@@ -223,49 +225,82 @@ function actualizarPendientes() {
             indicador.textContent = `· ${cantidad} ${cantidad === 1 ? 'pendiente' : 'pendientes'}`;
             indicador.classList.toggle('has-pending', cantidad > 0);
         }
+        const listos = [...mesas, ...paraLlevarOrdenes].flatMap(itemsEnviados)
+            .filter(entrada => entrada.area === area)
+            .reduce((total, { item }) => total + (item[area === 'cocina' ? 'enCocina' : 'enBar'] === 'terminado'
+                ? item.cantidad - (item.retirados || 0) : 0), 0);
+        const retiro = document.getElementById(`listos-${area}`);
+        if (retiro) retiro.textContent = `· ${listos} por retirar`;
     });
+}
+
+function itemsEnviados(pedido) {
+    return pedido.ordenes.flatMap((grupo, grupoIndex) =>
+        ['en cocina', 'en bar'].includes(grupo.estado)
+            ? grupo.items.map((item, itemIndex) => ({ item, grupoIndex, itemIndex,
+                area: grupo.estado === 'en cocina' ? 'cocina' : 'bar' })) : []);
+}
+
+function resumenPedido(pedido) {
+    const resumen = { preparar: 0, retirar: 0, retirados: 0, adicionalesPreparar: 0, adicionalesRetirar: 0 };
+    itemsEnviados(pedido).forEach(({ item, area }) => {
+        const retirados = item.retirados || 0;
+        const restantes = item.cantidad - retirados;
+        const listo = item[area === 'cocina' ? 'enCocina' : 'enBar'] === 'terminado';
+        resumen.retirados += retirados;
+        resumen[listo ? 'retirar' : 'preparar'] += restantes;
+        if (item.adicional) resumen[listo ? 'adicionalesRetirar' : 'adicionalesPreparar'] += restantes;
+    });
+    return resumen;
+}
+
+function tarjetaPedido(pedido, nombre, seleccionar) {
+    const r = resumenPedido(pedido);
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    const estado = !pedido.ocupada ? 'libre' : r.retirar > 0 ? 'por-retirar'
+        : r.preparar > 0 ? 'en-preparacion' : 'retirada';
+    boton.className = `mesa ${pedido.ocupada ? 'ocupada ' : ''}${estado}`;
+    const titulo = document.createElement('strong');
+    titulo.textContent = nombre;
+    boton.appendChild(titulo);
+    const detalle = document.createElement('small');
+    detalle.textContent = !pedido.ocupada ? 'Libre' :
+        r.preparar || r.retirar ? `${r.retirar} por retirar · ${r.preparar} en preparación` : 'Todo retirado';
+    boton.appendChild(detalle);
+    [r.adicionalesRetirar ? 'Adicionales listos' : '',
+        r.adicionalesPreparar ? 'Adicionales en preparación' : '',
+        pedido.cuentaPedida ? 'Cuenta pedida' : ''].filter(Boolean).forEach(texto => {
+        const etiqueta = document.createElement('small');
+        etiqueta.className = 'table-label';
+        etiqueta.textContent = texto;
+        boton.appendChild(etiqueta);
+    });
+    boton.onclick = seleccionar;
+    return boton;
 }
 
 function mostrarMesas() {
     actualizarPendientes();
-    const mesasDiv = document.getElementById('mesas');
-    if (!mesasDiv) {
-        console.error("El elemento con id 'mesas' no existe.");
-        return;
-    }
-    mesasDiv.innerHTML = ''; // Limpiar el contenedor de mesas
-    mesas.forEach(mesa => {
-        const mesaDiv = document.createElement('div');
-        if (mesa.cuentaPedida) {
-            mesaDiv.className = `mesa cuenta-pedida`;
-        } else {
-            mesaDiv.className = `mesa ${mesa.ocupada ? (mesa.terminada ? 'terminada' : 'ocupada') : 'libre'}`;
-        }
-        mesaDiv.textContent = `Mesa ${mesa.numero}`; // Solo mostrar el número de la mesa
-        mesaDiv.onclick = () => seleccionarMesa(mesa.numero);
-        mesasDiv.appendChild(mesaDiv);
-    });
+    const contenedor = document.getElementById('mesas');
+    contenedor.replaceChildren(...mesas.map(mesa =>
+        tarjetaPedido(mesa, `Mesa ${mesa.numero}`, () => seleccionarMesa(mesa.numero))));
+    actualizarRetiroSeleccionado();
 }
 
-// Función para mostrar las órdenes para llevar
 function mostrarParaLlevar() {
-    const paraLlevarDiv = document.getElementById('para-llevar');
-    if (!paraLlevarDiv) {
-        console.error("El elemento con id 'para-llevar' no existe.");
-        return;
-    }
-    paraLlevarDiv.innerHTML = ''; // Limpiar el contenedor de órdenes para llevar
-    paraLlevarOrdenes.forEach(orden => {
-        const ordenDiv = document.createElement('div');
-        if (orden.cuentaPedida) {
-            ordenDiv.className = `mesa cuenta-pedida`;
-        } else {
-            ordenDiv.className = `mesa ${orden.ocupada ? (orden.terminada ? 'terminada' : 'ocupada') : 'libre'}`;
-        }
-        ordenDiv.textContent = `Para Llevar ${orden.numero}`; // Solo mostrar el número de la orden para llevar
-        ordenDiv.onclick = () => seleccionarOrdenParaLlevar(orden.numero);
-        paraLlevarDiv.appendChild(ordenDiv);
-    });
+    const contenedor = document.getElementById('para-llevar');
+    contenedor.replaceChildren(...paraLlevarOrdenes.map(pedido =>
+        tarjetaPedido(pedido, `Para Llevar ${pedido.numero}`, () => seleccionarOrdenParaLlevar(pedido.numero))));
+}
+
+function actualizarRetiroSeleccionado() {
+    const boton = document.getElementById('retirar-listos-mesa');
+    if (!boton || !mesaSeleccionada) return;
+    const r = resumenPedido(mesaSeleccionada);
+    boton.disabled = r.retirar === 0;
+    boton.textContent = r.retirar ? `Retirar todo lo listo (${r.retirar})` : 'No hay productos listos para retirar';
+    boton.onclick = () => retirarTodoListo(mesas.includes(mesaSeleccionada) ? 'mesa' : 'llevar', mesaSeleccionada.numero);
 }
 
 // Función para seleccionar una mesa
@@ -280,6 +315,7 @@ function seleccionarMesa(numero) {
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
+    actualizarRetiroSeleccionado();
     showScreen('toma-ordenes-screen');
 }
 
@@ -295,6 +331,7 @@ function seleccionarOrdenParaLlevar(numero) {
     ordenEnBar = mesaSeleccionada.ordenes.filter(o => o.estado === 'en bar').flatMap(o => o.items);
     orden = mesaSeleccionada.ordenes.find(o => o.estado === 'nueva')?.items || [];
     actualizarOrden();
+    actualizarRetiroSeleccionado();
     showScreen('toma-ordenes-screen');
 }
 
@@ -506,7 +543,10 @@ function enviarCocina() {
     // Separar los ítems para bar y cocina
     const itemsParaEnviar = orden.filter(item => !item.enCocina && !item.enBar);
 
+    const esAdicional = itemsEnviados(mesaSeleccionada).length > 0;
     itemsParaEnviar.forEach(item => {
+        item.adicional = esAdicional;
+        item.retirados = 0;
         if (productos.bebidasAlcoolicas.includes(item.nombre) || productos.bebidas.includes(item.nombre)) {
             item.enBar = true; // Marcar como ítem de bar
         } else {
@@ -523,6 +563,13 @@ function enviarCocina() {
         }
     }
 
+    if (itemsParaEnviar.length === 0) {
+        mostrarAviso('Añade productos nuevos antes de enviar.', 'Sin productos nuevos', 'aviso');
+        return;
+    }
+    ordenNueva.items = [];
+    orden = ordenNueva.items;
+    mesaSeleccionada.terminada = false;
     mesaSeleccionada.ocupada = true; // Marcar la mesa como ocupada
     mostrarMesas();
     mostrarParaLlevar();
@@ -671,142 +718,134 @@ function actualizarCuentas() {
     console.log(`Número de cuenta actualizado a: ${cuentaActual}`); // Debug
 }
 
-// Función para mostrar las órdenes en la pantalla de cocina
-function mostrarCocina() {
-    actualizarPendientes();
-    const cocinaList = document.getElementById('cocina-list');
-    if (!cocinaList) {
-        console.error("El elemento con id 'cocina-list' no existe.");
-        return;
-    }
-    cocinaList.innerHTML = ''; // Limpiar la lista de cocina
-
-    [...mesas, ...paraLlevarOrdenes].forEach(orden => {
-        const ordenesCocina = orden.ordenes.filter(o => o.estado === 'en cocina');
-        if (ordenesCocina.length > 0) {
-            const ordenDiv = document.createElement('div');
-            const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-            ordenDiv.className = 'cocina-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`; // Solo mostrar el número de la mesa o la orden para llevar
-
-            // Iterar sobre cada ítem de la orden
-            ordenesCocina.forEach(o => {
-                o.items.forEach((item, index) => {
-                    const itemDiv = document.createElement('div');
-                    itemDiv.style.display = "flex";
-                    itemDiv.style.flexDirection = "column";
-                    itemDiv.style.alignItems = "flex-start";
-                    const tiempoInicio = tiemposDePreparacion.find(t => t.nombre === item.nombre && t.cuenta === index);
-                    const tiempo = tiempoInicio ? calcularTiempoPreparacion(tiempoInicio.inicio) : '';
-                    itemDiv.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; width: 100%;">
-                            <span>${item.nombre} - ${item.cantidad} ${tiempo}</span>
-                            <div class="quantity-controls">
-                                <button onclick="disminuirCantidadCocina(${orden.numero}, '${item.nombre}', ${o.items.indexOf(item)})">-</button>
-                                <button onclick="aumentarCantidadCocina(${orden.numero}, '${item.nombre}', ${o.items.indexOf(item)})">+</button>
-                                <button onclick="abrirModalNota(${o.items.indexOf(item)})">📝</button>
-                                <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'cocina')" ${item.enCocina === 'terminado' ? 'checked' : ''}>
-                            </div>
-                        </div>
-                        ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
-                    `;
-                    ordenDiv.appendChild(itemDiv);
-                });
-            });
-
-            cocinaList.appendChild(ordenDiv);
-        }
-    });
-    console.log("Órdenes en cocina mostradas"); // Debug
+// Cada acción identifica tipo de pedido, grupo e ítem: mesa y para llevar pueden
+// compartir número, y un mismo plato puede existir en varias cuentas o rondas.
+function buscarPedido(tipo, numero) {
+    return (tipo === 'mesa' ? mesas : paraLlevarOrdenes).find(p => p.numero === numero);
 }
 
-// Función para mostrar las órdenes en la pantalla del bar
-function mostrarBar() {
-    actualizarPendientes();
-    const barList = document.getElementById('bar-list');
-    if (!barList) {
-        console.error("El elemento con id 'bar-list' no existe.");
-        return;
-    }
-    barList.innerHTML = ''; // Limpiar la lista del bar
-
-    [...mesas, ...paraLlevarOrdenes].forEach(orden => {
-        const ordenesBar = orden.ordenes.filter(o => o.estado === 'en bar');
-        if (ordenesBar.length > 0) {
-            const ordenDiv = document.createElement('div');
-            const tipoOrden = mesas.includes(orden) ? 'Mesa' : 'Para Llevar';
-            ordenDiv.className = 'bar-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`; // Solo mostrar el número de la mesa o la orden para llevar
-
-            // Iterar sobre cada ítem de la orden
-            ordenesBar.forEach(o => {
-                o.items.forEach(item => {
-                    const itemDiv = document.createElement('div');
-                    itemDiv.style.display = "flex";
-                    itemDiv.style.flexDirection = "column";
-                    itemDiv.style.alignItems = "flex-start";
-                    itemDiv.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; width: 100%;">
-                            <span>${item.nombre} - ${item.cantidad}</span>
-                            <input type="checkbox" onchange="actualizarEstadoOrden(${orden.numero}, '${item.nombre}', this.checked ? 'terminado' : 'en preparación', 'bar')" ${item.enBar === 'terminado' ? 'checked' : ''}>
-                        </div>
-                        ${item.nota ? `<div style="font-size: 12px; color: #666;">Nota: ${item.nota}</div>` : ''}
-                    `;
-                    ordenDiv.appendChild(itemDiv);
-                });
-            });
-
-            barList.appendChild(ordenDiv);
-        }
+function refrescarPreparacion() {
+    [...mesas, ...paraLlevarOrdenes].forEach(pedido => {
+        const r = resumenPedido(pedido);
+        pedido.terminada = itemsEnviados(pedido).length > 0 && r.preparar === 0;
     });
-    console.log("Órdenes en bar mostradas"); // Debug
-}
-
-// Función para actualizar el estado de un ítem en la orden
-function actualizarEstadoOrden(ordenNumero, itemNombre, estado, area) {
-    console.log(`Actualizando estado de ítem: ${itemNombre} a ${estado} en ${area} para orden ${ordenNumero}`); // Debug
-    const orden = mesas.find(m => m.numero === ordenNumero) || paraLlevarOrdenes.find(o => o.numero === ordenNumero);
-
-    if (!orden) {
-        console.error("Orden no encontrada.");
-        return;
-    }
-
-    let ordenTerminada = true; // Inicializamos la bandera de orden terminada
-
-    // Iterar sobre cada orden y sus ítems
-    orden.ordenes.forEach(o => {
-        o.items.forEach(item => {
-            if (item.nombre === itemNombre) {
-                if (area === 'cocina') {
-                    item.enCocina = estado;
-                }
-                if (area === 'bar') {
-                    item.enBar = estado;
-                }
-                console.log(`Estado actualizado: ${item.nombre} en ${area} es ${item.enCocina || item.enBar}`); // Debug
-            }
-            // Si hay algún ítem que no esté terminado, la orden no está completa
-            if ((item.enCocina !== 'terminado' && area === 'cocina') || (item.enBar !== 'terminado' && area === 'bar')) {
-                ordenTerminada = false;
-            }
-        });
-    });
-
-    // Si todos los ítems de la orden están terminados, marcamos la mesa o el pedido como terminado
-    if (ordenTerminada) {
-        orden.terminada = true;
-        console.log(`Orden ${ordenNumero} terminada en ${area}`); // Debug
-    } else {
-        orden.terminada = false;
-    }
-
     mostrarMesas();
     mostrarParaLlevar();
     mostrarCocina();
     mostrarBar();
+    mostrarCaja();
     guardarEstado();
 }
+
+function marcarPreparado(tipo, numero, grupoIndex, itemIndex, listo) {
+    const pedido = buscarPedido(tipo, numero);
+    const grupo = pedido?.ordenes[grupoIndex];
+    const item = grupo?.items[itemIndex];
+    if (!item || (item.retirados || 0) > 0) return;
+    item[grupo.estado === 'en cocina' ? 'enCocina' : 'enBar'] = listo ? 'terminado' : 'en preparación';
+    refrescarPreparacion();
+}
+
+function retirarProducto(tipo, numero, grupoIndex, itemIndex, cantidad) {
+    const pedido = buscarPedido(tipo, numero);
+    const grupo = pedido?.ordenes[grupoIndex];
+    const item = grupo?.items[itemIndex];
+    const campo = grupo?.estado === 'en cocina' ? 'enCocina' : 'enBar';
+    if (!item || item[campo] !== 'terminado' || !Number.isInteger(cantidad)
+        || cantidad < 1 || cantidad > item.cantidad - (item.retirados || 0)) {
+        mostrarAviso('Selecciona una cantidad válida de productos listos.', 'Revisa el retiro', 'aviso');
+        return;
+    }
+    item.retirados = (item.retirados || 0) + cantidad;
+    refrescarPreparacion();
+}
+
+function retirarTodoListo(tipo, numero, area = null) {
+    const pedido = buscarPedido(tipo, numero);
+    if (!pedido) return;
+    itemsEnviados(pedido).forEach(({ item, area: destino }) => {
+        if ((!area || area === destino) && item[destino === 'cocina' ? 'enCocina' : 'enBar'] === 'terminado') {
+            item.retirados = item.cantidad;
+        }
+    });
+    refrescarPreparacion();
+}
+
+function mostrarArea(area) {
+    actualizarPendientes();
+    const lista = document.getElementById(`${area}-list`);
+    lista.replaceChildren();
+    [...mesas, ...paraLlevarOrdenes].forEach(pedido => {
+        const items = itemsEnviados(pedido).filter(i => i.area === area);
+        if (!items.length) return;
+        const tipo = mesas.includes(pedido) ? 'mesa' : 'llevar';
+        const tarjeta = document.createElement('section');
+        tarjeta.className = `${area}-item preparation-card`;
+        const titulo = document.createElement('h4');
+        titulo.textContent = `${tipo === 'mesa' ? 'Mesa' : 'Para Llevar'} ${pedido.numero}`;
+        tarjeta.appendChild(titulo);
+        const listos = items.reduce((total, { item }) => total +
+            (item[area === 'cocina' ? 'enCocina' : 'enBar'] === 'terminado'
+                ? item.cantidad - (item.retirados || 0) : 0), 0);
+        const todo = document.createElement('button');
+        todo.className = 'pickup-button';
+        todo.textContent = `Retirar todo lo listo (${listos})`;
+        todo.disabled = listos === 0;
+        todo.onclick = () => retirarTodoListo(tipo, pedido.numero, area);
+        tarjeta.appendChild(todo);
+        items.forEach(({ item, grupoIndex, itemIndex }) => {
+            const fila = document.createElement('div');
+            fila.className = 'preparation-row';
+            const listo = item[area === 'cocina' ? 'enCocina' : 'enBar'] === 'terminado';
+            const retirados = item.retirados || 0;
+            const restantes = item.cantidad - retirados;
+            const nombre = document.createElement('strong');
+            nombre.textContent = `${item.nombre} × ${item.cantidad} · Cuenta ${item.cuenta}${item.adicional ? ' · Adicional' : ''}`;
+            fila.appendChild(nombre);
+            const estado = document.createElement('p');
+            estado.textContent = `${restantes} ${listo ? 'listos para retirar' : 'en preparación'} · ${retirados} retirados`;
+            fila.appendChild(estado);
+            if (item.nota) {
+                const nota = document.createElement('p');
+                nota.textContent = `Nota: ${item.nota}`;
+                fila.appendChild(nota);
+            }
+            const etiqueta = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = listo;
+            checkbox.disabled = retirados > 0;
+            checkbox.onchange = () => marcarPreparado(tipo, pedido.numero, grupoIndex, itemIndex, checkbox.checked);
+            etiqueta.append(checkbox, ' Preparado');
+            fila.appendChild(etiqueta);
+            if (listo && restantes > 0) {
+                const controles = document.createElement('div');
+                controles.className = 'pickup-controls';
+                const label = document.createElement('label');
+                label.textContent = 'Cantidad a retirar ';
+                const cantidad = document.createElement('input');
+                cantidad.type = 'number';
+                cantidad.min = '1';
+                cantidad.max = String(restantes);
+                cantidad.step = '1';
+                cantidad.value = String(restantes);
+                cantidad.setAttribute('aria-label', `Cantidad a retirar de ${item.nombre}, cuenta ${item.cuenta}`);
+                label.appendChild(cantidad);
+                const boton = document.createElement('button');
+                boton.className = 'pickup-button';
+                boton.textContent = 'Retirar';
+                boton.onclick = () => retirarProducto(tipo, pedido.numero, grupoIndex, itemIndex, Number(cantidad.value));
+                controles.append(label, boton);
+                fila.appendChild(controles);
+            }
+            tarjeta.appendChild(fila);
+        });
+        lista.appendChild(tarjeta);
+    });
+}
+
+function mostrarCocina() { mostrarArea('cocina'); }
+function mostrarBar() { mostrarArea('bar'); }
 
 // Función para calcular el tiempo de preparación
 function calcularTiempoPreparacion(inicio) {
