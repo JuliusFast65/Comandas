@@ -6,12 +6,12 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=menu-1">
+    <link rel="stylesheet" href="styles.css?v=cocina-2">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Menú 1</strong>
+            <strong>Comandas · Demo · Cocina 2</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
         </aside>
@@ -95,6 +95,11 @@
             <div class="container">
                 <h2><i class="fas fa-utensils"></i> Órdenes en Cocina</h2>
                 <div id="cocina-list" class="cocina-list"></div>
+                <details class="withdrawn-history">
+                    <summary id="cocina-retirados-titulo">Ver retirados (0)</summary>
+                    <p class="menu-help">Consulta de los pedidos actuales; al cerrar la cuenta se limpia este registro.</p>
+                    <div id="cocina-retirados"></div>
+                </details>
                 <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
             </div>
         </div>
@@ -103,6 +108,11 @@
             <div class="container">
                 <h2><i class="fas fa-glass-cheers"></i> Órdenes en Bar</h2>
                 <div id="bar-list" class="bar-list"></div>
+                <details class="withdrawn-history">
+                    <summary id="bar-retirados-titulo">Ver retirados (0)</summary>
+                    <p class="menu-help">Consulta de los pedidos actuales; al cerrar la cuenta se limpia este registro.</p>
+                    <div id="bar-retirados"></div>
+                </details>
                 <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
             </div>
         </div>
@@ -176,6 +186,6 @@
         </form>
     </dialog>
 
-    <script src="scripts.js?v=menu-1"></script>
+    <script src="scripts.js?v=cocina-2"></script>
 </body>
 </html>

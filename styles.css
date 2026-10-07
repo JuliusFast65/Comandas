@@ -571,6 +571,11 @@ textarea {
     box-shadow: var(--box-shadow);
 }
 
+.withdrawn-history { margin: 20px 0; padding: 12px 16px; border: 1px solid #dce3e9; border-radius: 12px; background: #f8f9fa; }
+.withdrawn-history summary { cursor: pointer; min-height: 44px; align-content: center; font-weight: 600; color: #173b60; }
+.withdrawn-row { padding: 12px 0; border-top: 1px solid #dce3e9; line-height: 1.5; }
+.area-empty { padding: 24px; text-align: center; color: #59636d; background: #f0f7ff; border-radius: 12px; }
+
 .client-info label {
     display: block;
     margin-bottom: 10px;
