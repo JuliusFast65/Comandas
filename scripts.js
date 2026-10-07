@@ -51,6 +51,7 @@ function calcularImportes(tarifa, cantidad = 1) {
 }
 
 function abrirConfiguracion() {
+    if (!exigirPermiso('administrar')) return;
     document.getElementById('config-iva').value = configuracionPrecios.iva;
     document.getElementById('config-servicio').value = configuracionPrecios.servicio;
     document.getElementById('config-incluidos').value = configuracionPrecios.incluidos ? 'incluidos' : 'separados';
@@ -69,6 +70,7 @@ function abrirConfiguracion() {
 }
 
 function guardarConfiguracion() {
+    if (!exigirPermiso('administrar')) return;
     const iva = Number(document.getElementById('config-iva').value);
     const servicio = Number(document.getElementById('config-servicio').value);
     const inputs = [...document.querySelectorAll('#configuracion-screen input')];
@@ -122,6 +124,7 @@ function renderizarSelectorMesero() {
 }
 
 function cambiarMeseroActivo() {
+    if (!exigirPermiso('administrar')) return;
     const activo = document.getElementById('mesero-activo').value;
     try { localStorage.setItem(CLAVE_MESEROS, JSON.stringify({ ...equipoMeseros, activo })); }
     catch { mostrarAviso('No se pudo guardar el mesero activo.', 'No se guardó', 'aviso'); renderizarSelectorMesero(); return; }
@@ -130,11 +133,13 @@ function cambiarMeseroActivo() {
 }
 
 function configurarMeseros() {
+    if (!exigirPermiso('administrar')) return;
     document.getElementById('lista-meseros').value = equipoMeseros.nombres.join('\n');
     showScreen('meseros-screen');
 }
 
 function guardarMeseros() {
+    if (!exigirPermiso('administrar')) return;
     const nombres = [...new Set(document.getElementById('lista-meseros').value.split('\n').map(n => n.trim()).filter(Boolean))];
     if (!nombres.length || nombres.length > 50 || nombres.some(n => n.length > 60)) {
         mostrarAviso('Escribe entre 1 y 50 nombres, de hasta 60 caracteres cada uno.', 'Revisa la lista', 'aviso'); return;
@@ -156,6 +161,7 @@ function asignarAlAbrir(pedido) {
 }
 
 function reasignarMesa() {
+    if (!exigirPermiso('administrar')) return;
     if (!mesaSeleccionada) return;
     mesaSeleccionada.mesero = document.getElementById('mesero-mesa').value;
     guardarEstado(); mostrarMesas(); mostrarParaLlevar();
@@ -231,6 +237,7 @@ function contratoPedido(pedido, cuenta) {
 }
 
 function enviarCuentaLSoft(cuenta, actualizarVista = true) {
+    if (!exigirPermiso('operar', ordenParaFacturar)) return false;
     try {
         const json = contratoPedido(ordenParaFacturar, cuenta);
         if (!guardarEstado()) throw new Error('No se puede enviar sin guardar primero el identificador del pedido.');
@@ -251,6 +258,7 @@ function enviarCuentaLSoft(cuenta, actualizarVista = true) {
 }
 
 function consultarCuentaLSoft(cuenta) {
+    if (!exigirPermiso('consulta', ordenParaFacturar)) return;
     try {
         const registro = ordenParaFacturar.integracion?.[cuenta];
         if (!registro) throw new Error('Primero envía el pedido.');
@@ -260,6 +268,7 @@ function consultarCuentaLSoft(cuenta) {
 }
 
 function simularPagoLSoft(cuenta, medio) {
+    if (!exigirPermiso('administrar')) return;
     try {
         const registro = ordenParaFacturar.integracion?.[cuenta];
         if (!registro) throw new Error('Primero envía el pedido.');
@@ -270,6 +279,7 @@ function simularPagoLSoft(cuenta, medio) {
 }
 
 function mostrarJSONLSoft(cuenta) {
+    if (!exigirPermiso('consulta', ordenParaFacturar)) return;
     try {
         const json = contratoPedido(ordenParaFacturar, cuenta);
         const salida = document.getElementById('lsoft-json');
@@ -289,9 +299,9 @@ function controlesLSoft(cuenta) {
         boton.disabled = desactivado; boton.onclick = callback; panel.appendChild(boton);
     };
     accion('Ver JSON', () => mostrarJSONLSoft(cuenta));
-    accion(estado ? 'Reintentar envío' : 'Enviar a LSoft (simulado)', () => enviarCuentaLSoft(cuenta), !ordenParaFacturar.factura?.[cuenta]);
+    if (permite('operar', ordenParaFacturar)) accion(estado ? 'Reintentar envío' : 'Enviar a LSoft (simulado)', () => enviarCuentaLSoft(cuenta), !ordenParaFacturar.factura?.[cuenta]);
     accion('Consultar estado', () => consultarCuentaLSoft(cuenta), !estado);
-    if (estado && estado.estado !== 'pagado') {
+    if (permite('administrar') && estado && estado.estado !== 'pagado') {
         const medio = document.createElement('select'); medio.setAttribute('aria-label', `Medio de pago simulado de cuenta ${cuenta}`);
         for (const nombre of ['efectivo', 'tarjeta', 'transferencia']) {
             const opcion = document.createElement('option'); opcion.value = nombre; opcion.textContent = nombre; medio.appendChild(opcion);
@@ -316,6 +326,75 @@ function mostrarCierres() {
         }
         if (!cierres.length) contenedor.textContent = 'Todavía no hay operaciones cerradas.';
     } catch { contenedor.textContent = 'No se pudo leer el historial local.'; }
+}
+
+const USUARIOS_DEMO = [
+    { usuario: 'admin', rol: 'administrador', nombre: 'Administrador' },
+    { usuario: 'mesero1', rol: 'mesero', nombre: 'Mesero 1' },
+    { usuario: 'mesero2', rol: 'mesero', nombre: 'Mesero 2' },
+    { usuario: 'cocina', rol: 'estacion', nombre: 'Cocina', estacion: 'cocina' },
+    { usuario: 'bar', rol: 'estacion', nombre: 'Bar', estacion: 'bar' },
+    { usuario: 'auditor', rol: 'auditor', nombre: 'Auditor / Sistemas' }
+];
+let sesionActual = null;
+
+function permite(accion, pedido = null, area = null) {
+    if (!sesionActual) return false;
+    if (sesionActual.rol === 'administrador') return true;
+    if (accion === 'consulta') return sesionActual.rol === 'auditor' || (sesionActual.rol === 'mesero' && (!pedido || !pedido.mesero || pedido.mesero === sesionActual.nombre));
+    if (accion === 'preparar') return sesionActual.rol === 'estacion' && sesionActual.estacion === area;
+    if (accion === 'operar' || accion === 'retirar') return sesionActual.rol === 'mesero'
+        && (!pedido || !pedido.mesero || pedido.mesero === sesionActual.nombre);
+    return false;
+}
+
+function exigirPermiso(accion, pedido = null, area = null) {
+    if (permite(accion, pedido, area)) return true;
+    mostrarAviso('Tu rol no permite esta acción o esta mesa pertenece a otro mesero.', 'Acceso restringido', 'aviso');
+    return false;
+}
+
+function pantallaPermitida(id) {
+    if (id === 'login-screen') return true;
+    if (!sesionActual) return false;
+    if (sesionActual.rol === 'administrador') return true;
+    if (sesionActual.rol === 'estacion') return id === `${sesionActual.estacion}-screen`;
+    if (sesionActual.rol === 'auditor') return ['caja-screen', 'confirmacion-facturacion-screen'].includes(id);
+    return !['configuracion-screen', 'meseros-screen', 'usuarios-screen'].includes(id);
+}
+
+function aplicarInterfazRol() {
+    document.querySelectorAll('[data-roles]').forEach(elemento => {
+        elemento.hidden = !elemento.dataset.roles.split(' ').includes(sesionActual?.rol);
+    });
+    document.querySelectorAll('button[onclick]').forEach(boton => {
+        const match = boton.getAttribute('onclick').match(/showScreen\('([^']+)'\)/);
+        if (match) boton.hidden = !pantallaPermitida(match[1]);
+    });
+    document.getElementById('mesero-activo').closest('label').hidden = sesionActual?.rol !== 'administrador';
+    document.querySelector('.waiter-assignment').hidden = sesionActual?.rol !== 'administrador';
+    if (sesionActual?.rol === 'mesero') {
+        equipoMeseros.activo = sesionActual.nombre;
+        renderizarSelectorMesero();
+        filtroMisMesas = true;
+        document.getElementById('filtro-mesas').value = 'mis';
+    } else {
+        filtroMisMesas = false;
+        document.getElementById('filtro-mesas').value = 'todas';
+    }
+    mostrarMesas(); mostrarParaLlevar(); mostrarCocina(); mostrarBar(); mostrarCaja();
+}
+
+function abrirUsuariosDemo() {
+    if (!exigirPermiso('administrar')) return;
+    const lista = document.getElementById('usuarios-demo-lista');
+    lista.replaceChildren();
+    USUARIOS_DEMO.forEach(usuario => {
+        const linea = document.createElement('p');
+        linea.textContent = `${usuario.usuario} · ${usuario.nombre} · ${usuario.rol}${usuario.estacion ? ` (${usuario.estacion})` : ''}`;
+        lista.appendChild(linea);
+    });
+    showScreen('usuarios-screen');
 }
 
 // Reducir el número de mesas a 9
@@ -476,6 +555,7 @@ function cerrarSesion() {
     const aviso = document.getElementById('aviso-dialogo');
     if (aviso.open) aviso.close();
     usuarioLogueado = null;
+    sesionActual = null;
     mesaSeleccionada = null;
     ordenParaFacturar = null;
     orden = [];
@@ -497,12 +577,15 @@ function iniciarSesion() {
     }
 
     // Simulamos una verificación básica de usuario y contraseña
-    if (usuario === 'admin' && contrasena === '1234') {
+    const perfil = USUARIOS_DEMO.find(u => u.usuario === usuario);
+    if (perfil && contrasena === '1234') {
+        sesionActual = { ...perfil };
         usuarioLogueado = usuario;
-        document.getElementById('user-name').textContent = usuario;
+        document.getElementById('user-name').textContent = `${usuario} · ${perfil.rol === 'estacion' ? perfil.nombre : perfil.rol}`;
         document.getElementById('user-avatar').textContent = usuario[0].toUpperCase();
         recordarAcceso(usuario, contrasena);
-        showScreen('seleccion-mesas-screen');
+        aplicarInterfazRol();
+        showScreen(perfil.rol === 'estacion' ? `${perfil.estacion}-screen` : perfil.rol === 'auditor' ? 'caja-screen' : 'seleccion-mesas-screen');
         console.log("Inicio de sesión exitoso"); // Debug
     } else {
         mostrarAviso('Usuario o contraseña incorrectos.', 'Revisa el acceso', 'aviso');
@@ -512,6 +595,7 @@ function iniciarSesion() {
 
 // Función para mostrar la pantalla deseada
 function showScreen(screenId) {
+    if (!pantallaPermitida(screenId)) { mostrarAviso('Esta pantalla no está disponible para tu rol.', 'Acceso restringido', 'aviso'); return; }
     document.getElementById('app-topbar').hidden = screenId === 'login-screen' || !usuarioLogueado;
     console.log(`Intentando mostrar pantalla: ${screenId}`); // Debug
     const screens = document.querySelectorAll('.screen');
@@ -534,6 +618,7 @@ function mostrarCaja() {
     const lista = document.getElementById('caja-list');
     lista.replaceChildren();
     [...mesas, ...paraLlevarOrdenes].forEach(pedido => {
+        if (sesionActual?.rol === 'mesero' && pedido.mesero !== sesionActual.nombre) return;
         cuentasParaFacturar(pedido).forEach(cuenta => {
             const registro = pedido.integracion?.[cuenta];
             const error = pedido.erroresLSoft?.[cuenta];
@@ -648,6 +733,7 @@ function mostrarParaLlevar() {
 function actualizarRetiroSeleccionado() {
     const boton = document.getElementById('retirar-listos-mesa');
     if (!boton || !mesaSeleccionada) return;
+    boton.hidden = !permite('retirar', mesaSeleccionada);
     const r = resumenPedido(mesaSeleccionada);
     boton.disabled = r.retirar === 0;
     boton.textContent = r.retirar ? `Retirar todo lo listo (${r.retirar})` : 'No hay productos listos para retirar';
@@ -657,7 +743,9 @@ function actualizarRetiroSeleccionado() {
 // Función para seleccionar una mesa
 function seleccionarMesa(numero) {
     console.log(`Seleccionando mesa: ${numero}`); // Debug
-    mesaSeleccionada = mesas.find(m => m.numero === numero);
+    const elegida = mesas.find(m => m.numero === numero);
+    if (!exigirPermiso('operar', elegida)) return;
+    mesaSeleccionada = elegida;
     asignarAlAbrir(mesaSeleccionada);
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
@@ -675,7 +763,9 @@ function seleccionarMesa(numero) {
 // Función para seleccionar una orden para llevar
 function seleccionarOrdenParaLlevar(numero) {
     console.log(`Seleccionando orden para llevar: ${numero}`); // Debug
-    mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
+    const elegida = paraLlevarOrdenes.find(o => o.numero === numero);
+    if (!exigirPermiso('operar', elegida)) return;
+    mesaSeleccionada = elegida;
     asignarAlAbrir(mesaSeleccionada);
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
@@ -692,6 +782,7 @@ function seleccionarOrdenParaLlevar(numero) {
 
 // Función para crear una nueva orden para llevar
 function crearParaLlevar() {
+    if (!exigirPermiso('operar')) return;
     const nuevaOrden = {
         numero: paraLlevarCounter,
         ocupada: false,
@@ -790,6 +881,7 @@ function showCategories() { showProducts(categoriaSeleccionada); }
 
 // Función para agregar un producto a la orden
 function agregarProducto(producto) {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     const cuenta = Number(document.getElementById('cuentas').value);
     if (!Number.isInteger(cuenta) || cuenta < 1) {
         mostrarAviso('Selecciona una cuenta válida antes de añadir productos.', 'Revisa la cuenta', 'aviso');
@@ -821,6 +913,7 @@ function agregarProducto(producto) {
 
 // Función para disminuir la cantidad de un producto en la orden
 function disminuirCantidad(producto, cuenta) {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     console.log(`Disminuyendo cantidad de producto: ${producto} para la cuenta: ${cuenta}`); // Debug
 
     // Buscar el producto en la orden
@@ -841,6 +934,7 @@ function disminuirCantidad(producto, cuenta) {
 
 // Función para abrir el modal para añadir notas a un producto
 function abrirModalNota(index) {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     notaIndex = index;
     console.log(`Abriendo modal para añadir nota al producto en el índice: ${index}`); // Debug
     document.getElementById('nota-texto').value = orden[index].nota || '';
@@ -855,6 +949,7 @@ function cerrarModal() {
 
 // Función para guardar la nota del modal
 function guardarNota() {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     const nota = document.getElementById('nota-texto').value;
     if (notaIndex !== null) {
         orden[notaIndex].nota = nota;
@@ -912,6 +1007,7 @@ function actualizarOrden() {
 
 // Función para confirmar la orden
 function confirmarOrden() {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     const confirmacionList = document.getElementById('confirmacion-list');
     confirmacionList.innerHTML = ''; // Limpiar la lista de confirmación
 
@@ -951,6 +1047,7 @@ function confirmarOrden() {
 
 // Función para enviar la orden a preparación (cocina o bar)
 function enviarCocina() {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     if (Object.keys(mesaSeleccionada?.integracion || {}).length) {
         mostrarAviso('Este pedido ya se envió a LSoft. Cierra su cobro antes de enviar otra ronda.', 'Pedido enviado', 'aviso'); return;
     }
@@ -1010,6 +1107,7 @@ function cancelarOrden() {
 
 // Función para pedir la cuenta y mostrar la pantalla de facturación
 function pedirCuenta() {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     if (!mesaSeleccionada || !cuentasParaFacturar(mesaSeleccionada).length) {
         mostrarAviso('Esta mesa todavía no tiene consumo enviado a preparación.', 'Sin consumo', 'aviso');
         return;
@@ -1032,6 +1130,7 @@ function pedirCuenta() {
 
 // Función para seleccionar una orden para facturación
 function seleccionarParaFacturacion(pedido) {
+    if (!exigirPermiso('consulta', pedido)) return;
     ordenParaFacturar = pedido;
     document.getElementById('factura-final-info').textContent =
         `${mesas.includes(pedido) ? 'Mesa' : 'Para Llevar'} ${pedido.numero}`;
@@ -1050,6 +1149,7 @@ function seleccionarParaFacturacion(pedido) {
     document.getElementById('lsoft-json').textContent = '';
     document.getElementById('lsoft-json-detalle').open = false;
     const cuentas = cuentasParaFacturar(pedido);
+    document.getElementById('cerrar-mesa').hidden = !permite('administrar');
     document.getElementById('cerrar-mesa').disabled = !cuentas.length || !cuentas.every(c => pedido.integracion?.[c]?.estado === 'pagado');
     showScreen('confirmacion-facturacion-screen');
 }
@@ -1160,6 +1260,7 @@ function accionPrecuenta() {
 }
 
 function confirmarFacturacion(enviarALSoft = false) {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     const cuentaActual = cuentasParaFacturar(ordenParaFacturar || { ordenes: [] })[cuentaIndex];
     if (ordenParaFacturar?.integracion?.[cuentaActual]) {
         mostrarAviso('Los datos enviados a LSoft están bloqueados para mantener el pedido consistente.', 'Pedido enviado', 'aviso'); return;
@@ -1208,6 +1309,7 @@ function confirmarFacturacion(enviarALSoft = false) {
 
 // Función para confirmar la facturación final de una orden en caja
 function confirmarFacturacionFinal() {
+    if (!exigirPermiso('administrar')) return;
     if (ordenParaFacturar) {
         const cuentas = cuentasParaFacturar(ordenParaFacturar);
         try {
@@ -1253,6 +1355,7 @@ function confirmarFacturacionFinal() {
 
 // Función para actualizar el nombre de la cuenta
 function actualizarNombreCuenta() {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     if (mesaSeleccionada) {
         const cuentaActual = parseInt(document.getElementById('cuentas').value);
         const nombreCuenta = document.getElementById('nombre-cuenta').value.trim();
@@ -1264,6 +1367,7 @@ function actualizarNombreCuenta() {
 
 // Función para actualizar el número de cuentas
 function actualizarCuentas() {
+    if (!exigirPermiso('operar', mesaSeleccionada)) return;
     const cuentaActual = parseInt(document.getElementById('cuentas').value);
     const nombreInput = document.getElementById('nombre-cuenta');
 
@@ -1296,6 +1400,7 @@ function refrescarPreparacion() {
 function marcarPreparado(tipo, numero, grupoIndex, itemIndex, listo) {
     const pedido = buscarPedido(tipo, numero);
     const grupo = pedido?.ordenes[grupoIndex];
+    if (!exigirPermiso('preparar', pedido, grupo?.estado === 'en cocina' ? 'cocina' : 'bar')) return;
     const item = grupo?.items[itemIndex];
     if (!item || (item.retirados || 0) > 0) return;
     item[grupo.estado === 'en cocina' ? 'enCocina' : 'enBar'] = listo ? 'terminado' : 'en preparación';
@@ -1304,6 +1409,7 @@ function marcarPreparado(tipo, numero, grupoIndex, itemIndex, listo) {
 
 function retirarProducto(tipo, numero, grupoIndex, itemIndex, cantidad) {
     const pedido = buscarPedido(tipo, numero);
+    if (!exigirPermiso('retirar', pedido)) return;
     const grupo = pedido?.ordenes[grupoIndex];
     const item = grupo?.items[itemIndex];
     const campo = grupo?.estado === 'en cocina' ? 'enCocina' : 'enBar';
@@ -1318,6 +1424,7 @@ function retirarProducto(tipo, numero, grupoIndex, itemIndex, cantidad) {
 
 function retirarTodoListo(tipo, numero, area = null) {
     const pedido = buscarPedido(tipo, numero);
+    if (!exigirPermiso('retirar', pedido)) return;
     if (!pedido) return;
     itemsEnviados(pedido).forEach(({ item, area: destino }) => {
         if ((!area || area === destino) && item[destino === 'cocina' ? 'enCocina' : 'enBar'] === 'terminado') {
@@ -1360,6 +1467,7 @@ function mostrarArea(area) {
         todo.textContent = `Retirar todo lo listo (${listos})`;
         todo.disabled = listos === 0;
         todo.onclick = () => retirarTodoListo(tipo, pedido.numero, area);
+        todo.hidden = !permite('retirar', pedido);
         tarjeta.appendChild(todo);
         items.forEach(({ item, grupoIndex, itemIndex }) => {
             const fila = document.createElement('div');
@@ -1382,11 +1490,11 @@ function mostrarArea(area) {
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.checked = listo;
-            checkbox.disabled = retirados > 0;
+            checkbox.disabled = retirados > 0 || !permite('preparar', pedido, area);
             checkbox.onchange = () => marcarPreparado(tipo, pedido.numero, grupoIndex, itemIndex, checkbox.checked);
             etiqueta.append(checkbox, ' Preparado');
             fila.appendChild(etiqueta);
-            if (listo && restantes > 0) {
+            if (listo && restantes > 0 && permite('retirar', pedido)) {
                 const controles = document.createElement('div');
                 controles.className = 'pickup-controls';
                 const label = document.createElement('label');
@@ -1438,6 +1546,7 @@ function calcularTiempoPreparacion(inicio) {
 
 // Función para aumentar la cantidad de ítems en cocina
 function aumentarCantidadCocina(ordenNumero, itemNombre, itemIndex) {
+    if (!exigirPermiso('administrar')) return;
     const orden = mesas.find(m => m.numero === ordenNumero) || paraLlevarOrdenes.find(o => o.numero === ordenNumero);
     if (!orden) return;
 
@@ -1453,6 +1562,7 @@ function aumentarCantidadCocina(ordenNumero, itemNombre, itemIndex) {
 
 // Función para disminuir la cantidad de ítems en cocina
 function disminuirCantidadCocina(ordenNumero, itemNombre, itemIndex) {
+    if (!exigirPermiso('administrar')) return;
     const orden = mesas.find(m => m.numero === ordenNumero) || paraLlevarOrdenes.find(o => o.numero === ordenNumero);
     if (!orden) return;
 

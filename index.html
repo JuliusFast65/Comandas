@@ -6,7 +6,7 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=lsoft-caja-1">
+    <link rel="stylesheet" href="styles.css?v=roles-1">
 </head>
 <body>
     <div id="app">
@@ -19,20 +19,21 @@
             </details>
         </header>
         <aside class="demo-banner">
-            <strong>Comandas · Demo · LSoft Caja 1</strong>
+            <strong>Comandas · Demo · Roles 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales. Los datos de facturación se guardan en este navegador.</small>
         </aside>
         <div id="login-screen" class="screen active">
             <div class="container">
                 <h2><i class="fas fa-utensils"></i> Inicio de Sesión</h2>
-                <p class="demo-access">Acceso de prueba: <strong>admin</strong> / <strong>1234</strong></p>
+                <p class="demo-access">Usuarios demo: <strong>admin, mesero1, mesero2, cocina, bar, auditor</strong><br>Contraseña de todos: <strong>1234</strong></p>
                 <input type="text" id="usuario" placeholder="Usuario" autocomplete="username" aria-label="Usuario" required>
                 <input type="password" id="contrasena" placeholder="Contraseña" autocomplete="current-password" enterkeyhint="go" aria-label="Contraseña" required>
                 <button onclick="iniciarSesion()"><i class="fas fa-sign-in-alt"></i> Entrar</button>
             </div>
         </div>
 
+        <div id="usuarios-screen" class="screen"><div class="container"><h2>Usuarios de demostración</h2><p>Contraseña común: 1234. Permisos de interfaz para probar flujos; no es autenticación de producción.</p><div id="usuarios-demo-lista"></div><button class="pickup-button" onclick="showScreen('seleccion-mesas-screen')">Volver a Mesas</button></div></div>
         <div id="meseros-screen" class="screen"><div class="container">
             <h2>Equipo de meseros</h2>
             <label for="lista-meseros">Un nombre por línea</label>
@@ -242,12 +243,18 @@
     <dialog id="app-menu" class="app-drawer" aria-labelledby="app-menu-title">
         <nav class="drawer-content" aria-label="Menú principal">
             <div class="drawer-heading"><h2 id="app-menu-title">Comandas</h2><button type="button" aria-label="Cerrar menú" onclick="cerrarMenu()">×</button></div>
-            <h3>Configuración</h3>
-            <button type="button" onclick="cerrarMenu(); abrirConfiguracion()">Precios y cargos</button>
-            <button type="button" onclick="cerrarMenu(); configurarMeseros()">Equipo de meseros</button>
+            <h3>Operación</h3>
+            <button type="button" onclick="cerrarMenu(); showScreen('seleccion-mesas-screen')">Mesas</button>
+            <button type="button" onclick="cerrarMenu(); showScreen('cocina-screen')">Cocina</button>
+            <button type="button" onclick="cerrarMenu(); showScreen('bar-screen')">Bar</button>
+            <button type="button" onclick="cerrarMenu(); showScreen('caja-screen')">LSoft · Caja</button>
+            <h3 data-roles="administrador">Configuración</h3>
+            <button type="button" data-roles="administrador" onclick="cerrarMenu(); abrirConfiguracion()">Precios y cargos</button>
+            <button type="button" data-roles="administrador" onclick="cerrarMenu(); configurarMeseros()">Equipo de meseros</button>
+            <button type="button" data-roles="administrador" onclick="cerrarMenu(); abrirUsuariosDemo()">Usuarios de demostración</button>
         </nav>
     </dialog>
     <section id="precuenta-impresion" aria-hidden="true"></section>
-    <script src="scripts.js?v=lsoft-caja-1"></script>
+    <script src="scripts.js?v=roles-1"></script>
 </body>
 </html>
