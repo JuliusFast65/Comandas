@@ -338,3 +338,31 @@ test('withdrawn rows disappear, history is collapsed, and additional orders reap
     assert.equal(restored.document.getElementById('cocina-retirados-titulo').textContent, 'Ver retirados (0)');
     restored.close();
 });
+
+test('search spans categories, ignores accents, and preserves account quantities', async () => {
+    const w = await open();
+    w.seleccionarMesa(1);
+    w.showProducts('platos');
+    const input = w.document.getElementById('buscar-producto');
+    const search = value => { input.value = value; input.dispatchEvent(new w.Event('input')); };
+    search('CAFE');
+    const coffee = w.document.querySelector('[data-producto="Café"]');
+    assert.ok(coffee);
+    assert.match(coffee.textContent, /Bebidas/);
+    coffee.click();
+    assert.match(coffee.textContent, /1 en esta cuenta/);
+    w.document.getElementById('cuentas').value = '2';
+    w.actualizarCuentas();
+    assert.match(coffee.textContent, /Añadir/);
+    search('zzzzzz');
+    assert.equal(w.document.querySelectorAll('#products .product').length, 0);
+    assert.match(w.document.getElementById('products').textContent, /No encontramos/);
+    w.document.getElementById('limpiar-busqueda').click();
+    assert.ok(w.document.querySelector('[data-producto="Pizza"]'));
+    assert.equal(w.document.activeElement, input);
+    search('pizza');
+    w.document.querySelector('[data-categoria="bebidas"]').click();
+    assert.equal(input.value, '');
+    assert.ok(w.document.querySelector('[data-producto="Café"]'));
+    w.close();
+});

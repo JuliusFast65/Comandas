@@ -6,12 +6,12 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=cocina-2">
+    <link rel="stylesheet" href="styles.css?v=buscador-1">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Cocina 2</strong>
+            <strong>Comandas · Demo · Buscador 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
         </aside>
@@ -53,6 +53,14 @@
                 
                 <div class="order-content">
                     <div class="selection-area">
+                        <div class="menu-search">
+                            <label for="buscar-producto">Buscar en todo el menú</label>
+                            <div class="search-controls">
+                                <input id="buscar-producto" type="search" placeholder="Ej. pizza, café, cerveza…" autocomplete="off">
+                                <button id="limpiar-busqueda" type="button" hidden>Limpiar</button>
+                            </div>
+                            <small id="buscar-resultados" role="status" aria-live="polite"></small>
+                        </div>
                         <nav id="categories" class="categories" aria-label="Categorías del menú">
                             <button type="button" class="category" data-categoria="entradas" onclick="showProducts('entradas')">Entradas</button>
                             <button type="button" class="category" data-categoria="platos" onclick="showProducts('platos')">Platos fuertes</button>
@@ -186,6 +194,6 @@
         </form>
     </dialog>
 
-    <script src="scripts.js?v=cocina-2"></script>
+    <script src="scripts.js?v=buscador-1"></script>
 </body>
 </html>
