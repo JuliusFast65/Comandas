@@ -1,6 +1,6 @@
 # Comandas — demo de pedidos de restaurante
 
-Prototipo estático en español. Acceso de demostración: **admin / 1234**.
+Prototipo estático en español. Usuarios demo: **admin, mesero1, mesero2, cocina, bar, auditor**. Contraseña común: **1234**.
 El último acceso exitoso se recuerda en este navegador (incluida la contraseña
 de demostración); no inicia sesión automáticamente. Enter en Contraseña permite entrar.
 No requiere compilación ni servidor de base de datos.
@@ -35,6 +35,19 @@ entre dispositivos. El inicio de sesión es una simulación y no protege la apli
 La facturación es demostrativa; no emite comprobantes fiscales.
 
 ## Comprobaciones
+
+## Roles de demostración
+
+Meseros inician en Mis mesas; su identidad sustituye el selector manual y pueden
+operar y retirar solo mesas propias o libres sin asignar. Cocina y Bar inician en
+su estación y marcan preparación, sin retirar ni modificar precios. Administrador
+accede a configuración y operación completa, incluido el cobro simulado. Auditor
+inicia en LSoft · Caja y consulta estados, JSON y cierres sin modificar ni cobrar.
+El menú de configuración incluye Usuarios de demostración para consultar la lista.
+Se prueban restricciones en la interfaz y funciones, pero toda la aplicación sigue
+en el navegador: no hay autenticación ni autorización de servidor. Para probar
+el turno completo cambia de usuario en el mismo navegador. Dispositivos distintos
+no comparten pedidos.
 
 En Mesas selecciona **Estoy atendiendo como…**. Al abrir una mesa sin responsable,
 se asigna a ese mesero. La tarjeta muestra nombre e iniciales. Dentro de la mesa

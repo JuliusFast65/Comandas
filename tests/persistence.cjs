@@ -26,7 +26,7 @@ async function open(saved, unavailable = false, acceso = null, precios = null, m
     if (meseros) w.localStorage.setItem('comandas.meseros.v1', meseros);
     if (acceso) w.localStorage.setItem('comandas.ultimoAcceso.v1', acceso);
     if (unavailable) Object.defineProperty(w, 'localStorage', { get() { throw new Error('Unavailable'); } });
-    w.eval(fs.readFileSync(path.join(root, 'scripts.js'), 'utf8') + '\nwindow.inicioRestaurado = () => tiemposDePreparacion[0]?.inicio;');
+    w.eval(fs.readFileSync(path.join(root, 'scripts.js'), 'utf8') + "\nsesionActual = {usuario: 'admin', rol: 'administrador', nombre: 'Administrador'};\n" + '\nwindow.inicioRestaurado = () => tiemposDePreparacion[0]?.inicio;');
     await new Promise(resolve => w.document.addEventListener('DOMContentLoaded', resolve, { once: true }));
     assert.deepEqual(errors, []);
     return w;
@@ -630,7 +630,7 @@ test('header navigation, menu dismissal and logout preserve orders and distingui
     w.document.getElementById('contrasena').value = '1234';
     w.iniciarSesion();
     assert.equal(w.document.getElementById('app-topbar').hidden, false);
-    assert.equal(w.document.getElementById('user-name').textContent, 'admin');
+    assert.equal(w.document.getElementById('user-name').textContent, 'admin · administrador');
     w.document.getElementById('abrir-menu').click();
     const menu = w.document.getElementById('app-menu');
     assert.ok(menu.open);
@@ -639,7 +639,7 @@ test('header navigation, menu dismissal and logout preserve orders and distingui
     assert.equal(menu.open, false);
     assert.equal(w.document.getElementById('abrir-menu').getAttribute('aria-expanded'), 'false');
     w.abrirMenu();
-    menu.querySelectorAll('nav > button')[0].click();
+    menu.querySelector('[onclick*=abrirConfiguracion]').click();
     assert.equal(menu.open, false);
     assert.equal(w.document.querySelector('.screen.active').id, 'configuracion-screen');
     w.abrirMenu();
@@ -657,7 +657,7 @@ test('header navigation, menu dismissal and logout preserve orders and distingui
     assert.equal(state.mesas[0].mesero, 'Mesero 1');
     w.iniciarSesion();
     assert.equal(w.document.querySelector('.screen.active').id, 'seleccion-mesas-screen');
-    assert.equal(w.document.getElementById('user-name').textContent, 'admin');
+    assert.equal(w.document.getElementById('user-name').textContent, 'admin · administrador');
     w.close();
 });
 
@@ -683,5 +683,54 @@ test('waiter sends each prebill directly and LSoft Caja lists sent accounts with
     w.document.getElementById('enviar-precuenta').click();
     assert.equal(w.document.querySelector('.screen.active').id, 'confirmacion-facturacion-screen');
     assert.equal(Object.keys(JSON.parse(w.localStorage.getItem('comandas.lsoftSim.v1'))).length, 2);
+    w.close();
+});
+
+
+test('demo users land in their roles and cannot perform other roles actions', async () => {
+    const w = await open();
+    w.seleccionarMesa(1); w.agregarProducto('Pizza'); w.agregarProducto('Coca-Cola'); w.enviarCocina();
+    const login = usuario => {
+        w.cerrarSesion();
+        w.document.getElementById('usuario').value = usuario;
+        w.document.getElementById('contrasena').value = '1234';
+        w.iniciarSesion();
+    };
+    const state = () => JSON.parse(w.localStorage.getItem(key)).mesas[0];
+    login('cocina');
+    assert.equal(w.document.querySelector('.screen.active').id, 'cocina-screen');
+    w.marcarPreparado('mesa', 1, 1, 0, true);
+    assert.equal(state().ordenes[1].items[0].enCocina, 'terminado');
+    w.marcarPreparado('mesa', 1, 2, 0, true);
+    assert.equal(state().ordenes[2].items[0].enBar, true);
+    w.retirarTodoListo('mesa', 1);
+    assert.equal(state().ordenes[1].items[0].retirados, 0);
+    w.showScreen('configuracion-screen');
+    assert.equal(w.document.querySelector('.screen.active').id, 'cocina-screen');
+    login('mesero1');
+    assert.equal(w.document.querySelector('.screen.active').id, 'seleccion-mesas-screen');
+    assert.equal(w.document.getElementById('mesero-activo').closest('label').hidden, true);
+    w.retirarTodoListo('mesa', 1);
+    assert.equal(state().ordenes[1].items[0].retirados, 1);
+    w.marcarPreparado('mesa', 1, 2, 0, true);
+    assert.equal(state().ordenes[2].items[0].enBar, true);
+    login('mesero2');
+    w.seleccionarMesa(1);
+    assert.equal(w.document.querySelector('.screen.active').id, 'seleccion-mesas-screen');
+    login('bar');
+    assert.equal(w.document.querySelector('.screen.active').id, 'bar-screen');
+    w.marcarPreparado('mesa', 1, 2, 0, true);
+    assert.equal(state().ordenes[2].items[0].enBar, 'terminado');
+    login('auditor');
+    assert.equal(w.document.querySelector('.screen.active').id, 'caja-screen');
+    const before = w.localStorage.getItem(key);
+    w.seleccionarMesa(1); w.crearParaLlevar(); w.simularPagoLSoft('1', 'efectivo');
+    assert.equal(w.localStorage.getItem(key), before);
+    w.abrirConfiguracion();
+    assert.equal(w.document.querySelector('.screen.active').id, 'caja-screen');
+    login('admin');
+    w.abrirUsuariosDemo();
+    assert.equal(w.document.querySelector('.screen.active').id, 'usuarios-screen');
+    assert.match(w.document.getElementById('usuarios-demo-lista').textContent, /mesero2/);
     w.close();
 });
