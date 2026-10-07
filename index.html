@@ -6,12 +6,12 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=retiros-1">
+    <link rel="stylesheet" href="styles.css?v=acceso-1">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Retiros 1</strong>
+            <strong>Comandas · Demo · Acceso 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
         </aside>
@@ -19,8 +19,8 @@
             <div class="container">
                 <h2><i class="fas fa-utensils"></i> Inicio de Sesión</h2>
                 <p class="demo-access">Acceso de prueba: <strong>admin</strong> / <strong>1234</strong></p>
-                <input type="text" id="usuario" placeholder="Usuario" required>
-                <input type="password" id="contrasena" placeholder="Contraseña" required>
+                <input type="text" id="usuario" placeholder="Usuario" autocomplete="username" aria-label="Usuario" required>
+                <input type="password" id="contrasena" placeholder="Contraseña" autocomplete="current-password" enterkeyhint="go" aria-label="Contraseña" required>
                 <button onclick="iniciarSesion()"><i class="fas fa-sign-in-alt"></i> Entrar</button>
             </div>
         </div>
@@ -175,6 +175,6 @@
         </form>
     </dialog>
 
-    <script src="scripts.js?v=retiros-1"></script>
+    <script src="scripts.js?v=acceso-1"></script>
 </body>
 </html>

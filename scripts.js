@@ -118,6 +118,28 @@ function mostrarAviso(mensaje, titulo = 'Listo', tipo = 'exito') {
     document.getElementById('aviso-aceptar').focus();
 }
 
+const CLAVE_ACCESO = 'comandas.ultimoAcceso.v1';
+
+function recordarAcceso(usuario, contrasena) {
+    try {
+        localStorage.setItem(CLAVE_ACCESO, JSON.stringify({ usuario, contrasena }));
+    } catch {
+        console.warn('No se pudo recordar el acceso en este navegador.');
+    }
+}
+
+function recuperarAcceso() {
+    try {
+        const acceso = JSON.parse(localStorage.getItem(CLAVE_ACCESO));
+        if (acceso && typeof acceso.usuario === 'string' && typeof acceso.contrasena === 'string') {
+            document.getElementById('usuario').value = acceso.usuario;
+            document.getElementById('contrasena').value = acceso.contrasena;
+        }
+    } catch {
+        console.warn('No se pudo recuperar el último acceso.');
+    }
+}
+
 function iniciarSesion() {
     const usuario = document.getElementById('usuario').value.trim();
     const contrasena = document.getElementById('contrasena').value.trim();
@@ -129,6 +151,7 @@ function iniciarSesion() {
 
     // Simulamos una verificación básica de usuario y contraseña
     if (usuario === 'admin' && contrasena === '1234') {
+        recordarAcceso(usuario, contrasena);
         showScreen('seleccion-mesas-screen');
         console.log("Inicio de sesión exitoso"); // Debug
     } else {
@@ -893,6 +916,13 @@ function disminuirCantidadCocina(ordenNumero, itemNombre, itemIndex) {
 
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
+    recuperarAcceso();
+    document.getElementById('contrasena').addEventListener('keydown', evento => {
+        if (evento.key === 'Enter' && !evento.isComposing && !evento.repeat) {
+            evento.preventDefault();
+            iniciarSesion();
+        }
+    });
     document.getElementById('aviso-dialogo').addEventListener('close', () => {
         const pantalla = document.querySelector('.screen.active');
         const destino = pantalla && pantalla.contains(focoAntesDelAviso)

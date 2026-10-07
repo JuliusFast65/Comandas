@@ -6,7 +6,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const root = path.join(__dirname, '..');
 const key = 'comandas.estado.v1';
 
-async function open(saved, unavailable = false) {
+async function open(saved, unavailable = false, acceso = null) {
     const errors = [];
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', error => errors.push(error));
@@ -22,6 +22,7 @@ async function open(saved, unavailable = false) {
         this.dispatchEvent(new w.Event('close'));
     };
     if (saved) w.localStorage.setItem(key, saved);
+    if (acceso) w.localStorage.setItem('comandas.ultimoAcceso.v1', acceso);
     if (unavailable) Object.defineProperty(w, 'localStorage', { get() { throw new Error('Unavailable'); } });
     w.eval(fs.readFileSync(path.join(root, 'scripts.js'), 'utf8') + '\nwindow.inicioRestaurado = () => tiemposDePreparacion[0]?.inicio;');
     await new Promise(resolve => w.document.addEventListener('DOMContentLoaded', resolve, { once: true }));
@@ -238,4 +239,35 @@ test('invalid or unprepared pickup cannot mutate quantities; old data stays comp
     restored.retirarTodoListo('mesa', 1);
     assert.ok(restored.document.querySelector('#mesas .mesa').classList.contains('retirada'));
     restored.close();
+});
+
+test('Enter logs in and only successful credentials are restored without auto-login', async () => {
+    const w = await open();
+    w.document.getElementById('usuario').value = 'admin';
+    const password = w.document.getElementById('contrasena');
+    password.value = '1234';
+    password.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    assert.equal(w.document.querySelector('.screen.active').id, 'seleccion-mesas-screen');
+    const saved = w.localStorage.getItem('comandas.ultimoAcceso.v1');
+    assert.deepEqual(JSON.parse(saved), { usuario: 'admin', contrasena: '1234' });
+    password.value = 'incorrecta';
+    w.iniciarSesion();
+    assert.equal(w.localStorage.getItem('comandas.ultimoAcceso.v1'), saved);
+    w.close();
+    const restored = await open(null, false, saved);
+    assert.equal(restored.document.getElementById('usuario').value, 'admin');
+    assert.equal(restored.document.getElementById('contrasena').value, '1234');
+    assert.equal(restored.document.querySelector('.screen.active').id, 'login-screen');
+    restored.close();
+});
+
+test('unavailable or malformed login storage does not prevent login', async () => {
+    for (const [unavailable, acceso] of [[true, null], [false, '{invalid']]) {
+        const w = await open(null, unavailable, acceso);
+        w.document.getElementById('usuario').value = 'admin';
+        w.document.getElementById('contrasena').value = '1234';
+        w.iniciarSesion();
+        assert.equal(w.document.querySelector('.screen.active').id, 'seleccion-mesas-screen');
+        w.close();
+    }
 });

@@ -1,6 +1,8 @@
 # Comandas — demo de pedidos de restaurante
 
 Prototipo estático en español. Acceso de demostración: **admin / 1234**.
+El último acceso exitoso se recuerda en este navegador (incluida la contraseña
+de demostración); no inicia sesión automáticamente. Enter en Contraseña permite entrar.
 No requiere compilación ni servidor de base de datos.
 
 ## Probar
