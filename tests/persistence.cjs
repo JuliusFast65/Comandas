@@ -271,3 +271,34 @@ test('unavailable or malformed login storage does not prevent login', async () =
         w.close();
     }
 });
+
+test('menu categories stay available and product badges follow the selected account draft', async () => {
+    const w = await open();
+    w.seleccionarMesa(1);
+    const category = w.document.querySelector('[data-categoria="platos"]');
+    category.click();
+    assert.equal(category.getAttribute('aria-pressed'), 'true');
+    assert.equal(w.document.querySelectorAll('#categories button').length, 6);
+    const pizza = () => w.document.querySelector('[data-producto="Pizza"]');
+    pizza().click();
+    pizza().click();
+    assert.equal(pizza().querySelector('.product-quantity').textContent, '2 en esta cuenta');
+    w.document.getElementById('cuentas').value = '2';
+    w.actualizarCuentas();
+    assert.equal(pizza().querySelector('.product-quantity').textContent, '+ Añadir');
+    assert.equal(w.document.getElementById('menu-cuenta').textContent, 'Añadiendo a Cuenta 2');
+    pizza().click();
+    assert.equal(pizza().querySelector('.product-quantity').textContent, '1 en esta cuenta');
+    w.disminuirCantidad('Pizza', 2);
+    assert.equal(pizza().querySelector('.product-quantity').textContent, '+ Añadir');
+    w.document.querySelector('[data-categoria="bebidas"]').click();
+    assert.equal(category.getAttribute('aria-pressed'), 'false');
+    w.document.getElementById('cuentas').value = '1';
+    w.actualizarCuentas();
+    category.click();
+    assert.equal(pizza().querySelector('.product-quantity').textContent, '2 en esta cuenta');
+    w.enviarCocina();
+    w.seleccionarMesa(1);
+    assert.equal(pizza().querySelector('.product-quantity').textContent, '+ Añadir');
+    w.close();
+});

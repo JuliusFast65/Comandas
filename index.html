@@ -6,12 +6,12 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=acceso-1">
+    <link rel="stylesheet" href="styles.css?v=menu-1">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Acceso 1</strong>
+            <strong>Comandas · Demo · Menú 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
         </aside>
@@ -53,16 +53,17 @@
                 
                 <div class="order-content">
                     <div class="selection-area">
-                        <div id="categories" class="categories">
-                            <div class="category entradas" onclick="showProducts('entradas')">Entradas</div>
-                            <div class="category platos" onclick="showProducts('platos')">Platos Fuertes</div>
-                            <div class="category postres" onclick="showProducts('postres')">Postres</div>
-                            <div class="category bebidas" onclick="showProducts('bebidas')">Bebidas</div>
-                            <div class="category bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')">Bebidas Alcohólicas</div>
-                            <div class="category adicionales" onclick="showProducts('adicionales')">Adicionales</div>
-                        </div>
+                        <nav id="categories" class="categories" aria-label="Categorías del menú">
+                            <button type="button" class="category" data-categoria="entradas" onclick="showProducts('entradas')">Entradas</button>
+                            <button type="button" class="category" data-categoria="platos" onclick="showProducts('platos')">Platos fuertes</button>
+                            <button type="button" class="category" data-categoria="postres" onclick="showProducts('postres')">Postres</button>
+                            <button type="button" class="category" data-categoria="bebidas" onclick="showProducts('bebidas')">Bebidas</button>
+                            <button type="button" class="category" data-categoria="bebidasAlcoolicas" onclick="showProducts('bebidasAlcoolicas')">Bebidas alcohólicas</button>
+                            <button type="button" class="category" data-categoria="adicionales" onclick="showProducts('adicionales')">Adicionales</button>
+                        </nav>
+                        <div class="menu-heading"><h3 id="menu-titulo">Entradas</h3><span id="menu-cuenta">Añadiendo a Cuenta 1</span></div>
+                        <p class="menu-help">Toca un producto para añadirlo. Las cantidades muestran el borrador de esta cuenta.</p>
                         <div id="products" class="products"></div>
-                        <button id="back-to-categories" class="center-button" onclick="showCategories()">Volver a Categorías</button>
                     </div>
                     <div class="order-summary">
                         <h3>Orden Actual</h3>
@@ -175,6 +176,6 @@
         </form>
     </dialog>
 
-    <script src="scripts.js?v=acceso-1"></script>
+    <script src="scripts.js?v=menu-1"></script>
 </body>
 </html>
