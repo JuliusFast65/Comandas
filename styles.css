@@ -603,6 +603,7 @@ textarea {
 .lsoft-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; padding: 16px; border: 1px solid #dce3e9; border-radius: 12px; }
 .lsoft-controls p { flex-basis: 100%; margin: 0 0 8px; }
 .lsoft-controls select { min-height: 44px; font-size: 16px; max-width: 100%; }
+.lsoft-status-card { display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; color: #173b60; border: 1px solid #dce3e9; cursor: pointer; margin-bottom: 12px; padding: 16px; border-radius: 12px; background: #f0f7ff; font: inherit; }
 #lsoft-json, #cierres-lista pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px; background: #eef2f6; }
 .app-topbar { position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 10px 16px; background: white; border-bottom: 1px solid #dce3e9; color: #173b60; }
 .app-topbar[hidden] { display: none; }

@@ -6,7 +6,7 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=interfaz-1">
+    <link rel="stylesheet" href="styles.css?v=lsoft-caja-1">
 </head>
 <body>
     <div id="app">
@@ -19,7 +19,7 @@
             </details>
         </header>
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Interfaz 1</strong>
+            <strong>Comandas · Demo · LSoft Caja 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
             <small>Prueba local: no sincroniza dispositivos ni emite facturas reales. Los datos de facturación se guardan en este navegador.</small>
         </aside>
@@ -71,7 +71,7 @@
                 <div class="footer">
                     <button onclick="showScreen('cocina-screen')"><i class="fas fa-utensils"></i> Ver Cocina <span id="pendientes-cocina" class="pending-count" aria-live="polite">· 0 pendientes</span> <span id="listos-cocina" class="pending-count" aria-live="polite">· 0 por retirar</span></button>
                     <button onclick="showScreen('bar-screen')"><i class="fas fa-glass-martini-alt"></i> Ver Bar <span id="pendientes-bar" class="pending-count" aria-live="polite">· 0 pendientes</span> <span id="listos-bar" class="pending-count" aria-live="polite">· 0 por retirar</span></button>
-                    <button onclick="showScreen('caja-screen')"><i class="fas fa-cash-register"></i> Ir a Caja</button>
+                    <button onclick="showScreen('caja-screen')"><i class="fas fa-cash-register"></i> LSoft · Caja</button>
                 </div>
             </div>
         </div>
@@ -163,7 +163,7 @@
 
         <div id="caja-screen" class="screen">
             <div class="container">
-                <h2><i class="fas fa-cash-register"></i> Caja</h2>
+                <h2><i class="fas fa-cash-register"></i> LSoft · Caja</h2>
                 <div id="caja-list" class="caja-list"></div>
                 <details><summary>Operaciones cerradas (simulación)</summary><div id="cierres-lista"></div></details>
                 <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
@@ -199,7 +199,7 @@
                 </div>
                 
                 <div class="footer">
-                    <button onclick="confirmarFacturacion()"><i class="fas fa-check"></i> Guardar datos y continuar</button>
+                    <button id="enviar-precuenta" onclick="accionPrecuenta()">Enviar cuenta a LSoft (simulado)</button>
                     <button onclick="imprimirPrecuenta()">Imprimir precuenta</button>
                     <button onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-times"></i> Cancelar</button>
                 </div>
@@ -248,6 +248,6 @@
         </nav>
     </dialog>
     <section id="precuenta-impresion" aria-hidden="true"></section>
-    <script src="scripts.js?v=interfaz-1"></script>
+    <script src="scripts.js?v=lsoft-caja-1"></script>
 </body>
 </html>

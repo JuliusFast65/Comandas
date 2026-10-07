@@ -660,3 +660,28 @@ test('header navigation, menu dismissal and logout preserve orders and distingui
     assert.equal(w.document.getElementById('user-name').textContent, 'admin');
     w.close();
 });
+
+test('waiter sends each prebill directly and LSoft Caja lists sent accounts without preparation gating', async () => {
+    const w = await open();
+    w.seleccionarMesa(1); w.agregarProducto('Pizza');
+    w.document.getElementById('cuentas').value = '2'; w.agregarProducto('Coca-Cola');
+    w.enviarCocina(); w.pedirCuenta();
+    const fill = () => {
+        for (const [id, value] of Object.entries({ cedula: '1234567890', 'nombre-completo': 'Demo', direccion: 'Demo', telefono: '0999999999', correo: 'demo@example.test' })) w.document.getElementById(id).value = value;
+    };
+    assert.equal(w.document.querySelectorAll('#caja-list .lsoft-status-card').length, 0);
+    fill(); w.document.getElementById('enviar-precuenta').click();
+    assert.equal(w.document.querySelector('.screen.active').id, 'facturacion-screen');
+    assert.match(w.document.getElementById('factura-info').textContent, /Cuenta 2/);
+    assert.equal(w.document.querySelectorAll('#caja-list .lsoft-status-card').length, 1);
+    fill(); w.document.getElementById('enviar-precuenta').click();
+    assert.equal(w.document.querySelector('.screen.active').id, 'seleccion-mesas-screen');
+    assert.equal(w.document.querySelectorAll('#caja-list .lsoft-status-card').length, 2);
+    assert.match(w.document.getElementById('caja-list').textContent, /Pendiente de pago/);
+    w.seleccionarMesa(1); w.pedirCuenta();
+    assert.equal(w.document.getElementById('cedula').readOnly, true);
+    w.document.getElementById('enviar-precuenta').click();
+    assert.equal(w.document.querySelector('.screen.active').id, 'confirmacion-facturacion-screen');
+    assert.equal(Object.keys(JSON.parse(w.localStorage.getItem('comandas.lsoftSim.v1'))).length, 2);
+    w.close();
+});

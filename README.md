@@ -83,7 +83,9 @@ un restaurante con múltiples usuarios.
 
 ## Integración LSoft simulada
 
-En Caja, abre la mesa, revisa cada cuenta y pulsa **Enviar a LSoft (simulado)**.
+Desde **Pedir Cuenta**, revisa la precuenta y pulsa **Enviar cuenta a LSoft (simulado)**.
+Si hay varias cuentas, avanza a la siguiente tras recibir cada envío.
+**LSoft · Caja** muestra únicamente cuentas enviadas o con errores de envío; allí puedes consultar y reintentar.
 **Ver JSON** permite revisar el contrato provisional. Selecciona un medio de pago
  y pulsa **Simular cobro en LSoft**. **Consultar estado** recupera el resultado.
 Cuando todas las cuentas estén pagadas, **Cerrar mesa pagada** libera la mesa

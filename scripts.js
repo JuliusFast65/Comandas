@@ -230,15 +230,24 @@ function contratoPedido(pedido, cuenta) {
         totalesCentavos: { ...total, propina, pagar: total.total + propina } };
 }
 
-function enviarCuentaLSoft(cuenta) {
+function enviarCuentaLSoft(cuenta, actualizarVista = true) {
     try {
         const json = contratoPedido(ordenParaFacturar, cuenta);
         if (!guardarEstado()) throw new Error('No se puede enviar sin guardar primero el identificador del pedido.');
         const respuesta = adaptadorLSoft.enviar(json);
         ordenParaFacturar.integracion ||= {};
         ordenParaFacturar.integracion[cuenta] = { clave: json.idOperacion, ...respuesta };
-        guardarEstado(); seleccionarParaFacturacion(ordenParaFacturar);
-    } catch (error) { mostrarAviso(error.message, 'No se pudo enviar', 'aviso'); }
+        if (ordenParaFacturar.erroresLSoft) delete ordenParaFacturar.erroresLSoft[cuenta];
+        guardarEstado(); mostrarCaja();
+        if (actualizarVista) seleccionarParaFacturacion(ordenParaFacturar);
+        return true;
+    } catch (error) {
+        ordenParaFacturar.erroresLSoft ||= {};
+        ordenParaFacturar.erroresLSoft[cuenta] = error.message;
+        guardarEstado(); mostrarCaja();
+        mostrarAviso(error.message, 'No se pudo enviar', 'aviso');
+        return false;
+    }
 }
 
 function consultarCuentaLSoft(cuenta) {
@@ -273,7 +282,7 @@ function controlesLSoft(cuenta) {
     const panel = document.createElement('section'); panel.className = 'lsoft-controls';
     const estado = ordenParaFacturar.integracion?.[cuenta];
     const etiqueta = document.createElement('p');
-    etiqueta.textContent = estado ? `${estado.pedidoId} · ${estado.estado === 'pagado' ? 'Pagado (simulado)' : 'Pendiente de pago en LSoft (simulado)'}` : 'Sin enviar a LSoft';
+    etiqueta.textContent = estado ? `${estado.pedidoId} · ${estado.estado === 'pagado' ? 'Pagado (simulado)' : 'Pendiente de pago en LSoft (simulado)'}` : ordenParaFacturar.erroresLSoft?.[cuenta] ? `Error de envío: ${ordenParaFacturar.erroresLSoft[cuenta]}` : 'Sin enviar a LSoft';
     panel.appendChild(etiqueta);
     const accion = (texto, callback, desactivado = false) => {
         const boton = document.createElement('button'); boton.className = 'pickup-button'; boton.textContent = texto;
@@ -522,58 +531,25 @@ function showScreen(screenId) {
 
 // Función para mostrar la lista de órdenes pendientes en caja
 function mostrarCaja() {
-    const cajaList = document.getElementById('caja-list');
-    if (!cajaList) {
-        console.error("El elemento con id 'caja-list' no existe.");
-        return;
-    }
-    cajaList.innerHTML = ''; // Limpiar la lista de la caja
-
-    console.log("Iniciando el proceso de mostrar las órdenes en caja."); // Debug
-
-    // Iterar sobre cada mesa
-    mesas.forEach(orden => {
-        console.log(`Revisando mesa: ${orden.numero}, cuentaPedida: ${orden.cuentaPedida}, terminada: ${orden.terminada}`); // Debug
-        if (orden.cuentaPedida && orden.terminada) {
-            console.log(`Mesa ${orden.numero} cumple las condiciones para ser mostrada.`); // Debug
-            const ordenDiv = document.createElement('div');
-            const tipoOrden = 'Mesa';
-            
-            ordenDiv.className = 'caja-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
-            
-            // Al hacer clic, seleccionar la orden para facturación
-            ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
-            cajaList.appendChild(ordenDiv);
-
-            console.log(`Mesa ${orden.numero} añadida a la lista de caja.`); // Debug
-        } else {
-            console.log(`Mesa ${orden.numero} no cumple las condiciones: cuentaPedida=${orden.cuentaPedida}, terminada=${orden.terminada}`); // Debug
-        }
+    const lista = document.getElementById('caja-list');
+    lista.replaceChildren();
+    [...mesas, ...paraLlevarOrdenes].forEach(pedido => {
+        cuentasParaFacturar(pedido).forEach(cuenta => {
+            const registro = pedido.integracion?.[cuenta];
+            const error = pedido.erroresLSoft?.[cuenta];
+            if (!registro && !error) return;
+            const boton = document.createElement('button');
+            boton.type = 'button'; boton.className = 'caja-item lsoft-status-card';
+            const titulo = document.createElement('strong');
+            titulo.textContent = `${mesas.includes(pedido) ? 'Mesa' : 'Para Llevar'} ${pedido.numero} · Cuenta ${cuenta}`;
+            const estado = document.createElement('span');
+            estado.textContent = registro ? `${registro.pedidoId} · ${registro.estado === 'pagado' ? 'Pagada' : 'Pendiente de pago'} (simulado)` : 'Error de envío · Reintentar';
+            boton.append(titulo, estado);
+            boton.onclick = () => seleccionarParaFacturacion(pedido);
+            lista.appendChild(boton);
+        });
     });
-
-    // Iterar sobre cada orden para llevar
-    paraLlevarOrdenes.forEach(orden => {
-        console.log(`Revisando orden para llevar: ${orden.numero}, cuentaPedida: ${orden.cuentaPedida}, terminada: ${orden.terminada}`); // Debug
-        if (orden.cuentaPedida && orden.terminada) {
-            console.log(`Para Llevar ${orden.numero} cumple las condiciones para ser mostrado.`); // Debug
-            const ordenDiv = document.createElement('div');
-            const tipoOrden = 'Para Llevar';
-            
-            ordenDiv.className = 'caja-item';
-            ordenDiv.innerHTML = `<h4>${tipoOrden} ${orden.numero}</h4>`;
-            
-            // Al hacer clic, seleccionar la orden para facturación
-            ordenDiv.onclick = () => seleccionarParaFacturacion(orden);
-            cajaList.appendChild(ordenDiv);
-
-            console.log(`Para Llevar ${orden.numero} añadido a la lista de caja.`); // Debug
-        } else {
-            console.log(`Para Llevar ${orden.numero} no cumple las condiciones: cuentaPedida=${orden.cuentaPedida}, terminada=${orden.terminada}`); // Debug
-        }
-    });
-
-    console.log("Órdenes en caja mostradas."); // Debug
+    if (!lista.children.length) lista.textContent = 'Todavía no hay cuentas enviadas a LSoft ni errores pendientes.';
 }
 
 // Función para mostrar las mesas
@@ -1045,7 +1021,8 @@ function pedirCuenta() {
         console.log(`Cuenta pedida para mesa: ${mesaSeleccionada.numero}, Estado nuevo: cuentaPedida=${mesaSeleccionada.cuentaPedida}`); // Debug
 
         ordenParaFacturar = mesaSeleccionada; // Guardar la mesa seleccionada para facturación
-        cuentaIndex = 0; // Resetear el índice de la cuenta
+        const pendientes = cuentasParaFacturar(ordenParaFacturar).findIndex(c => !ordenParaFacturar.integracion?.[c]);
+        cuentaIndex = Math.max(0, pendientes);
         pedirDatosFacturaPorCuenta(); // Pedir datos para la primera cuenta
     } else {
         console.log(`La cuenta ya fue pedida para mesa: ${mesaSeleccionada.numero}`); // Debug
@@ -1143,8 +1120,11 @@ function cuentasParaFacturar(pedido) {
         .sort((a, b) => Number(a) - Number(b));
 }
 
-function pedirDatosFacturaPorCuenta() {
+function pedirDatosFacturaPorCuenta(omitirEnviadas = false) {
     const cuentas = cuentasParaFacturar(ordenParaFacturar);
+    if (omitirEnviadas) {
+        while (cuentaIndex < cuentas.length && ordenParaFacturar.integracion?.[cuentas[cuentaIndex]]) cuentaIndex++;
+    }
     if (cuentaIndex < cuentas.length) {
         const cuenta = cuentas[cuentaIndex];
         const nombreCuenta = ordenParaFacturar.nombresCuentas[cuenta] || `Cuenta ${cuenta}`;
@@ -1156,6 +1136,11 @@ function pedirDatosFacturaPorCuenta() {
             document.getElementById(id).value = datos[campo] || '';
         }
         document.getElementById('propina').value = datos.propina ?? '';
+        const enviada = !!ordenParaFacturar.integracion?.[cuenta];
+        for (const id of ['cedula', 'nombre-completo', 'direccion', 'telefono', 'correo', 'propina']) {
+            document.getElementById(id).readOnly = enviada;
+        }
+        document.getElementById('enviar-precuenta').textContent = enviada ? 'Ver estado en LSoft · Caja' : 'Enviar cuenta a LSoft (simulado)';
         document.getElementById('precuenta-consumo').replaceChildren(tablaConsumo(ordenParaFacturar, cuenta));
         showScreen('facturacion-screen');
     } else {
@@ -1163,12 +1148,18 @@ function pedirDatosFacturaPorCuenta() {
         mostrarParaLlevar();
         mostrarCaja();
         showScreen('seleccion-mesas-screen');
-        mostrarAviso('Los datos de las cuentas se guardaron para Caja. La mesa permanece abierta hasta cerrar la orden.', 'Precuenta completada');
+        mostrarAviso(omitirEnviadas ? 'Las cuentas se enviaron a LSoft. Consulta el pago en LSoft · Caja. La mesa sigue abierta.' : 'Los datos se guardaron. La mesa sigue abierta.', omitirEnviadas ? 'Enviado a LSoft (simulación)' : 'Precuenta completada');
     }
 }
 
 // Función para confirmar la facturación de una cuenta
-function confirmarFacturacion() {
+function accionPrecuenta() {
+    const cuenta = cuentasParaFacturar(ordenParaFacturar)[cuentaIndex];
+    if (ordenParaFacturar.integracion?.[cuenta]) seleccionarParaFacturacion(ordenParaFacturar);
+    else confirmarFacturacion(true);
+}
+
+function confirmarFacturacion(enviarALSoft = false) {
     const cuentaActual = cuentasParaFacturar(ordenParaFacturar || { ordenes: [] })[cuentaIndex];
     if (ordenParaFacturar?.integracion?.[cuentaActual]) {
         mostrarAviso('Los datos enviados a LSoft están bloqueados para mantener el pedido consistente.', 'Pedido enviado', 'aviso'); return;
@@ -1209,8 +1200,9 @@ function confirmarFacturacion() {
             propina
         };
         guardarEstado();
+        if (enviarALSoft && !enviarCuentaLSoft(cuenta, false)) return;
         cuentaIndex++; // Incrementar el índice para la siguiente cuenta
-        pedirDatosFacturaPorCuenta(); // Pedir datos para la siguiente cuenta
+        pedirDatosFacturaPorCuenta(enviarALSoft); // Pedir datos para la siguiente cuenta
     }
 }
 
@@ -1232,6 +1224,7 @@ function confirmarFacturacionFinal() {
             }
         } catch (error) { mostrarAviso(error.message, 'No se cerró la mesa', 'aviso'); return; }
         ordenParaFacturar.integracion = {};
+        ordenParaFacturar.erroresLSoft = {};
         ordenParaFacturar.operacionId = null;
         document.getElementById('cerrar-mesa').disabled = true;
         console.log(`Confirmando facturación final para orden: ${ordenParaFacturar.numero}`); // Debug
