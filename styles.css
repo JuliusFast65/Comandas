@@ -21,6 +21,38 @@
 .demo-banner small { flex-basis: 100%; opacity: .85; }
 .demo-access { text-align: center; color: #555; }
 
+.app-dialog {
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 0;
+  border-radius: 20px;
+  padding: 28px;
+  color: var(--text-color);
+  text-align: center;
+  box-shadow: 0 16px 64px rgba(0, 0, 0, .25);
+}
+
+.app-dialog::backdrop { background: rgba(15, 35, 55, .6); }
+.app-dialog h2 { font-size: 24px; margin: 16px 0 12px; }
+.app-dialog p { line-height: 1.6; margin: 0 0 24px; }
+.app-dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: #e6f5ed;
+  color: #227347;
+  font-size: 32px;
+  font-weight: 700;
+}
+.app-dialog[data-tipo="aviso"] .app-dialog-icon { background: #fff0d9; color: #8a5600; }
+.app-dialog .center-button { width: 100%; min-height: 48px; margin: 0; }
+.app-dialog button:focus-visible { outline: 3px solid #173b60; outline-offset: 4px; }
+
 .pending-count {
   display: inline-block;
   margin-left: 4px;

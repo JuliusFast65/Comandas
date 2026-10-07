@@ -103,12 +103,25 @@ function restaurarEstado() {
 }
 
 // Función para manejar el inicio de sesión
+let focoAntesDelAviso = null;
+
+function mostrarAviso(mensaje, titulo = 'Listo', tipo = 'exito') {
+    const dialogo = document.getElementById('aviso-dialogo');
+    if (!dialogo.open) focoAntesDelAviso = document.activeElement;
+    document.getElementById('aviso-titulo').textContent = titulo;
+    document.getElementById('aviso-mensaje').textContent = mensaje;
+    document.getElementById('aviso-icono').textContent = tipo === 'exito' ? '✓' : '!';
+    dialogo.dataset.tipo = tipo;
+    if (!dialogo.open) dialogo.showModal();
+    document.getElementById('aviso-aceptar').focus();
+}
+
 function iniciarSesion() {
     const usuario = document.getElementById('usuario').value.trim();
     const contrasena = document.getElementById('contrasena').value.trim();
 
     if (usuario === '' || contrasena === '') {
-        alert('Por favor, ingresa el usuario y la contraseña.');
+        mostrarAviso('Por favor, ingresa el usuario y la contraseña.', 'Completa tus datos', 'aviso');
         return;
     }
 
@@ -117,7 +130,7 @@ function iniciarSesion() {
         showScreen('seleccion-mesas-screen');
         console.log("Inicio de sesión exitoso"); // Debug
     } else {
-        alert('Usuario o contraseña incorrectos.');
+        mostrarAviso('Usuario o contraseña incorrectos.', 'Revisa el acceso', 'aviso');
         console.log("Fallo en el inicio de sesión"); // Debug
     }
 }
@@ -515,8 +528,8 @@ function enviarCocina() {
     mostrarParaLlevar();
     mostrarCocina();
     mostrarBar();
-    alert('Orden enviada a preparación');
     showScreen('seleccion-mesas-screen');
+    mostrarAviso('Los alimentos se enviaron a Cocina y las bebidas al Bar.', 'Orden enviada');
     console.log(`Orden enviada a cocina/bar para Mesa/Para Llevar ${mesaSeleccionada.numero}`); // Debug
     guardarEstado();
 }
@@ -595,7 +608,7 @@ function confirmarFacturacion() {
 
     // Validar que todos los campos están llenos
     if (!cedula || !nombreCompleto || !direccion || !telefono || !correo) {
-        alert('Por favor, complete todos los campos del cliente.');
+        mostrarAviso('Por favor, completa todos los campos del cliente.', 'Faltan datos del cliente', 'aviso');
         return;
     }
 
@@ -629,9 +642,9 @@ function confirmarFacturacionFinal() {
         mostrarParaLlevar();
         mostrarCaja();
 
-        alert(`Orden facturada y completada para ${ordenParaFacturar.numero}.`);
         console.log(`Orden facturada y completada para Mesa/Para Llevar ${ordenParaFacturar.numero}`); // Debug
         showScreen('caja-screen');
+        mostrarAviso(`La orden ${ordenParaFacturar.numero} se cerró en esta demostración. No se emitió una factura fiscal.`, 'Orden completada');
     }
     guardarEstado();
 }
@@ -841,6 +854,13 @@ function disminuirCantidadCocina(ordenNumero, itemNombre, itemIndex) {
 
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('aviso-dialogo').addEventListener('close', () => {
+        const pantalla = document.querySelector('.screen.active');
+        const destino = pantalla && pantalla.contains(focoAntesDelAviso)
+            ? focoAntesDelAviso : pantalla?.querySelector('input, button');
+        destino?.focus();
+        focoAntesDelAviso = null;
+    });
     restaurarEstado();
     showScreen('login-screen');
     mostrarMesas();
