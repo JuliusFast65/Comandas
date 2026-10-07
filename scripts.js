@@ -197,7 +197,24 @@ function mostrarCaja() {
 }
 
 // Función para mostrar las mesas
+function actualizarPendientes() {
+    ['cocina', 'bar'].forEach(area => {
+        const cantidad = [...mesas, ...paraLlevarOrdenes].reduce((total, pedido) =>
+            total + pedido.ordenes
+                .filter(grupo => grupo.estado === `en ${area}`)
+                .reduce((subtotal, grupo) => subtotal + grupo.items
+                    .filter(item => item[area === 'cocina' ? 'enCocina' : 'enBar'] !== 'terminado')
+                    .reduce((unidades, item) => unidades + item.cantidad, 0), 0), 0);
+        const indicador = document.getElementById(`pendientes-${area}`);
+        if (indicador) {
+            indicador.textContent = `· ${cantidad} ${cantidad === 1 ? 'pendiente' : 'pendientes'}`;
+            indicador.classList.toggle('has-pending', cantidad > 0);
+        }
+    });
+}
+
 function mostrarMesas() {
+    actualizarPendientes();
     const mesasDiv = document.getElementById('mesas');
     if (!mesasDiv) {
         console.error("El elemento con id 'mesas' no existe.");
@@ -643,6 +660,7 @@ function actualizarCuentas() {
 
 // Función para mostrar las órdenes en la pantalla de cocina
 function mostrarCocina() {
+    actualizarPendientes();
     const cocinaList = document.getElementById('cocina-list');
     if (!cocinaList) {
         console.error("El elemento con id 'cocina-list' no existe.");
@@ -691,6 +709,7 @@ function mostrarCocina() {
 
 // Función para mostrar las órdenes en la pantalla del bar
 function mostrarBar() {
+    actualizarPendientes();
     const barList = document.getElementById('bar-list');
     if (!barList) {
         console.error("El elemento con id 'bar-list' no existe.");

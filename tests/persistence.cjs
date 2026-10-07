@@ -11,7 +11,7 @@ async function open(saved, unavailable = false) {
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', error => errors.push(error));
     const dom = new JSDOM(fs.readFileSync(path.join(root, 'index.html'), 'utf8'), {
-        url: 'https://example.test/Comandas/', runScripts: 'outside-only', virtualConsole
+        url: 'https://example.test/Comandas/', runScripts: 'dangerously', virtualConsole
     });
     const w = dom.window;
     w.alert = () => {};
@@ -83,4 +83,37 @@ test('unavailable storage does not break initialization or ordering', async () =
     w.agregarProducto('Pizza');
     assert.match(w.document.getElementById('orden-list').textContent, /Pizza/);
     w.close();
+});
+
+test('pending counters track units, takeaway, completion, reopening and reload', async () => {
+    const w = await open();
+    const count = (window, area) => window.document.getElementById(`pendientes-${area}`).textContent;
+    assert.equal(count(w, 'cocina'), '· 0 pendientes');
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza');
+    w.agregarProducto('Pizza');
+    w.agregarProducto('Coca-Cola');
+    assert.equal(count(w, 'cocina'), '· 0 pendientes');
+    w.enviarCocina();
+    assert.equal(count(w, 'cocina'), '· 2 pendientes');
+    assert.equal(count(w, 'bar'), '· 1 pendiente');
+    w.crearParaLlevar();
+    w.seleccionarOrdenParaLlevar(1);
+    w.agregarProducto('Pasta');
+    w.enviarCocina();
+    assert.equal(count(w, 'cocina'), '· 3 pendientes');
+    w.seleccionarMesa(1);
+    w.document.querySelector('#cocina-list input[type=checkbox]').click();
+    assert.equal(count(w, 'cocina'), '· 1 pendiente');
+    assert.equal(count(w, 'bar'), '· 1 pendiente');
+    const saved = w.localStorage.getItem(key);
+    w.close();
+    const restored = await open(saved);
+    assert.equal(count(restored, 'cocina'), '· 1 pendiente');
+    assert.equal(count(restored, 'bar'), '· 1 pendiente');
+    restored.document.querySelector('#cocina-list input[type=checkbox]').click();
+    assert.equal(count(restored, 'cocina'), '· 3 pendientes');
+    restored.document.querySelector('#bar-list input[type=checkbox]').click();
+    assert.equal(count(restored, 'bar'), '· 0 pendientes');
+    restored.close();
 });
