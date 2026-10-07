@@ -10,6 +10,22 @@ Entra, selecciona Mesa 1, añade una Pizza y una bebida, confirma y envía a pre
 Recarga, vuelve a entrar y comprueba que la mesa sigue ocupada y los productos aparecen
 en Cocina y Bar. También puedes crear pedidos para llevar.
 
+## Preparación y retiro
+
+En Cocina o Bar marca **Preparado** cuando el producto esté listo. Aparecerá un
+campo para elegir cuántas unidades se retiran y el botón **Retirar**. El botón
+**Retirar todo lo listo** de esa sección retira solo los productos preparados de
+esa mesa en Cocina o Bar. Dentro de la mesa hay otro botón que retira todo lo
+listo de ambas áreas. Lo que sigue en preparación no se retira.
+
+Las mesas ocupadas usan tres colores: azul si falta preparar y no hay nada listo,
+naranja si hay algo listo para retirar (tiene prioridad) y verde cuando todo lo
+enviado se retiró. El texto muestra las cantidades pendientes. Los pedidos enviados
+después de la primera ronda se identifican como adicionales. La cuenta pedida lleva
+una etiqueta independiente del color. El retiro registra la salida hacia la mesa,
+no la entrega al cliente. Después de retirar unidades, no se puede desmarcar
+**Preparado** en esa línea.
+
 Los pedidos, notas y nombres de cuentas se guardan en el almacenamiento local del
 navegador. Los datos personales del formulario de facturación no se guardan.
 Cada navegador y dirección web mantiene sus propios datos: no hay sincronización

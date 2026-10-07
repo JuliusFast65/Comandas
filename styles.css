@@ -177,15 +177,25 @@ h2 {
 }
 
 /* Color para mesas disponibles */
-.mesa.libre {
-  background-color: #d4edda;
-  border: 2px solid #28a745;
-}
+.mesa.libre { background-color: #f1f3f5; border: 2px solid #a3adb7; }
 
-.mesa.ocupada {
-  background-color: #ffcccb;
-  border: 2px solid #ff6b6b;
-}
+.mesa.ocupada { border: 2px solid #4585b5; }
+.mesa.en-preparacion { background: #e0efff; border-color: #3973ac; }
+.mesa.por-retirar { background: #ffe4bd; border-color: #b86700; }
+.mesa.retirada { background: #d9f3e2; border-color: #287c49; }
+.mesa { flex-direction: column; gap: 8px; height: auto; min-height: 130px; color: #173b60; }
+.mesa small { font-size: 13px; line-height: 1.4; }
+.table-label { background: #fff; border-radius: 6px; padding: 3px 6px; }
+.table-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.preparation-row { padding: 16px 0; border-top: 1px solid #dce3e9; }
+.preparation-row p { margin: 8px 0; }
+.preparation-row label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.preparation-row input[type="checkbox"] { width: 22px; height: 22px; }
+.pickup-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.pickup-controls input { width: 65px; min-height: 40px; box-sizing: border-box; }
+.pickup-button { background: #173b60; color: #fff; border: 0; border-radius: 8px; padding: 12px 16px; min-height: 44px; cursor: pointer; }
+.pickup-button:disabled { background: #e4e8ec; color: #59636d; cursor: default; }
+#retirar-listos-mesa { display: block; margin: 16px auto; }
 
 .mesa.terminada {
   background-color: #e9ecef;
