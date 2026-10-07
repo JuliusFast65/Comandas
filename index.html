@@ -6,14 +6,14 @@
     <title>Gestión de Pedidos - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=meseros-1">
+    <link rel="stylesheet" href="styles.css?v=lsoft-1">
 </head>
 <body>
     <div id="app">
         <aside class="demo-banner">
-            <strong>Comandas · Demo · Meseros 1</strong>
+            <strong>Comandas · Demo · LSoft 1</strong>
             <span id="estado-guardado" role="status" aria-live="polite">Los pedidos se guardan en este navegador</span>
-            <small>Prueba local: no sincroniza dispositivos ni emite facturas reales.</small>
+            <small>Prueba local: no sincroniza dispositivos ni emite facturas reales. Los datos de facturación se guardan en este navegador.</small>
         </aside>
         <div id="login-screen" class="screen active">
             <div class="container">
@@ -159,6 +159,7 @@
             <div class="container">
                 <h2><i class="fas fa-cash-register"></i> Caja</h2>
                 <div id="caja-list" class="caja-list"></div>
+                <details><summary>Operaciones cerradas (simulación)</summary><div id="cierres-lista"></div></details>
                 <button class="center-button" onclick="showScreen('seleccion-mesas-screen')"><i class="fas fa-arrow-left"></i> Volver a Mesas</button>
             </div>
         </div>
@@ -201,11 +202,13 @@
 
         <div id="confirmacion-facturacion-screen" class="screen">
             <div class="container">
-                <h2><i class="fas fa-file-invoice"></i> Confirmar Facturación Final</h2>
+                <h2><i class="fas fa-file-invoice"></i> Pedido y pago en LSoft (simulación)</h2>
                 <p id="factura-final-info"></p>
+                <p class="menu-help">Simulador local: no conecta con LSoft, DataFast ni SRI. Enviar, consultar y simular el cobro son pasos separados.</p>
                 <div id="factura-final-list"></div>
+                <details id="lsoft-json-detalle"><summary>JSON provisional del Pedido</summary><pre id="lsoft-json"></pre></details>
                 <div class="footer">
-                    <button onclick="confirmarFacturacionFinal()"><i class="fas fa-check"></i> Confirmar Facturación</button>
+                    <button id="cerrar-mesa" onclick="confirmarFacturacionFinal()" disabled>Cerrar mesa pagada</button>
                     <button onclick="showScreen('caja-screen')"><i class="fas fa-times"></i> Cancelar</button>
                 </div>
             </div>
@@ -231,6 +234,6 @@
     </dialog>
 
     <section id="precuenta-impresion" aria-hidden="true"></section>
-    <script src="scripts.js?v=meseros-1"></script>
+    <script src="scripts.js?v=lsoft-1"></script>
 </body>
 </html>
