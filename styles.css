@@ -21,6 +21,19 @@
 .demo-banner small { flex-basis: 100%; opacity: .85; }
 .demo-access { text-align: center; color: #555; }
 
+.pending-count {
+  display: inline-block;
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.pending-count.has-pending {
+  border-radius: 12px;
+  padding: 2px 8px;
+  background: #fff;
+  color: #173b60;
+}
+
 body {
   font-family: 'Roboto', sans-serif;
   margin: 0;
