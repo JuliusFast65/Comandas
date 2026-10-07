@@ -94,6 +94,82 @@ function totalesCuenta(pedido, cuenta) {
     }, { base: 0, iva: 0, servicio: 0, total: 0 });
 }
 
+const CLAVE_MESEROS = 'comandas.meseros.v1';
+let equipoMeseros = { nombres: ['Mesero 1', 'Mesero 2'], activo: 'Mesero 1' };
+let filtroMisMesas = false;
+
+function iniciarMeseros() {
+    try {
+        const guardado = JSON.parse(localStorage.getItem(CLAVE_MESEROS));
+        if (guardado && Array.isArray(guardado.nombres) && guardado.nombres.length
+            && guardado.nombres.every(n => typeof n === 'string' && n.trim())
+            && guardado.nombres.includes(guardado.activo)) equipoMeseros = guardado;
+    } catch { console.warn('No se pudo recuperar el equipo de meseros.'); }
+    renderizarSelectorMesero();
+}
+
+function opcionesMeseros(selector, actual) {
+    selector.replaceChildren();
+    [...new Set([...equipoMeseros.nombres, actual].filter(Boolean))].forEach(nombre => {
+        const opcion = document.createElement('option'); opcion.value = nombre; opcion.textContent = nombre;
+        selector.appendChild(opcion);
+    });
+    selector.value = actual;
+}
+
+function renderizarSelectorMesero() {
+    opcionesMeseros(document.getElementById('mesero-activo'), equipoMeseros.activo);
+}
+
+function cambiarMeseroActivo() {
+    const activo = document.getElementById('mesero-activo').value;
+    try { localStorage.setItem(CLAVE_MESEROS, JSON.stringify({ ...equipoMeseros, activo })); }
+    catch { mostrarAviso('No se pudo guardar el mesero activo.', 'No se guardó', 'aviso'); renderizarSelectorMesero(); return; }
+    equipoMeseros.activo = activo;
+    mostrarMesas(); mostrarParaLlevar();
+}
+
+function configurarMeseros() {
+    document.getElementById('lista-meseros').value = equipoMeseros.nombres.join('\n');
+    showScreen('meseros-screen');
+}
+
+function guardarMeseros() {
+    const nombres = [...new Set(document.getElementById('lista-meseros').value.split('\n').map(n => n.trim()).filter(Boolean))];
+    if (!nombres.length || nombres.length > 50 || nombres.some(n => n.length > 60)) {
+        mostrarAviso('Escribe entre 1 y 50 nombres, de hasta 60 caracteres cada uno.', 'Revisa la lista', 'aviso'); return;
+    }
+    const nuevo = { nombres, activo: nombres.includes(equipoMeseros.activo) ? equipoMeseros.activo : nombres[0] };
+    try { localStorage.setItem(CLAVE_MESEROS, JSON.stringify(nuevo)); }
+    catch { mostrarAviso('No se pudo guardar la lista.', 'No se guardó', 'aviso'); return; }
+    equipoMeseros = nuevo;
+    renderizarSelectorMesero(); mostrarMesas(); mostrarParaLlevar();
+    showScreen('seleccion-mesas-screen');
+}
+
+function asignarAlAbrir(pedido) {
+    if (!pedido.mesero) {
+        pedido.mesero = equipoMeseros.activo;
+        guardarEstado(); mostrarMesas(); mostrarParaLlevar();
+    }
+    opcionesMeseros(document.getElementById('mesero-mesa'), pedido.mesero);
+}
+
+function reasignarMesa() {
+    if (!mesaSeleccionada) return;
+    mesaSeleccionada.mesero = document.getElementById('mesero-mesa').value;
+    guardarEstado(); mostrarMesas(); mostrarParaLlevar();
+}
+
+function cambiarFiltroMesas() {
+    filtroMisMesas = document.getElementById('filtro-mesas').value === 'mis';
+    mostrarMesas(); mostrarParaLlevar();
+}
+
+function visibleParaMesero(pedido) {
+    return !filtroMisMesas || pedido.mesero === equipoMeseros.activo || (!pedido.ocupada && !pedido.mesero);
+}
+
 // Reducir el número de mesas a 9
 const mesas = [
     { numero: 1, ocupada: false, terminada: false, cuentaPedida: false, nombresCuentas: {}, ordenes: [{ estado: 'nueva', items: [] }] },
@@ -374,6 +450,16 @@ function tarjetaPedido(pedido, nombre, seleccionar) {
     const titulo = document.createElement('strong');
     titulo.textContent = nombre;
     boton.appendChild(titulo);
+    const mesero = document.createElement('small');
+    mesero.textContent = pedido.mesero || 'Sin asignar';
+    boton.appendChild(mesero);
+    if (pedido.mesero) {
+        const badge = document.createElement('span');
+        badge.className = 'waiter-badge';
+        badge.textContent = pedido.mesero.split(/\s+/).slice(0, 2).map(n => [...n][0]).join('').toUpperCase();
+        badge.setAttribute('aria-hidden', 'true');
+        boton.appendChild(badge);
+    }
     const detalle = document.createElement('small');
     detalle.textContent = !pedido.ocupada ? 'Libre' :
         r.preparar || r.retirar ? `${r.retirar} por retirar · ${r.preparar} en preparación` : 'Todo retirado';
@@ -393,14 +479,14 @@ function tarjetaPedido(pedido, nombre, seleccionar) {
 function mostrarMesas() {
     actualizarPendientes();
     const contenedor = document.getElementById('mesas');
-    contenedor.replaceChildren(...mesas.map(mesa =>
+    contenedor.replaceChildren(...mesas.filter(visibleParaMesero).map(mesa =>
         tarjetaPedido(mesa, `Mesa ${mesa.numero}`, () => seleccionarMesa(mesa.numero))));
     actualizarRetiroSeleccionado();
 }
 
 function mostrarParaLlevar() {
     const contenedor = document.getElementById('para-llevar');
-    contenedor.replaceChildren(...paraLlevarOrdenes.map(pedido =>
+    contenedor.replaceChildren(...paraLlevarOrdenes.filter(visibleParaMesero).map(pedido =>
         tarjetaPedido(pedido, `Para Llevar ${pedido.numero}`, () => seleccionarOrdenParaLlevar(pedido.numero))));
 }
 
@@ -417,6 +503,7 @@ function actualizarRetiroSeleccionado() {
 function seleccionarMesa(numero) {
     console.log(`Seleccionando mesa: ${numero}`); // Debug
     mesaSeleccionada = mesas.find(m => m.numero === numero);
+    asignarAlAbrir(mesaSeleccionada);
     document.getElementById('orden-tipo').textContent = "Mesa";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
     document.getElementById('cuentas').value = 1; // Restablecer el número de cuenta a 1
@@ -434,6 +521,7 @@ function seleccionarMesa(numero) {
 function seleccionarOrdenParaLlevar(numero) {
     console.log(`Seleccionando orden para llevar: ${numero}`); // Debug
     mesaSeleccionada = paraLlevarOrdenes.find(o => o.numero === numero);
+    asignarAlAbrir(mesaSeleccionada);
     document.getElementById('orden-tipo').textContent = "Para Llevar";
     document.getElementById('orden-numero').textContent = mesaSeleccionada.numero;
     document.getElementById('cuentas').value = 1; // Restablecer el número de cuenta a 1
@@ -458,6 +546,7 @@ function crearParaLlevar() {
         ordenes: [{ estado: 'nueva', items: [] }]
     };
     paraLlevarCounter += 1;
+    nuevaOrden.mesero = equipoMeseros.activo;
     paraLlevarOrdenes.push(nuevaOrden);
     mostrarParaLlevar();
     console.log(`Creada nueva orden para llevar: ${nuevaOrden.numero}`); // Debug
@@ -942,6 +1031,7 @@ function confirmarFacturacionFinal() {
         ordenParaFacturar.terminada = true; // Marcar la orden como terminada
         ordenParaFacturar.ocupada = false; // Liberar la mesa
         ordenParaFacturar.cuentaPedida = false; // Resetear el estado de cuentaPedida
+        ordenParaFacturar.mesero = null;
         ordenParaFacturar.factura = {};
         ordenParaFacturar.nombresCuentas = {};
         ordenParaFacturar.ordenes = [{ estado: 'nueva', items: [] }]; // Resetear las órdenes
@@ -1204,6 +1294,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     restaurarEstado();
     iniciarPrecios();
+    iniciarMeseros();
     showScreen('login-screen');
     mostrarMesas();
     mostrarParaLlevar();
