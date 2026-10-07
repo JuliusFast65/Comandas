@@ -1,107 +1,133 @@
-# Comandas — demo de pedidos de restaurante
+# Comandas — prototipo de pedidos de restaurante
 
-Prototipo estático en español. Usuarios demo: **admin, mesero1, mesero2, cocina, bar, auditor**. Contraseña común: **1234**.
-El último acceso exitoso se recuerda en este navegador (incluida la contraseña
-de demostración); no inicia sesión automáticamente. Enter en Contraseña permite entrar.
-No requiere compilación ni servidor de base de datos.
+Aplicación estática en español para probar pedidos, preparación, retiros, precuentas
+ e integración LSoft simulada. No requiere compilación ni base de datos de servidor.
+
+## Contexto para continuar
+
+- [Estado, decisiones y pendientes](docs/estado-proyecto.md): leer al abrir otro hilo.
+- [Prueba manual de un turno](docs/pruebas-manuales.md): guía por roles.
+- [Contrato LSoft provisional](docs/lsoft-contrato.md) y [JSON de ejemplo](docs/lsoft-pedido-ejemplo.json).
+- [Instrucciones para agentes](AGENTS.md).
+
+Desarrollo en **codex/comandas-persistencia**. GitHub Pages usa **gh-pages**.
+Demo: https://juliusfast65.github.io/Comandas/. La última etiqueta de aplicación
+es **Roles 1**; una actualización documental no cambia la demo.
 
 ## Probar
 
-Sirve esta carpeta con `python3 -m http.server 8000` y abre el servidor en tu navegador local.
-Entra, selecciona Mesa 1, añade una Pizza y una bebida, confirma y envía a preparación.
-Recarga, vuelve a entrar y comprueba que la mesa sigue ocupada y los productos aparecen
-en Cocina y Bar. También puedes crear pedidos para llevar.
+Desde la raíz del repositorio:
 
-## Preparación y retiro
+```sh
+python3 -m http.server 8000 --bind 127.0.0.1
+```
 
-En Cocina o Bar marca **Preparado** cuando el producto esté listo. Aparecerá un
-campo para elegir cuántas unidades se retiran y el botón **Retirar**. El botón
-**Retirar todo lo listo** de esa sección retira solo los productos preparados de
-esa mesa en Cocina o Bar. Dentro de la mesa hay otro botón que retira todo lo
-listo de ambas áreas. Lo que sigue en preparación no se retira.
+Abrir el servidor en el navegador local. Todos los usuarios demo usan `1234`:
 
-Las mesas ocupadas usan tres colores: azul si falta preparar y no hay nada listo,
-naranja si hay algo listo para retirar (tiene prioridad) y verde cuando todo lo
-enviado se retiró. El texto muestra las cantidades pendientes. Los pedidos enviados
-después de la primera ronda se identifican como adicionales. La cuenta pedida lleva
-una etiqueta independiente del color. El retiro registra la salida hacia la mesa,
-no la entrega al cliente. Después de retirar unidades, no se puede desmarcar
-**Preparado** en esa línea.
+| Usuario | Pantalla y responsabilidad |
+| --- | --- |
+| admin | Operación completa, configuración, cobro simulado y cierre |
+| mesero1, mesero2 | Mesas propias, pedidos, retiros y precuentas |
+| cocina, bar | Su estación; marcar preparación |
+| auditor | Consultar LSoft · Caja, JSON y cierres |
 
-Los pedidos, notas y nombres de cuentas se guardan en el almacenamiento local del
-navegador. Los datos de facturación y propina también se guardan localmente para recuperar el flujo.
-Cada navegador y dirección web mantiene sus propios datos: no hay sincronización
-entre dispositivos. El inicio de sesión es una simulación y no protege la aplicación.
-La facturación es demostrativa; no emite comprobantes fiscales.
+El login recuerda el último acceso exitoso, incluida la contraseña de demo.
+Enter en Contraseña permite entrar. No inicia sesión automáticamente.
+Para probar varios roles, cerrar sesión desde el chip y volver a entrar en el
+**mismo navegador**. Los datos no se comparten entre dispositivos.
+
+## Funcionamiento
+
+- Cuenta 1 es la predeterminada. Cambiar cuenta antes de añadir asigna los productos
+  nuevos a otra persona; no mueve productos anteriores.
+- Categorías persistentes, buscador global sin distinguir tildes ni mayúsculas,
+  y tarjetas con cantidades del borrador de la cuenta seleccionada.
+- Confirmar envía alimentos a Cocina y bebidas a Bar. La estación marca Preparado;
+  el mesero retira cantidades o todo lo listo de su mesa.
+- Mesa azul: falta preparar. Naranja: hay algo listo para retirar y tiene prioridad.
+  Verde: todo lo enviado se retiró. Adicionales y cuenta pedida se indican con texto.
+- Líneas retiradas desaparecen de la estación; Ver retirados consulta pedidos
+  actuales y se limpia al cerrar la orden.
+- Nombre y badge identifican al mesero de la mesa. El chip superior identifica al
+  usuario. El administrador puede configurar nombres y reasignar responsables;
+  el mesero usa su identidad de login. Cerrar la mesa libera su asignación.
+
+## Precios, precuenta y LSoft
+
+En el menú hamburguesa del administrador se encuentran Precios y cargos,
+Equipo de meseros y Usuarios de demostración. La lista de meseros no crea accesos
+nuevos: los usuarios demo están definidos en código.
+
+Los precios iniciales son de demostración. IVA 15% y servicio 10% por defecto,
+configurables; servicio 0 lo desactiva. IVA y servicio usan la misma base: **el IVA
+no grava el servicio**. Propina voluntaria aparte. Los precios pueden incluir
+cargos o ser base más cargos. Cambiar el modo conserva los números y cambia su
+interpretación. Productos ya añadidos conservan su tarifa; pedidos antiguos sin
+precio reciben valores de demo al activar esa versión. Se calcula en centavos.
+
+**Pedir Cuenta → consumo → datos y propina → Enviar cuenta a LSoft (simulado)**.
+Cada cuenta se envía directamente desde su precuenta. Imprimir permite usar datos
+completados o campos vacíos para llenarlos en papel; PDF depende del dispositivo.
+
+**LSoft · Caja** muestra cuentas enviadas y errores. Permite consultar el estado
+ y revisar el JSON provisional; las acciones dependen del rol. Como admin, elegir
+medio de pago y Simular cobro en LSoft. Solo después del pago de todas las cuentas
+se permite Cerrar mesa pagada. Se conserva una operación en el historial de cierres.
+Los reintentos no duplican Pedidos. El envío bloquea nuevas rondas y edición de
+los datos enviados; la actualización de pedidos del ERP sigue pendiente de diseño.
+
+## Persistencia y límites
+
+Pedidos, clientes, propinas, configuración, simulador y cierres quedan en
+localStorage de este navegador y origen. No hay servidor, sincronización,
+autenticación real ni integración con SQL, LSoft, SRI o DataFast. No se procesan
+pagos reales ni se emiten comprobantes fiscales. Usar datos ficticios en la demo.
+Los permisos de interfaz y funciones sirven para probar flujos, no para proteger
+operaciones frente a manipulación del navegador.
 
 ## Comprobaciones
 
-## Roles de demostración
-
-Meseros inician en Mis mesas; su identidad sustituye el selector manual y pueden
-operar y retirar solo mesas propias o libres sin asignar. Cocina y Bar inician en
-su estación y marcan preparación, sin retirar ni modificar precios. Administrador
-accede a configuración y operación completa, incluido el cobro simulado. Auditor
-inicia en LSoft · Caja y consulta estados, JSON y cierres sin modificar ni cobrar.
-El menú de configuración incluye Usuarios de demostración para consultar la lista.
-Se prueban restricciones en la interfaz y funciones, pero toda la aplicación sigue
-en el navegador: no hay autenticación ni autorización de servidor. Para probar
-el turno completo cambia de usuario en el mismo navegador. Dispositivos distintos
-no comparten pedidos.
-
-En Mesas selecciona **Estoy atendiendo como…**. Al abrir una mesa sin responsable,
-se asigna a ese mesero. La tarjeta muestra nombre e iniciales. Dentro de la mesa
-puedes cambiar el responsable. **Mis mesas y libres sin asignar** oculta las de otros
-meseros y deja disponibles las libres. En **Configurar meseros** edita un nombre por
-línea. Esta lista y el mesero activo son locales al navegador, no usuarios autenticados.
-Cerrar la orden libera también la asignación del mesero.
-
-Al pedir cuenta se muestra una precuenta por cada cuenta con productos enviados y
-cantidades. Completa los datos y una propina voluntaria, o imprime con los campos
-vacíos para llenarlos en papel. La impresión usa el diálogo del navegador y permite
-guardar como PDF cuando el dispositivo lo ofrece. Los precios iniciales son de demostración. En **Configurar precios y cargos**,
-edita el menú, el IVA (15% por defecto), servicio (10%, o 0 para desactivarlo),
-y si los precios incluyen cargos o son base más cargos. IVA y servicio usan
-la misma base: el IVA no grava el servicio. Los cálculos usan centavos y
-el precio final incluido se conserva asignando el ajuste de redondeo al servicio.
-Cada producto conserva la tarifa con la que se añadió; la configuración solo
-afecta a productos nuevos. Los pedidos de versiones sin precios reciben
-las tarifas de demostración al activar esta versión. La configuración es local al navegador. Los datos de facturación y la
-propina se conservan en este navegador, incluso al recargar. Guardarlos no
-libera la mesa; el cierre se realiza en Caja.
-
-En el entorno Codex preparado:
+En el entorno Codex preparado, desde la raíz del checkout:
 
 ```sh
 NODE_PATH=/workspace/.comandas-tools/node_modules node --test tests/persistence.cjs
 node --check scripts.js
-node /workspace/.comandas-tools/smoke.cjs
 ```
 
-El último comando requiere el servidor en el puerto 8000. Para ejecutar las pruebas
-en otra máquina, instala `jsdom@26.1.0` en una carpeta externa al repositorio y apunta
-`NODE_PATH` a su `node_modules`.
+La suite tiene 25 casos al documentar Roles 1. Ejercita DOM y lógica con jsdom;
+no sustituye pruebas visuales, impresión física ni API real.
 
-## GitHub Pages
+En una máquina que no tenga esas herramientas, instalar fuera del checkout:
 
-La rama `gh-pages` contiene exclusivamente los archivos públicos de la demo.
-En GitHub abre **Settings → Pages → Deploy from a branch**, selecciona
-**gh-pages / (root)** y guarda. GitHub mostrará la dirección cuando finalice el despliegue.
-No subas la carpeta `.vs`, datos de clientes ni credenciales al sitio.
+```sh
+mkdir -p /tmp/comandas-test-tools
+npm install --prefix /tmp/comandas-test-tools --cache /tmp/comandas-npm-cache --no-audit --no-fund --save-exact jsdom@26.1.0
+NODE_PATH=/tmp/comandas-test-tools/node_modules node --test tests/persistence.cjs
+```
 
-Las fuentes y los iconos dependen de Google Fonts y Cloudflare CDN. El flujo de pedidos
-puede usarse sin ellos. Esta demo sirve para evaluar el prototipo, no para operar
-un restaurante con múltiples usuarios.
+El entorno original también conserva `/workspace/.comandas-tools/smoke.cjs` para
+comprobar assets HTTP y el recorrido de pedidos con el servidor en puerto 8000.
+Es un helper del entorno, no un archivo versionado del repositorio.
 
+## Preview autónomo
 
-## Integración LSoft simulada
+Algunas vistas previas de archivos HTML no resuelven CSS/JS externos. Generar una
+copia con ambos incluidos, sin modificar la aplicación:
 
-Desde **Pedir Cuenta**, revisa la precuenta y pulsa **Enviar cuenta a LSoft (simulado)**.
-Si hay varias cuentas, avanza a la siguiente tras recibir cada envío.
-**LSoft · Caja** muestra únicamente cuentas enviadas o con errores de envío; allí puedes consultar y reintentar.
-**Ver JSON** permite revisar el contrato provisional. Selecciona un medio de pago
- y pulsa **Simular cobro en LSoft**. **Consultar estado** recupera el resultado.
-Cuando todas las cuentas estén pagadas, **Cerrar mesa pagada** libera la mesa
- y conserva la operación en **Operaciones cerradas (simulación)**.
-No hay comunicación con LSoft, SRI ni DataFast. Reintentar no duplica pedidos.
-Ver [contrato provisional](docs/lsoft-contrato.md) y [ejemplo JSON](docs/lsoft-pedido-ejemplo.json).
+```sh
+python3 tools/build-preview.py /tmp/Comandas-preview.html
+```
+
+Abrir ese archivo en un navegador. La interfaz que lo muestra podría limitar
+JavaScript; GitHub Pages sirve la aplicación completa. Fuentes e iconos externos
+son opcionales y requieren Google Fonts y Cloudflare CDN.
+
+## Publicación
+
+GitHub: **Settings → Pages → Deploy from a branch → gh-pages / (root)**.
+La rama pública contiene solo `index.html`, `scripts.js` y `styles.css`.
+No publicar `.vs`, documentos, herramientas, credenciales ni datos de clientes.
+
+Con cada cambio publicado de aplicación, actualizar las versiones de CSS/JS y la
+etiqueta de demo del HTML. Revisar el último despliegue en GitHub Actions antes de
+considerar la web actualizada. No borrar pedidos locales para resolver caché.
