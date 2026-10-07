@@ -444,6 +444,40 @@ function recuperarAcceso() {
     }
 }
 
+let usuarioLogueado = null;
+
+function abrirMenu() {
+    if (!usuarioLogueado) return;
+    document.getElementById('user-menu').open = false;
+    const menu = document.getElementById('app-menu');
+    if (!menu.open) menu.showModal();
+    document.getElementById('abrir-menu').setAttribute('aria-expanded', 'true');
+    menu.querySelector('button').focus();
+}
+
+function cerrarMenu() {
+    const menu = document.getElementById('app-menu');
+    if (menu.open) menu.close();
+}
+
+function cerrarSesion() {
+    guardarEstado();
+    cerrarMenu();
+    document.getElementById('user-menu').open = false;
+    const aviso = document.getElementById('aviso-dialogo');
+    if (aviso.open) aviso.close();
+    usuarioLogueado = null;
+    mesaSeleccionada = null;
+    ordenParaFacturar = null;
+    orden = [];
+    ordenEnCocina = [];
+    ordenEnBar = [];
+    document.getElementById('lsoft-json').textContent = '';
+    showScreen('login-screen');
+    recuperarAcceso();
+    document.getElementById('usuario').focus();
+}
+
 function iniciarSesion() {
     const usuario = document.getElementById('usuario').value.trim();
     const contrasena = document.getElementById('contrasena').value.trim();
@@ -455,6 +489,9 @@ function iniciarSesion() {
 
     // Simulamos una verificación básica de usuario y contraseña
     if (usuario === 'admin' && contrasena === '1234') {
+        usuarioLogueado = usuario;
+        document.getElementById('user-name').textContent = usuario;
+        document.getElementById('user-avatar').textContent = usuario[0].toUpperCase();
         recordarAcceso(usuario, contrasena);
         showScreen('seleccion-mesas-screen');
         console.log("Inicio de sesión exitoso"); // Debug
@@ -466,6 +503,7 @@ function iniciarSesion() {
 
 // Función para mostrar la pantalla deseada
 function showScreen(screenId) {
+    document.getElementById('app-topbar').hidden = screenId === 'login-screen' || !usuarioLogueado;
     console.log(`Intentando mostrar pantalla: ${screenId}`); // Debug
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => {
@@ -1442,6 +1480,23 @@ function disminuirCantidadCocina(ordenNumero, itemNombre, itemIndex) {
 
 // Inicializar con la pantalla de inicio de sesión activa
 document.addEventListener('DOMContentLoaded', () => {
+    const menu = document.getElementById('app-menu');
+    menu.addEventListener('click', evento => { if (evento.target === menu) cerrarMenu(); });
+    menu.addEventListener('close', () => {
+        document.getElementById('abrir-menu').setAttribute('aria-expanded', 'false');
+        if (usuarioLogueado) document.getElementById('abrir-menu').focus();
+    });
+    document.addEventListener('click', evento => {
+        const usuario = document.getElementById('user-menu');
+        if (!usuario.contains(evento.target)) usuario.open = false;
+    });
+    document.addEventListener('keydown', evento => {
+        if (evento.key === 'Escape') {
+            if (menu.open) { evento.preventDefault(); cerrarMenu(); }
+            const usuario = document.getElementById('user-menu');
+            if (usuario.open) { usuario.open = false; usuario.querySelector('summary').focus(); }
+        }
+    });
     document.getElementById('buscar-producto').addEventListener('input', renderizarMenu);
     document.getElementById('limpiar-busqueda').addEventListener('click', () => {
         document.getElementById('buscar-producto').value = '';
