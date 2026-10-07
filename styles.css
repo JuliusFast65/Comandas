@@ -600,6 +600,10 @@ textarea {
 .waiter-toolbar select, .waiter-assignment select { min-height: 44px; max-width: 100%; font-size: 16px; border: 1px solid #a3adb7; border-radius: 8px; padding: 8px; }
 .waiter-assignment { justify-content: center; margin-bottom: 12px; }
 .waiter-list { display: block; box-sizing: border-box; width: 100%; max-width: 500px; margin-top: 12px; padding: 12px; font: inherit; }
+.lsoft-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; padding: 16px; border: 1px solid #dce3e9; border-radius: 12px; }
+.lsoft-controls p { flex-basis: 100%; margin: 0 0 8px; }
+.lsoft-controls select { min-height: 44px; font-size: 16px; max-width: 100%; }
+#lsoft-json, #cierres-lista pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px; background: #eef2f6; }
 #config-incluidos { max-width: 100%; min-height: 44px; font-size: 16px; }
 #precuenta-impresion { display: none; }
 @media print {

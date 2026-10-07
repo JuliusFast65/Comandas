@@ -32,6 +32,21 @@ async function open(saved, unavailable = false, acceso = null, precios = null, m
     return w;
 }
 
+function completarYPagarDemo(w) {
+    const state = JSON.parse(w.localStorage.getItem(key));
+    const accounts = [...new Set(state.mesas[0].ordenes.flatMap(g => g.items.map(i => String(i.cuenta))))];
+    for (const account of accounts) {
+        for (const [id, value] of Object.entries({ cedula: '1234567890', 'nombre-completo': 'Cliente demo', direccion: 'Demo', telefono: '0999999999', correo: 'demo@example.test' })) {
+            w.document.getElementById(id).value = value;
+        }
+        w.confirmarFacturacion();
+    }
+    for (const account of accounts) {
+        w.enviarCuentaLSoft(account);
+        w.simularPagoLSoft(account, 'efectivo');
+    }
+}
+
 test('draft quantities, notes and account names survive a new page', async () => {
     const w = await open();
     w.seleccionarMesa(1);
@@ -334,6 +349,7 @@ test('withdrawn rows disappear, history is collapsed, and additional orders reap
     assert.equal(restored.document.querySelectorAll('#cocina-list .preparation-row').length, 1);
     assert.match(restored.document.getElementById('cocina-list').textContent, /Adicional/);
     restored.pedirCuenta();
+    completarYPagarDemo(restored);
     restored.confirmarFacturacionFinal();
     assert.equal(restored.document.querySelectorAll('#cocina-list .preparation-card').length, 0);
     assert.equal(restored.document.querySelectorAll('#bar-list .preparation-card').length, 0);
@@ -520,8 +536,89 @@ test('waiter badges, automatic assignment, filtering, reassignment and reload', 
     assert.equal(restored.document.querySelector('#mesas .waiter-badge').textContent, 'LP');
     restored.seleccionarMesa(1);
     restored.pedirCuenta();
+    completarYPagarDemo(restored);
     restored.confirmarFacturacionFinal();
     assert.equal(restored.document.querySelector('#mesas .mesa .waiter-badge'), null);
     assert.match(restored.document.querySelector('#mesas .mesa').textContent, /Sin asignar/);
     restored.close();
+});
+
+test('simulated LSoft retries are idempotent, payment gates closure and closed operations survive', async () => {
+    const w = await open();
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza');
+    w.document.getElementById('cuentas').value = '2';
+    w.agregarProducto('Coca-Cola');
+    w.enviarCocina();
+    w.pedirCuenta();
+    for (let index = 0; index < 2; index++) {
+        for (const [id, value] of Object.entries({ cedula: '1234567890', 'nombre-completo': 'Cliente demo', direccion: 'Demo', telefono: '0999999999', correo: 'demo@example.test' })) w.document.getElementById(id).value = value;
+        w.document.getElementById('propina').value = index === 0 ? '1' : '';
+        w.confirmarFacturacion();
+    }
+    w.enviarCuentaLSoft('1');
+    w.enviarCuentaLSoft('1');
+    const documents = () => JSON.parse(w.localStorage.getItem('comandas.lsoftSim.v1'));
+    assert.equal(Object.keys(documents()).length, 1);
+    const first = Object.values(documents())[0];
+    assert.equal(first.json.moneda, 'USD');
+    assert.equal(first.json.totalesCentavos.propina, 100);
+    assert.equal(first.json.totalesCentavos.pagar, first.json.totalesCentavos.total + 100);
+    w.confirmarFacturacionFinal();
+    assert.ok(w.document.querySelector('#mesas .mesa.ocupada'));
+    w.simularPagoLSoft('1', 'tarjeta');
+    assert.equal(w.document.getElementById('cerrar-mesa').disabled, true);
+    w.enviarCuentaLSoft('2');
+    w.simularPagoLSoft('2', 'efectivo');
+    assert.equal(w.document.getElementById('cerrar-mesa').disabled, false);
+    w.confirmarFacturacionFinal();
+    assert.equal(w.document.querySelector('#mesas .mesa.ocupada'), null);
+    const closed = JSON.parse(w.localStorage.getItem('comandas.cierres.v1'));
+    assert.equal(closed.length, 1);
+    assert.equal(closed[0].cuentas.length, 2);
+    assert.equal(closed[0].cuentas[0].resultado.estado, 'pagado');
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza'); w.enviarCocina(); w.pedirCuenta();
+    assert.equal(w.document.getElementById('cerrar-mesa').disabled, true);
+    assert.equal(JSON.parse(w.localStorage.getItem(key)).mesas[0].operacionId, null);
+    w.close();
+});
+
+test('billing and simulated LSoft state recover after reload and preserve operation key', async () => {
+    const w = await open();
+    w.seleccionarMesa(1); w.agregarProducto('Pizza'); w.enviarCocina(); w.pedirCuenta();
+    completarYPagarDemo(w);
+    const state = w.localStorage.getItem(key);
+    const simulated = w.localStorage.getItem('comandas.lsoftSim.v1');
+    const id = JSON.parse(state).mesas[0].integracion['1'].clave;
+    w.close();
+    const restored = await open(state);
+    restored.localStorage.setItem('comandas.lsoftSim.v1', simulated);
+    restored.seleccionarMesa(1); restored.pedirCuenta();
+    assert.equal(restored.document.getElementById('nombre-completo').value, 'Cliente demo');
+    restored.enviarCuentaLSoft('1');
+    assert.equal(Object.keys(JSON.parse(restored.localStorage.getItem('comandas.lsoftSim.v1'))).length, 1);
+    assert.equal(JSON.parse(restored.localStorage.getItem(key)).mesas[0].integracion['1'].clave, id);
+    assert.equal(restored.document.getElementById('cerrar-mesa').disabled, false);
+    restored.close();
+});
+
+test('failed simulated receipt does not report success and a retry recovers', async () => {
+    const w = await open();
+    w.seleccionarMesa(1); w.agregarProducto('Pizza'); w.enviarCocina(); w.pedirCuenta();
+    for (const [id, value] of Object.entries({ cedula: '1234567890', 'nombre-completo': 'Demo', direccion: 'Demo', telefono: '0999999999', correo: 'demo@example.test' })) w.document.getElementById(id).value = value;
+    w.confirmarFacturacion();
+    const original = w.Storage.prototype.setItem;
+    w.Storage.prototype.setItem = function (key, value) {
+        if (key === 'comandas.lsoftSim.v1') throw new Error('Fallo simulado de recepción');
+        return original.call(this, key, value);
+    };
+    w.enviarCuentaLSoft('1');
+    assert.equal(JSON.parse(w.localStorage.getItem(key)).mesas[0].integracion, undefined);
+    assert.equal(w.document.getElementById('aviso-titulo').textContent, 'No se pudo enviar');
+    w.Storage.prototype.setItem = original;
+    w.enviarCuentaLSoft('1');
+    assert.equal(Object.keys(JSON.parse(w.localStorage.getItem('comandas.lsoftSim.v1'))).length, 1);
+    assert.equal(w.document.getElementById('cerrar-mesa').disabled, true);
+    w.close();
 });

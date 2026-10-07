@@ -29,7 +29,7 @@ no la entrega al cliente. Después de retirar unidades, no se puede desmarcar
 **Preparado** en esa línea.
 
 Los pedidos, notas y nombres de cuentas se guardan en el almacenamiento local del
-navegador. Los datos personales del formulario de facturación no se guardan.
+navegador. Los datos de facturación y propina también se guardan localmente para recuperar el flujo.
 Cada navegador y dirección web mantiene sus propios datos: no hay sincronización
 entre dispositivos. El inicio de sesión es una simulación y no protege la aplicación.
 La facturación es demostrativa; no emite comprobantes fiscales.
@@ -54,7 +54,7 @@ el precio final incluido se conserva asignando el ajuste de redondeo al servicio
 Cada producto conserva la tarifa con la que se añadió; la configuración solo
 afecta a productos nuevos. Los pedidos de versiones sin precios reciben
 las tarifas de demostración al activar esta versión. La configuración es local al navegador. Los datos de facturación y la
-propina se conservan solo durante la sesión abierta, no al recargar. Guardarlos no
+propina se conservan en este navegador, incluso al recargar. Guardarlos no
 libera la mesa; el cierre se realiza en Caja.
 
 En el entorno Codex preparado:
@@ -79,3 +79,14 @@ No subas la carpeta `.vs`, datos de clientes ni credenciales al sitio.
 Las fuentes y los iconos dependen de Google Fonts y Cloudflare CDN. El flujo de pedidos
 puede usarse sin ellos. Esta demo sirve para evaluar el prototipo, no para operar
 un restaurante con múltiples usuarios.
+
+
+## Integración LSoft simulada
+
+En Caja, abre la mesa, revisa cada cuenta y pulsa **Enviar a LSoft (simulado)**.
+**Ver JSON** permite revisar el contrato provisional. Selecciona un medio de pago
+ y pulsa **Simular cobro en LSoft**. **Consultar estado** recupera el resultado.
+Cuando todas las cuentas estén pagadas, **Cerrar mesa pagada** libera la mesa
+ y conserva la operación en **Operaciones cerradas (simulación)**.
+No hay comunicación con LSoft, SRI ni DataFast. Reintentar no duplica pedidos.
+Ver [contrato provisional](docs/lsoft-contrato.md) y [ejemplo JSON](docs/lsoft-pedido-ejemplo.json).
