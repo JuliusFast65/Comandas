@@ -593,6 +593,13 @@ textarea {
 .price-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 20px 0; }
 .price-settings label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .price-settings input { width: 90px; min-height: 44px; box-sizing: border-box; padding: 8px; font-size: 16px; }
+.mesa { position: relative; padding-top: 38px; }
+.waiter-badge { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 4px; border-radius: 14px; font-size: 12px; background: #173b60; color: white; font-weight: 700; }
+.waiter-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }
+.waiter-toolbar label, .waiter-assignment { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.waiter-toolbar select, .waiter-assignment select { min-height: 44px; max-width: 100%; font-size: 16px; border: 1px solid #a3adb7; border-radius: 8px; padding: 8px; }
+.waiter-assignment { justify-content: center; margin-bottom: 12px; }
+.waiter-list { display: block; box-sizing: border-box; width: 100%; max-width: 500px; margin-top: 12px; padding: 12px; font: inherit; }
 #config-incluidos { max-width: 100%; min-height: 44px; font-size: 16px; }
 #precuenta-impresion { display: none; }
 @media print {

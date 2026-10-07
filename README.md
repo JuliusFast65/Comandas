@@ -36,6 +36,13 @@ La facturación es demostrativa; no emite comprobantes fiscales.
 
 ## Comprobaciones
 
+En Mesas selecciona **Estoy atendiendo como…**. Al abrir una mesa sin responsable,
+se asigna a ese mesero. La tarjeta muestra nombre e iniciales. Dentro de la mesa
+puedes cambiar el responsable. **Mis mesas y libres sin asignar** oculta las de otros
+meseros y deja disponibles las libres. En **Configurar meseros** edita un nombre por
+línea. Esta lista y el mesero activo son locales al navegador, no usuarios autenticados.
+Cerrar la orden libera también la asignación del mesero.
+
 Al pedir cuenta se muestra una precuenta por cada cuenta con productos enviados y
 cantidades. Completa los datos y una propina voluntaria, o imprime con los campos
 vacíos para llenarlos en papel. La impresión usa el diálogo del navegador y permite

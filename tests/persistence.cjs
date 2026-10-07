@@ -6,7 +6,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const root = path.join(__dirname, '..');
 const key = 'comandas.estado.v1';
 
-async function open(saved, unavailable = false, acceso = null, precios = null) {
+async function open(saved, unavailable = false, acceso = null, precios = null, meseros = null) {
     const errors = [];
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', error => errors.push(error));
@@ -23,6 +23,7 @@ async function open(saved, unavailable = false, acceso = null, precios = null) {
     };
     if (saved) w.localStorage.setItem(key, saved);
     if (precios) w.localStorage.setItem('comandas.precios.v1', precios);
+    if (meseros) w.localStorage.setItem('comandas.meseros.v1', meseros);
     if (acceso) w.localStorage.setItem('comandas.ultimoAcceso.v1', acceso);
     if (unavailable) Object.defineProperty(w, 'localStorage', { get() { throw new Error('Unavailable'); } });
     w.eval(fs.readFileSync(path.join(root, 'scripts.js'), 'utf8') + '\nwindow.inicioRestaurado = () => tiemposDePreparacion[0]?.inicio;');
@@ -487,5 +488,40 @@ test('price settings reload, disabled service and invalid settings preserve conf
     restored.pedirCuenta();
     const amounts = [...restored.document.querySelectorAll('#precuenta-consumo tfoot td')].map(td => td.textContent);
     assert.deepEqual(amounts, ['$10.00', '$1.50', '$0.00', '$11.50', '$0.00', '$11.50']);
+    restored.close();
+});
+
+test('waiter badges, automatic assignment, filtering, reassignment and reload', async () => {
+    const w = await open();
+    w.configurarMeseros();
+    w.document.getElementById('lista-meseros').value = 'Ana Martínez\nLuis Pérez';
+    w.guardarMeseros();
+    w.seleccionarMesa(1);
+    w.agregarProducto('Pizza');
+    w.enviarCocina();
+    assert.equal(w.document.querySelector('#mesas .waiter-badge').textContent, 'AM');
+    assert.match(w.document.querySelector('#mesas .mesa').textContent, /Ana Martínez/);
+    w.document.getElementById('mesero-activo').value = 'Luis Pérez';
+    w.cambiarMeseroActivo();
+    w.seleccionarMesa(1);
+    assert.equal(w.document.getElementById('mesero-mesa').value, 'Ana Martínez');
+    w.document.getElementById('filtro-mesas').value = 'mis';
+    w.cambiarFiltroMesas();
+    assert.ok(![...w.document.querySelectorAll('#mesas strong')].some(n => n.textContent === 'Mesa 1'));
+    assert.match(w.document.getElementById('mesas').textContent, /Mesa 2/);
+    w.document.getElementById('mesero-mesa').value = 'Luis Pérez';
+    w.reasignarMesa();
+    assert.ok([...w.document.querySelectorAll('#mesas strong')].some(n => n.textContent === 'Mesa 1'));
+    const saved = w.localStorage.getItem(key);
+    const team = w.localStorage.getItem('comandas.meseros.v1');
+    w.close();
+    const restored = await open(saved, false, null, null, team);
+    assert.equal(restored.document.getElementById('mesero-activo').value, 'Luis Pérez');
+    assert.equal(restored.document.querySelector('#mesas .waiter-badge').textContent, 'LP');
+    restored.seleccionarMesa(1);
+    restored.pedirCuenta();
+    restored.confirmarFacturacionFinal();
+    assert.equal(restored.document.querySelector('#mesas .mesa .waiter-badge'), null);
+    assert.match(restored.document.querySelector('#mesas .mesa').textContent, /Sin asignar/);
     restored.close();
 });
