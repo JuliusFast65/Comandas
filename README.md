@@ -82,6 +82,36 @@ El último comando requiere el servidor en el puerto 8000. Para ejecutar las pru
 en otra máquina, instala `jsdom@26.1.0` en una carpeta externa al repositorio y apunta
 `NODE_PATH` a su `node_modules`.
 
+## Revisión de cambios desde el entorno cloud
+
+La revisión habitual de esta aplicación se hace mediante la demo desplegada en
+**GitHub Pages** del repositorio `JuliusFast65/Comandas`, desde la rama `gh-pages`.
+El usuario trabaja con Codex en un entorno cloud: no pedirle que arranque un
+servidor en su equipo ni darle `localhost` como enlace de revisión del cloud.
+
+Cada entrega usa un código nemónico de versión, por ejemplo `roles-1` u
+`orden-movil-1`. El código aparece en el banner de la demo y en los parámetros
+`?v=<código>` de `styles.css` y `scripts.js` para renovar la caché. Se puede añadir
+el mismo parámetro al enlace de revisión. Es un identificador de versión, no
+una contraseña ni un control de acceso.
+
+Para entregar una revisión:
+
+1. Revisar los cambios y ejecutar las comprobaciones funcionales pertinentes.
+2. Asignar un código nuevo y actualizar el banner y los enlaces de CSS/JS.
+3. Preparar la rama `gh-pages` con los archivos públicos de la aplicación
+   (`index.html`, `styles.css`, `scripts.js`); excluir archivos temporales y datos privados.
+4. Publicar en el repositorio y rama existentes dentro de la autorización del
+   usuario. Documentar no constituye por sí solo permiso para publicar.
+5. Verificar que GitHub Pages sirve el código nuevo. Un commit local o un push
+   exitoso no bastan para afirmar que el despliegue ya está disponible.
+6. Entregar el enlace confirmado, el código esperado en el banner y los pasos
+   breves de prueba. Para la demo: `mesero1 / 1234`, abrir una mesa.
+
+Si la publicación o la verificación están bloqueadas, explicar el bloqueo y
+mantener la entrega como pendiente; no presentar una versión anterior como la nueva.
+No crear otro alojamiento ni cambiar la audiencia como sustitución automática.
+
 ## GitHub Pages
 
 La rama `gh-pages` contiene exclusivamente los archivos públicos de la demo.
