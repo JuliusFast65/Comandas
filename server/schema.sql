@@ -90,3 +90,5 @@ UPDATE order_items i SET tariff=jsonb_build_object(
   'iva',15,'servicio',10,'incluidos',true)
 FROM products p WHERE p.id=i.product_id AND i.tariff='{}'::jsonb;
 INSERT INTO schema_migrations(version) VALUES (3) ON CONFLICT DO NOTHING;
+ALTER TABLE order_accounts ADD COLUMN IF NOT EXISTS collection jsonb NOT NULL DEFAULT '{}';
+INSERT INTO schema_migrations(version) VALUES (4) ON CONFLICT DO NOTHING;

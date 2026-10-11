@@ -5,6 +5,20 @@ El simulador se ejecuta en el servidor de Comandas y persiste en PostgreSQL.
 El navegador llama a la API de Comandas; no hay solicitudes a LSoft.
 No genera facturas fiscales, no transmite al SRI y no procesa pagos reales.
 
+## Precuenta y cobro en mesa
+
+El mesero solicita la cuenta; Caja ve resaltadas las solicitudes pendientes de
+entregar. Mesero o Caja pueden imprimir sin completar los datos del cliente.
+La precuenta contiene el consumo, el total y espacios para datos y firma.
+Cancelar el diálogo de impresión no confirma la entrega.
+
+El mesero confirma la entrega del papel y, después, el cobro físico con Datafast
+y la recogida de la precuenta firmada y del voucher. Caja confirma su recepción
+y registra los datos del papel para enviar a LSoft (todavía simulado).
+Estas confirmaciones se guardan por cuenta con usuario y fecha; no son una
+integración con Datafast ni una verificación bancaria o captura de la firma.
+La migración 4 agrega este seguimiento conservando los registros existentes.
+
 ## Operaciones propuestas
 
 - `POST /api/comandas/pedidos`: recibir un Pedido por cuenta.

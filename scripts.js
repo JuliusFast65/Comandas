@@ -827,7 +827,7 @@ function renderOrder(content, o) {
       ),
       button("Volver a Mesas", () => navigate("mesas")),
       button(
-        "Pedir Cuenta",
+        o.status === "bill_requested" ? "Ver precuenta" : "Pedir Cuenta",
         () => openBill(o),
         !(mayBill(o) || user?.role === "mesero") ||
           !o.items.length ||
@@ -1451,9 +1451,10 @@ function openBill(o) {
       });
       mobileDetail = false;
       $("#detalle-dialogo")?.close();
-      showOrderSent("Cuenta solicitada", "La solicitud de cuenta se envió a Caja.");
+      view = "precuenta";
+      selected = o.id;
     });
-  else navigate("mesas");
+  else navigate("precuenta", o.id);
 }
 function consumption(content, o, number, tip = 0) {
   const items = o.items.filter(
@@ -1528,7 +1529,7 @@ function renderBill(content, o) {
     consume,
     el(
       "p",
-      "Esta precuenta no es una factura fiscal. El envío a LSoft es simulado. El cobro y la firma se realizan físicamente en caja.",
+      "Entrega la precuenta para que el cliente revise el total y llene sus datos. El mesero cobra con Datafast y lleva la precuenta firmada y el voucher a Caja.",
       { class: "menu-help" },
     ),
   );
@@ -1630,13 +1631,14 @@ function renderBill(content, o) {
       }
     });
   });
-  content.append(form);
+  if (user.role !== "mesero") content.append(form);
+  else content.append(button("Imprimir precuenta", () => printBill(o, a)));
+  renderCollection(content, o, a);
   if (a.lsoft?.json) renderLSoft(content, o, a);
   renderRelease(content, o);
 }
 function printBill(o, a, form) {
-  if (!form.reportValidity()) return;
-  const data = Object.fromEntries(new FormData(form)),
+  const data = form ? Object.fromEntries(new FormData(form)) : {},
     target = $("#precuenta-impresion");
   target.replaceChildren(
     heading("Precuenta"),
@@ -1649,10 +1651,30 @@ function printBill(o, a, form) {
     phone: "Teléfono",
     email: "Correo",
   }))
-    target.append(el("p", label + ": " + (data[key] ?? a.customer[key] ?? "")));
+    target.append(el("p", label + ": " + (data[key] || a.customer?.[key] || "________________________________")));
   consumption(target, o, a.number, cents(data.tip ?? a.tip_cents / 100));
+  target.append(el("p", "Firma del cliente: ________________________________"));
   target.append(el("p", "Precuenta informativa. No es una factura fiscal."));
   window.print();
+}
+function renderCollection(content, o, a) {
+  const steps = [
+    ["bill_delivered", "Precuenta entregada al cliente", ["mesero", "admin"]],
+    ["collected", "Cobrado con Datafast · precuenta firmada y voucher recogidos", ["mesero", "admin"]],
+    ["documents_received", "Caja recibió la precuenta firmada y el voucher", ["caja", "admin"]],
+  ];
+  const section = el("div", null, { class: "collection-steps" });
+  section.append(el("p", "Entrega y cobro", { class: "collection-title" }));
+  for (let index = 0; index < steps.length; index++) {
+    const [name, label, roles] = steps[index];
+    if (a.collection?.[name]) section.append(el("p", "Confirmado: " + label));
+    else if (roles.includes(user.role) && mayBill(o)) section.append(button(
+      "Confirmar: " + label, () => action(o, name, { account: a.number }),
+      o.status !== "bill_requested" || (index > 0 && !a.collection?.[steps[index - 1][0]]),
+    ));
+    else section.append(el("p", "Pendiente: " + label));
+  }
+  content.append(section);
 }
 function renderLSoft(content, o, a) {
   const panel = el("section", null, { class: "lsoft-controls" }),
@@ -1673,7 +1695,7 @@ function renderLSoft(content, o, a) {
     }),
   );
   panel.append(json, button("Consultar estado", refresh, !response));
-  if (mayBill(o) && response)
+  if (user.role !== "mesero" && mayBill(o) && response)
     panel.append(
       button("Reintentar envío", () =>
         action(o, "send_lsoft", { account: a.number }),
@@ -1697,7 +1719,7 @@ function renderCash(content) {
     heading("LSoft · Caja", "cash-register"),
     el(
       "p",
-      "El envío a LSoft es simulado. Entrega el voucher en caja para el cobro y la firma físicos. Libera la mesa cuando los clientes se retiren.",
+      "Imprime las precuentas solicitadas. El mesero entrega el papel y cobra con Datafast. Recibe la precuenta firmada y el voucher y registra los datos para facturar. El envío a LSoft es simulado.",
       { class: "menu-help" },
     ),
   );
@@ -1712,15 +1734,21 @@ function renderCash(content) {
     const accounts = o.accounts.filter((a) =>
       o.items.some((i) => i.account === a.number),
     );
+    if (accounts.some((a) => !a.collection?.bill_delivered)) {
+      card.classList.add("bill-alert");
+      card.append(el("p", "Solicita cuenta · pendiente de entregar precuenta", { class: "bill-alert-label", role: "status" }));
+    }
     for (const a of accounts) {
       const accountCard = el("section", null, { class: "cash-account" });
       accountCard.append(
         el("h4", `Cuenta ${a.number}${a.name ? " · " + a.name : ""}`),
       );
       consumption(accountCard, o, a.number, a.tip_cents);
+      accountCard.append(button("Imprimir precuenta", () => printBill(o, a)));
+      renderCollection(accountCard, o, a);
       renderLSoft(accountCard, o, a);
       accountCard.append(
-        button("Ver precuenta y datos", () => {
+        button(user.role === "mesero" ? "Ver precuenta" : "Registrar datos del papel / facturar", () => {
           billingAccount = a.number;
           navigate("precuenta", o.id);
         }),
@@ -1768,7 +1796,7 @@ function confirmClose(o) {
   );
   dialog.append(
     heading((o.table_number === null ? "Finalizar " : "Liberar ") + orderTitle(o)),
-    el("p", o.table_number === null ? "¿Deseas finalizar el pedido? Se conservará en el historial, sin registrar el cobro ni la firma." : "¿Los clientes ya se retiraron y deseas liberar la mesa? La cuenta se conservará en el historial, sin registrar el cobro ni la firma."),
+    el("p", o.table_number === null ? "¿Deseas finalizar el pedido? Se conservará en el historial con las confirmaciones de entrega y cobro registradas." : "¿Los clientes ya se retiraron y deseas liberar la mesa? La cuenta y sus confirmaciones se conservarán en el historial."),
     footer,
   );
   dialog.addEventListener("close", () => dialog.remove());

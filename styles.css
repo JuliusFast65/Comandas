@@ -647,7 +647,7 @@ textarea {
 #precuenta-impresion { display: none; }
 @media print {
   body { background: white; color: black; font-family: Arial, sans-serif; }
-  body > *:not(#precuenta-impresion) { display: none !important; }
+  body > *:not(main), main > *:not(#precuenta-impresion) { display: none !important; }
   #precuenta-impresion { display: block !important; padding: 12mm; }
   #precuenta-impresion p { line-height: 1.7; overflow-wrap: anywhere; }
   #precuenta-impresion table { break-inside: avoid; }

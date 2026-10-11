@@ -248,6 +248,9 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     send_lsoft: ["mesero", "caja"],
     pay: [],
     bill: ["mesero", "caja"],
+    bill_delivered: ["mesero"],
+    collected: ["mesero"],
+    documents_received: ["caja"],
     close: ["mesero", "caja"],
   };
   if (!Object.hasOwn(roleActions, action)) fail(400, "Acción inválida.");
@@ -272,6 +275,19 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       );
     const id = order.id,
       b = req.body;
+    if (["bill_delivered", "collected", "documents_received"].includes(action)) {
+      if (order.status !== "bill_requested") fail(409, "Primero solicita la cuenta.");
+      if (!integer(b.account, 1, 99)) fail(400, "Cuenta inválida.");
+      const { rows: [account] } = await db.query(
+        "SELECT * FROM order_accounts WHERE order_id=$1 AND number=$2 AND EXISTS(SELECT 1 FROM order_items WHERE order_id=$1 AND account=$2)", [id, b.account]);
+      if (!account) fail(404, "Cuenta no encontrada.");
+      const previous = { collected: "bill_delivered", documents_received: "collected" }[action];
+      if (previous && !account.collection[previous]) fail(409, "Completa el paso anterior de la cuenta.");
+      if (!account.collection[action]) {
+        account.collection[action] = { at: new Date().toISOString(), userId: req.user.id };
+        await db.query("UPDATE order_accounts SET collection=$1 WHERE order_id=$2 AND number=$3", [account.collection, id, b.account]);
+      }
+    }
     if (action === "delete_empty") {
       if (order.table_number !== null || order.status !== "open")
         fail(409, "Solo se puede eliminar un pedido para llevar vacío.");

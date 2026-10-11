@@ -429,3 +429,8 @@ summary:focus-visible {
     flex-basis: 100%;
   }
 }
+.caja-item.bill-alert { border: 3px solid #b66a00; background: #fff7df; }
+.bill-alert-label { color: #754100; font-weight: bold; padding: 12px; background: #ffe3a1; border-radius: 8px; }
+.collection-steps { margin: 16px 0; padding: 12px; border: 1px solid #d5dde5; border-radius: 8px; }
+.collection-steps button { display: block; margin: 8px 0; }
+.collection-title { font-weight: bold; }
