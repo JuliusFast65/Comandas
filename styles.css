@@ -653,6 +653,8 @@ textarea {
   #precuenta-impresion { display: block !important; box-sizing: border-box; width: 50%; padding: 0; font-size: 10pt; line-height: 1.15; }
   #precuenta-impresion h2 { margin: 0 0 2mm; font-size: 12pt; color: black; }
   #precuenta-impresion p { margin: 0 0 1mm; line-height: inherit; overflow-wrap: anywhere; }
+  #precuenta-impresion .bill-customer-field { display: grid; grid-template-columns: 25mm minmax(0, 1fr); gap: 2mm; }
+  #precuenta-impresion .bill-writing-line { border-bottom: 1px solid black; }
   #precuenta-impresion table { margin: 2mm 0; }
   #precuenta-impresion th, #precuenta-impresion td { padding: 1mm 0; color: black; background: white; border-bottom: 0; }
   #precuenta-impresion th:first-child, #precuenta-impresion td:first-child { padding-right: 2mm; }
@@ -660,7 +662,8 @@ textarea {
   #precuenta-impresion tr { break-inside: avoid; }
   #precuenta-impresion tfoot { break-inside: avoid; }
   #precuenta-impresion .bill-tip > * { padding-top: calc(1mm + 1.15em); }
-  #precuenta-impresion tfoot tr:last-child > * { border-top: 1px solid black; font-weight: 700; }
+  #precuenta-impresion .bill-total > * { font-weight: 700; }
+  #precuenta-impresion tfoot tr:last-child > * { padding-bottom: calc(1mm + 1.15em); border-bottom: 1px solid black; font-weight: 700; }
 }
 
 .client-info label {

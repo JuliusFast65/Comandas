@@ -1490,6 +1490,7 @@ function consumption(content, o, number, tip = 0, printed = false) {
   ]) {
     const r = el("tr");
     if (printed && label === "Propina voluntaria") r.className = "bill-tip";
+    if (printed && label === "Total") r.className = "bill-total";
     r.append(
       el("th", label, { colspan: "2", scope: "row" }),
       el("td", value === null ? "________________" : money(value)),
@@ -1642,8 +1643,7 @@ function renderBill(content, o) {
 function printBill(o, a) {
   const target = $("#precuenta-impresion");
   target.replaceChildren(
-    heading("Precuenta"),
-    el("p", orderTitle(o) + ` · Cuenta ${a.number}`),
+    heading(`Precuenta · ${orderTitle(o)} · Cuenta ${a.number}`),
   );
   for (const label of Object.values({
     identification: "Cédula / RUC",
@@ -1651,8 +1651,14 @@ function printBill(o, a) {
     address: "Dirección",
     phone: "Teléfono",
     email: "Correo",
-  }))
-    target.append(el("p", label + ": ________________________________"));
+  })) {
+    const field = el("p", null, { class: "bill-customer-field" });
+    field.append(
+      el("span", label + ":"),
+      el("span", null, { class: "bill-writing-line", "aria-hidden": "true" }),
+    );
+    target.append(field);
+  }
   consumption(target, o, a.number, 0, true);
   target.append(el("p", "Firma del cliente: ________________________________"));
   target.append(el("p", "Precuenta informativa. No es una factura fiscal."));
