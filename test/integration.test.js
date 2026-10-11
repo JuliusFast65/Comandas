@@ -874,3 +874,80 @@ test("primer plato crea y asigna la mesa en una sola transacción", async () => 
   assert.notEqual(order.waiter_id, owner.waiter_id);
   await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 409);
 });
+
+test("supervisor coordina todas las mesas sin permisos de configuración ni caja", async () => {
+  const supervisor=client(), administrator=client(), waiter=client(), second=client();
+  const seeded=await supervisor.login("supervisor");
+  assert.equal(seeded.role,"supervisor");
+  assert.deepEqual(seeded.stations,[]);
+  const adminUser=await administrator.login("admin");
+  const waiterUser=await waiter.login("mesero");
+  const secondUser=await second.login("mesero2");
+  const state=await administrator.request("/api/state");
+  const food=state.products.find(p=>p.area==='cocina');
+  assert.equal((await supervisor.request("/api/state")).users,undefined);
+  await supervisor.request("/api/users",undefined,403);
+  await supervisor.request("/api/customers?identification=123",undefined,403);
+  for(const path of ["/api/config","/api/stations","/api/products/station","/api/waiters",`/api/users/${waiterUser.id}/stations`,`/api/users/${waiterUser.id}/waiter`,`/api/users/${waiterUser.id}/role`])
+    await supervisor.request(path,{},403);
+  const created=await second.request("/api/orders",{},201);
+  async function current(){ return (await supervisor.request("/api/state")).orders.find(o=>o.id===created.id); }
+  async function perform(c,action,fields={},expected=200){
+    return c.request(`/api/orders/${created.id}/actions`,{action,version:(await current()).version,...fields},expected);
+  }
+  await perform(supervisor,"add",{productId:food.id,quantity:1,account:1,note:""});
+  const item=(await current()).items[0];
+  await perform(waiter,"edit",{itemId:item.id,quantity:2,account:1,note:""},403);
+  await perform(supervisor,"edit",{itemId:item.id,quantity:2,account:1,note:"Sin sal"});
+  await perform(supervisor,"assign",{waiterId:waiterUser.waiter_id});
+  assert.equal((await current()).waiter_id,waiterUser.waiter_id);
+  await perform(supervisor,"account",{account:1,name:"Familia",customer:{name:"Cliente",identification:"456"}});
+  assert.equal((await current()).accounts[0].customer.name,"Cliente");
+  await perform(supervisor,"send");
+  await perform(supervisor,"ready",{itemId:item.id},403);
+  for (const stations of [["cocina"],[]]) {
+    await administrator.request(`/api/users/${seeded.id}/stations`, {
+      stations,version:(await administrator.request("/api/state")).settings.version,
+    });
+    if (stations.length) {
+      await perform(supervisor,"ready",{itemId:item.id});
+      await perform(supervisor,"ready",{itemId:item.id,ready:false});
+    }
+  }
+  await perform(administrator,"ready",{itemId:item.id});
+  await perform(supervisor,"pickup_all",{area:"cocina"});
+  await perform(supervisor,"bill");
+  await perform(supervisor,"bill_delivered",{account:1});
+  await perform(supervisor,"collected",{account:1});
+  await perform(supervisor,"documents_received",{account:1},403);
+  await perform(supervisor,"pay",{account:1},403);
+  await perform(supervisor,"send_lsoft",{account:1});
+  await perform(supervisor,"assign",{waiterId:secondUser.waiter_id},409);
+  await perform(supervisor,"close");
+  assert.ok((await supervisor.request("/api/history")).some(o=>o.id===created.id));
+  await supervisor.request("/api/orders",{},400);
+  const newOrder=await supervisor.request("/api/orders",{waiterId:secondUser.waiter_id},201);
+  assert.equal(newOrder.waiter_id,secondUser.waiter_id);
+  const empty=(await supervisor.request("/api/state")).orders.find(o=>o.id===newOrder.id);
+  await supervisor.request(`/api/orders/${newOrder.id}/actions`,{action:"delete_empty",version:empty.version});
+  async function role(fields,expected=200){
+    return administrator.request(`/api/users/${waiterUser.id}/role`,{
+      version:(await administrator.request("/api/state")).settings.version,...fields,
+    },expected);
+  }
+  await role({role:"admin"},400);
+  const version=(await administrator.request("/api/state")).settings.version;
+  await administrator.request(`/api/users/${adminUser.id}/role`,{role:"supervisor",version},400);
+  await role({role:"supervisor"});
+  assert.equal((await waiter.request("/api/me")).role,"supervisor");
+  assert.equal((await waiter.request("/api/me")).waiter_id,waiterUser.waiter_id);
+  assert.deepEqual((await waiter.request("/api/me")).stations,waiterUser.stations);
+  await waiter.request("/api/history");
+  await administrator.request(`/api/users/${waiterUser.id}/role`,{role:"mesero",version},409);
+  const init=spawnSync(process.execPath,["server/init.js"],{env:{...process.env,SEED_PASSWORD:password},encoding:"utf8"});
+  assert.equal(init.status,0,init.stderr);
+  assert.equal((await waiter.request("/api/me")).role,"supervisor");
+  await role({role:"mesero"});
+  assert.equal((await waiter.request("/api/me")).role,"mesero");
+  await waiter.request("/api/history",undefined,403);
+});

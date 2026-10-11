@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS waiters (
   active boolean NOT NULL DEFAULT true
 );
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','mesero','cocina','bar','caja','auditor','estacion'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','mesero','cocina','bar','caja','auditor','estacion','supervisor'));
 ALTER TABLE users ADD COLUMN IF NOT EXISTS waiter_id uuid REFERENCES waiters(id);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS waiter_id uuid REFERENCES waiters(id);
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS tariff jsonb NOT NULL DEFAULT '{}';
@@ -119,4 +119,5 @@ BEGIN
   END IF;
 END $$;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','mesero','estacion','caja','auditor'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','mesero','estacion','caja','auditor','supervisor'));
+INSERT INTO schema_migrations(version) VALUES (6) ON CONFLICT DO NOTHING;

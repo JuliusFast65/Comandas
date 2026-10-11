@@ -186,7 +186,7 @@ app.get("/api/state", async (req, res) => {
       settings,
       orders: orders.map((o) => {
         const maySeeCustomer =
-          ["admin", "caja", "auditor"].includes(req.user.role) ||
+          ["admin", "supervisor", "caja", "auditor"].includes(req.user.role) ||
           (req.user.role === "mesero" &&
             (!o.waiter_id || o.waiter_id === req.user.waiter_id));
         return {
@@ -274,16 +274,17 @@ async function addProduct(db, id, b) {
     );
 }
 app.post("/api/orders", async (req, res) => {
-  allow(req.user, ["mesero"]);
+  allow(req.user, ["mesero", "supervisor"]);
   const table = req.body.tableNumber ?? null;
   if (table !== null && !integer(table, 1, 999)) fail(400, "Mesa inválida.");
   const order = await transaction(async (db) => {
     const id = randomUUID();
     const waiter =
-      req.user.role === "admin"
+      ["admin", "supervisor"].includes(req.user.role)
         ? (req.body.waiterId ?? null)
         : req.user.waiter_id;
     if (waiter !== null && !uuid(waiter)) fail(400, "Mesero inválido.");
+    if (req.user.role === "supervisor" && !waiter) fail(400, "Selecciona el mesero responsable.");
     if (
       waiter &&
       !(
@@ -322,7 +323,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     remove: ["mesero"],
     delete_empty: ["mesero"],
     account: ["mesero", "caja"],
-    assign: [],
+    assign: ["supervisor"],
     send: ["mesero"],
     ready: [],
     pickup: ["mesero"],
@@ -336,6 +337,9 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     close: ["mesero", "caja"],
     new_consumption: ["mesero", "caja"],
   };
+  for (const roles of Object.values(roleActions)) {
+    if (roles.includes("mesero")) roles.push("supervisor");
+  }
   if (!Object.hasOwn(roleActions, action)) fail(400, "Acción inválida.");
   if (action !== "ready" || !req.user.stations.length)
     allow(req.user, roleActions[action]);
@@ -694,7 +698,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
   res.json({ ok: true, ...result });
 });
 app.get("/api/history", async (req, res) => {
-  allow(req.user, ["caja", "auditor"]);
+  allow(req.user, ["caja", "auditor", "supervisor"]);
   const { rows } = await pool.query(
     "SELECT o.*,COALESCE((SELECT jsonb_agg(i) FROM order_items i WHERE i.order_id=o.id),'[]'::jsonb) AS items,COALESCE((SELECT jsonb_agg(a) FROM order_accounts a WHERE a.order_id=o.id),'[]'::jsonb) AS accounts FROM orders o WHERE status='closed' ORDER BY closed_at DESC LIMIT 100",
   );
@@ -799,13 +803,27 @@ app.post("/api/users/:id/waiter", async (req, res) => {
     if (
       !(
         await db.query(
-          "UPDATE users SET waiter_id=$1 WHERE id=$2 AND role='mesero'",
+          "UPDATE users SET waiter_id=$1 WHERE id=$2 AND role IN ('mesero','supervisor')",
           [req.body.waiterId, req.params.id],
         )
       ).rowCount
     )
       fail(404, "Usuario mesero no encontrado.");
     await db.query("SELECT pg_notify('comandas_changed','')");
+  });
+  res.json({ ok: true });
+});
+app.post("/api/users/:id/role", async (req, res) => {
+  allow(req.user, []);
+  const { role, version } = req.body;
+  if (!uuid(req.params.id) || !["mesero", "supervisor"].includes(role))
+    fail(400, "Rol de salón inválido.");
+  await changeConfiguration(version, async (db) => {
+    const { rows: [user] } = await db.query("SELECT role,waiter_id FROM users WHERE id=$1 FOR UPDATE", [req.params.id]);
+    if (!user) fail(404, "Usuario no encontrado.");
+    if (!["mesero", "supervisor"].includes(user.role)) fail(400, "Solo puedes cambiar entre Mesero y Supervisor.");
+    if (role === "mesero" && !user.waiter_id) fail(400, "Vincula un mesero antes de cambiar este rol.");
+    await db.query("UPDATE users SET role=$1 WHERE id=$2", [role, req.params.id]);
   });
   res.json({ ok: true });
 });

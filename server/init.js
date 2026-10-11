@@ -16,6 +16,7 @@ try {
     );
     for (const role of [
       "admin",
+      "supervisor",
       "mesero",
       "caja",
       "auditor",
@@ -69,7 +70,7 @@ try {
     }
   });
   console.log(
-    "Base inicializada. Usuarios: admin, mesero, mesero1, mesero2, cocina, bar, caja, auditor. Se conservan los pedidos y las contraseñas existentes.",
+    "Base inicializada. Usuarios: admin, supervisor, mesero, mesero1, mesero2, cocina, bar, caja, auditor. Se conservan los pedidos y las contraseñas existentes.",
   );
 } finally {
   await pool.end();

@@ -17,7 +17,7 @@ npm run db:init
 npm start
 ```
 
-Abrir `http://localhost:3000`. La inicialización crea las cuentas `admin`, `mesero`, `mesero1`, `mesero2`, `cocina`, `bar`, `caja` y `auditor`, con la contraseña definida en `SEED_PASSWORD`. Las contraseñas existentes se conservan; no se restaura la contraseña `1234` de la antigua demo. Ejecutar nuevamente `db:init` aplica las migraciones sin eliminar pedidos ni cambiar las tarifas ya guardadas.
+Abrir `http://localhost:3000`. La inicialización crea las cuentas `admin`, `supervisor`, `mesero`, `mesero1`, `mesero2`, `cocina`, `bar`, `caja` y `auditor`, con la contraseña definida en `SEED_PASSWORD`. Las contraseñas existentes se conservan; no se restaura la contraseña `1234` de la antigua demo. Ejecutar nuevamente `db:init` aplica las migraciones sin eliminar pedidos ni cambiar las tarifas ya guardadas.
 
 En el entorno de desarrollo de este hilo ya se generó `.env`, se inicializó PostgreSQL y se arrancó el servidor. No guardar `.env` en Git.
 
@@ -52,6 +52,20 @@ estación se generan desde la configuración. Los cambios se comparten entre dis
 y usan control de versión para impedir que se sobrescriban cambios simultáneos.
 Esta fase utiliza la estructura de la migración 5; no requiere otra migración.
 
+La fase 3 incorpora **Supervisor** para el jefe de meseros. Puede atender y
+reasignar todas las mesas, coordinar rondas y retiros, gestionar precuentas y
+consultar el historial. Al abrir un pedido elige su mesero responsable. Preparar
+productos requiere una estación asignada, igual que para los demás usuarios.
+El supervisor no administra precios, estaciones, usuarios ni la lista de meseros,
+ni recibe los permisos exclusivos de Caja para registrar documentos o pagos.
+
+El administrador cambia entre Mesero y Supervisor desde **Usuarios y permisos →
+Rol en el salón**. Se conservan el usuario, su contraseña, sesiones, vínculo con
+el mesero y estaciones. Los permisos cambian en la sesión existente. Para volver
+a Mesero debe existir un mesero vinculado. `npm.cmd run db:init` aplica la migración
+6 y crea la cuenta inicial `supervisor` con `SEED_PASSWORD`, sin alterar las cuentas
+existentes. Ejecutarlo nuevamente conserva las asignaciones y los roles elegidos.
+
 El backend escucha en `0.0.0.0:3000`. En una instalación dentro del restaurante, abrir `http://IP-DEL-SERVIDOR:3000` desde cada dispositivo conectado a la red local. Configurar `APP_ORIGIN` con esa dirección exacta (incluido el puerto), o eliminar esa variable para acceso directo sin proxy. Todos deben usar el mismo servidor y base de datos.
 
 Para probar roles simultáneos en una sola computadora, usar perfiles de navegador separados o distintos navegadores. Las pestañas de un mismo perfil comparten la cookie de sesión. Cerrar sesión en un dispositivo no cierra las sesiones de otros dispositivos.
@@ -61,9 +75,9 @@ Para probar roles simultáneos en una sola computadora, usar perfiles de navegad
 - Mesero: atender sus mesas, usar chips y búsqueda sin distinguir acentos en todo el menú, añadir productos y notas por cuenta, confirmar rondas y enviar a cocina/bar. Retirar una cantidad o todo lo preparado y enviar la precuenta por cuenta al simulador.
 - Cocina y bar: marcar sus productos preparados. Preparación y retiro son acciones separadas; los productos totalmente retirados salen de la lista activa y permanecen en la consulta de retirados.
 - Administrador: configurar precios, IVA y servicio, mantener el equipo de meseros, vincular usuarios y reasignar mesas.
-- Mesero responsable, caja y administrador: liberar la mesa cuando todas las cuentas estén enviadas a LSoft, los productos estén preparados y los clientes se hayan retirado.
+- Mesero responsable, supervisor, caja y administrador: liberar la mesa cuando todas las cuentas estén enviadas a LSoft, los productos estén preparados y los clientes se hayan retirado.
 - Auditor: consultar cuentas y operaciones cerradas sin modificar datos.
-- Caja, auditor y administrador: consultar los últimos 100 pedidos cerrados; el historial completo permanece en PostgreSQL.
+- Caja, auditor, supervisor y administrador: consultar los últimos 100 pedidos cerrados; el historial completo permanece en PostgreSQL.
 
 La interfaz recupera el diseño de `4c0a111` / `orden-movil-1`, con menú superior, usuario y cierre de sesión, chips, búsqueda expandible, cantidades del borrador por cuenta y revisión móvil del pedido. Los precios iniciales son los valores de demostración de aquella versión. Cada producto conserva la tarifa vigente al añadirlo. Los pedidos PostgreSQL anteriores, que no tenían precios, reciben esa tarifa de demostración una sola vez al migrar. IVA y servicio se calculan sobre la misma base en centavos; pueden estar incluidos o añadirse aparte. La propina voluntaria se registra por cuenta. La precuenta se puede imprimir.
 

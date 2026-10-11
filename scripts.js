@@ -38,6 +38,7 @@ function movePage(direction) {
 }
 const roles = {
   admin: "Administrador",
+  supervisor: "Supervisor",
   mesero: "Mesero",
   cocina: "Cocina",
   bar: "Bar",
@@ -106,7 +107,7 @@ function showOrderSent(
 }
 function owned(o) {
   return (
-    user?.role === "admin" ||
+    ["admin", "supervisor"].includes(user?.role) ||
     (user?.role === "mesero" &&
       (!o.waiter_id || o.waiter_id === user.waiter_id))
   );
@@ -118,7 +119,7 @@ function mayBill(o) {
   return owned(o) || user?.role === "caja";
 }
 function mayPickup() {
-  return ["admin", "mesero"].includes(user?.role);
+  return ["admin", "supervisor", "mesero"].includes(user?.role);
 }
 function confirmOtherWaiter(o, name) {
   if (user?.role !== "mesero" || !o.table_number || !o.waiter_id || o.waiter_id === user.waiter_id)
@@ -270,6 +271,7 @@ async function refresh() {
     const details = new Set(
       [...$("#content").querySelectorAll("details[open]")].map((n) => n.id),
     );
+    if (user.role !== liveMe.role && liveMe.role === "supervisor") onlyMine = false;
     user = liveMe;
     state = next;
     if (user.role === "mesero") activeWaiter = user.waiter_id;
@@ -388,7 +390,7 @@ function signedIn() {
   $("#workspace").hidden = false;
   onlyMine = user.role === "mesero";
   activeWaiter = user.waiter_id;
-  view = ["admin", "mesero"].includes(user.role)
+  view = ["admin", "supervisor", "mesero"].includes(user.role)
     ? "mesas"
     : ["caja", "auditor"].includes(user.role)
       ? "caja"
@@ -431,6 +433,7 @@ function areas() {
       "usuarios",
     ];
   if (user.role === "mesero") return ["mesas", ...stations, "caja"];
+  if (user.role === "supervisor") return ["mesas", ...stations, "caja", "historial"];
   if (["caja", "auditor"].includes(user.role)) return ["caja", "historial"];
   if (user.role === "estacion") return user.stations;
   return [user.role];
@@ -500,7 +503,7 @@ function page(content, id) {
 }
 function render() {
   if (!user) return;
-  if (state.stations.some((s) => s.code === view) && !areas().includes(view))
+  if (view !== "precuenta" && !areas().includes(view))
     view = areas()[0] || "sin-estacion";
   document
     .querySelectorAll("dialog[data-order-detail]")
@@ -669,7 +672,7 @@ function renderTables(content) {
   header.append(heading("Seleccionar Mesa", "chair"));
   content.append(header);
   const toolbar = el("div", null, { class: "waiter-toolbar" });
-  if (user.role === "admin")
+  if (["admin", "supervisor"].includes(user.role))
     toolbar.append(
       select(
         "Estoy atendiendo como ",
@@ -772,7 +775,7 @@ function renderOrder(content, o) {
     });
     form.addEventListener("submit", (e) => e.preventDefault());
     header.append(form);
-    if (user.role === "admin" && !o.accounts.some((a) => a.lsoft?.json))
+    if (["admin", "supervisor"].includes(user.role) && !o.accounts.some((a) => a.lsoft?.json))
       header.append(
         select(
           "Mesero responsable ",
@@ -783,7 +786,7 @@ function renderOrder(content, o) {
           (v) => action(o, "assign", { waiterId: v }),
         ),
       );
-    else if (user.role === "admin")
+    else if (["admin", "supervisor"].includes(user.role))
       header.append(el("small", "Mesero: " + waiterName(o.waiter_id)));
   }
   content.append(header);
@@ -1606,7 +1609,7 @@ function renderBill(content, o) {
     const sequence = ++lookupSequence;
     const value = identification.value.trim();
     lookupStatus.textContent = "";
-    if (!value || locked || user.role === "mesero") return;
+    if (!value || locked || ["mesero", "supervisor"].includes(user.role)) return;
     lookupTimer = setTimeout(async () => {
       try {
         const result = await api(`/customers?identification=${encodeURIComponent(value)}`);
@@ -1695,7 +1698,7 @@ function renderBill(content, o) {
       }
     });
   });
-  if (user.role !== "mesero") content.append(form);
+  if (!["mesero", "supervisor"].includes(user.role)) content.append(form);
   else content.append(button("Imprimir precuenta", () => printBill(o, a)));
   renderCollection(content, o, a);
   if (a.lsoft?.json) renderLSoft(content, o, a);
@@ -1727,8 +1730,8 @@ function printBill(o, a) {
 }
 function renderCollection(content, o, a) {
   const steps = [
-    ["bill_delivered", "Precuenta entregada al cliente", ["mesero", "admin"]],
-    ["collected", "Cobrado con Datafast · precuenta firmada y voucher recogidos", ["mesero", "admin"]],
+    ["bill_delivered", "Precuenta entregada al cliente", ["mesero", "supervisor", "admin"]],
+    ["collected", "Cobrado con Datafast · precuenta firmada y voucher recogidos", ["mesero", "supervisor", "admin"]],
     ["documents_received", "Caja recibió la precuenta firmada y el voucher", ["caja", "admin"]],
   ];
   const section = el("div", null, { class: "collection-steps" });
@@ -1763,7 +1766,7 @@ function renderLSoft(content, o, a) {
     }),
   );
   panel.append(json, button("Consultar estado", refresh, !response));
-  if (user.role !== "mesero" && mayBill(o) && response)
+  if (!["mesero", "supervisor"].includes(user.role) && mayBill(o) && response)
     panel.append(
       button("Reintentar envío", () =>
         action(o, "send_lsoft", { account: a.number }),
@@ -1836,7 +1839,7 @@ function renderCash(content) {
       renderCollection(accountCard, o, a);
       renderLSoft(accountCard, o, a);
       accountCard.append(
-        button(user.role === "mesero" ? "Ver precuenta" : "Registrar datos del papel / facturar", () => {
+        button(["mesero", "supervisor"].includes(user.role) ? "Ver precuenta" : "Registrar datos del papel / facturar", () => {
           billingAccount = a.number;
           navigate("precuenta", o.id);
         }),
@@ -1859,7 +1862,7 @@ function renderCash(content) {
   }
   if (!orders.length) cards.append(el("p", "No hay cuentas pendientes."));
   content.append(cards);
-  if (["admin", "caja", "auditor"].includes(user.role))
+  if (["admin", "supervisor", "caja", "auditor"].includes(user.role))
     content.append(
       button("Ver operaciones cerradas", () => navigate("historial")),
     );
@@ -1874,7 +1877,7 @@ function confirmNewConsumption(o) {
         action: "new_consumption", version: current.version,
       });
       selected = result.orderId;
-      view = ["admin", "mesero"].includes(user.role) ? "mesas" : "caja";
+      view = ["admin", "supervisor", "mesero"].includes(user.role) ? "mesas" : "caja";
       confirming = false;
       mobileDetail = false;
       dialog.close();
@@ -2208,7 +2211,7 @@ function renderUsers(content) {
           u.username + " · " + roles[u.role] + (u.active ? "" : " · Inactivo"),
         ),
       );
-      if (u.role === "mesero")
+      if (["mesero", "supervisor"].includes(u.role))
         card.append(
           select(
             "Mesero vinculado ",
@@ -2219,6 +2222,18 @@ function renderUsers(content) {
             (v) => run(() => api(`/users/${u.id}/waiter`, { waiterId: v })),
           ),
         );
+      if (["mesero", "supervisor"].includes(u.role)) {
+        const roleForm = stationConfigForm("user-role-" + u.id);
+        const choice = select("Rol en el salón ", [["mesero", "Mesero"], ["supervisor", "Supervisor"]], u.role);
+        const input = choice.querySelector("select");
+        input.id = "user-role-choice-" + u.id;
+        input.addEventListener("change", () => (roleForm.dataset.dirty = "true"));
+        roleForm.append(choice);
+        submitConfiguration(roleForm, "Guardar rol", () => api(`/users/${u.id}/role`, {
+          role: input.value, version: configVersion(roleForm),
+        }));
+        card.append(roleForm);
+      }
       const assignments = stationConfigForm("user-stations-" + u.id);
       assignments.append(el("p", "Estaciones de preparación"));
       for (const station of state.stations) {
