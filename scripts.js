@@ -1018,6 +1018,13 @@ function renderMenu(content, o, editable) {
   title.append(
     h,
     el("span", `Cuenta ${m.account}`, { id: "menu-cuenta" }),
+    button(
+      o.status === "bill_requested" ? "Ver precuenta" : "Pedir Cuenta",
+      () => openBill(o),
+      !(mayBill(o) || user?.role === "mesero") ||
+        !o.items.length ||
+        o.items.some((i) => i.status === "draft"),
+    ),
   );
   const products = el("div", null, { class: "products", id: "products" });
   content.append(
