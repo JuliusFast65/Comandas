@@ -1716,10 +1716,15 @@ function renderRelease(content, o) {
     o.accounts.some((a) => a.number === i.account && a.lsoft?.json),
   );
   if (!sent) return;
+  const pending = o.items.some((i) => i.status !== "ready");
   content.append(
     el("p", o.table_number === null ? "Enviado a LSoft · Pendiente de finalizar" : "Enviada a LSoft · Mesa ocupada, pendiente de liberar"),
-    button(o.table_number === null ? "Finalizar pedido" : "Liberar mesa", () => confirmClose(o), o.items.some((i) => i.status !== "ready")),
+    button(o.table_number === null ? "Finalizar pedido" : "Liberar mesa", () => confirmClose(o), pending),
   );
+  if (pending) content.append(el("p", o.table_number === null
+    ? "No puedes finalizar el pedido: hay productos pendientes de preparación. El botón se habilitará cuando todos estén listos."
+    : "No puedes liberar la mesa: hay productos pendientes de preparación. El botón se habilitará cuando todos estén listos.",
+  { role: "status" }));
 }
 function renderCash(content) {
   content.append(
