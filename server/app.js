@@ -107,17 +107,6 @@ app.use("/api", async (req, res, next) => {
   next();
 });
 app.get("/api/me", (req, res) => res.json(req.user));
-
-app.get("/api/customers", async (req, res) => {
-  if (!["caja", "admin"].includes(req.user.role)) fail(403, "Acceso solo para Caja y administrador.");
-  const identification = req.query.identification;
-  if (!text(identification, 200) || !identification.trim()) fail(400, "Identificación requerida.");
-  const { rows: [account] } = await pool.query(
-    "SELECT a.customer FROM order_accounts a JOIN orders o ON o.id=a.order_id WHERE btrim(a.customer->>'identification')=$1 AND btrim(COALESCE(a.customer->>'name',''))<>'' ORDER BY o.number DESC,a.number DESC LIMIT 1",
-    [identification.trim()],
-  );
-  res.json({ customer: account?.customer ?? null });
-});
 app.post("/api/logout", async (req, res) => {
   await pool.query("DELETE FROM sessions WHERE token_hash=$1", [
     req.sessionHash,
@@ -221,53 +210,53 @@ async function event(db, order, user, action) {
   await db.query("SELECT pg_notify('comandas_changed','')");
 }
 async function addProduct(db, id, b) {
-      if (
-        !uuid(b.productId) ||
-        !integer(b.quantity, 1, 999) ||
-        !integer(b.account, 1, 99) ||
-        !text(b.note)
-      )
-        fail(400, "Producto, cantidad, cuenta o nota inválidos.");
-      const {
-        rows: [p],
-      } = await db.query("SELECT * FROM products WHERE id=$1", [b.productId]);
-      if (!p) fail(404, "Producto no encontrado.");
-      await db.query(
-        "INSERT INTO order_accounts(order_id,number) VALUES($1,$2) ON CONFLICT DO NOTHING",
-        [id, b.account],
-      );
-      const {
-        rows: [settings],
-      } = await db.query("SELECT config FROM app_settings WHERE id=1");
-      const tariff = tariffFor(p, settings.config);
-      const {
-        rows: [draft],
-      } = await db.query(
-        "SELECT id,quantity FROM order_items WHERE order_id=$1 AND product_id=$2 AND account=$3 AND note=$4 AND tariff=$5::jsonb AND status='draft' ORDER BY id LIMIT 1",
-        [id, p.id, b.account, b.note, tariff],
-      );
-      if (draft) {
-        if (draft.quantity + b.quantity > 999)
-          fail(400, "La cantidad máxima es 999.");
-        await db.query(
-          "UPDATE order_items SET quantity=quantity+$1 WHERE id=$2",
-          [b.quantity, draft.id],
-        );
-      } else
-        await db.query(
-          "INSERT INTO order_items(id,order_id,product_id,product_name,area,quantity,account,note,tariff) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-          [
-            randomUUID(),
-            id,
-            p.id,
-            p.name,
-            p.area,
-            b.quantity,
-            b.account,
-            b.note,
-            tariff,
-          ],
-        );
+  if (
+    !uuid(b.productId) ||
+    !integer(b.quantity, 1, 999) ||
+    !integer(b.account, 1, 99) ||
+    !text(b.note)
+  )
+    fail(400, "Producto, cantidad, cuenta o nota inválidos.");
+  const {
+    rows: [p],
+  } = await db.query("SELECT * FROM products WHERE id=$1", [b.productId]);
+  if (!p) fail(404, "Producto no encontrado.");
+  await db.query(
+    "INSERT INTO order_accounts(order_id,number) VALUES($1,$2) ON CONFLICT DO NOTHING",
+    [id, b.account],
+  );
+  const {
+    rows: [settings],
+  } = await db.query("SELECT config FROM app_settings WHERE id=1");
+  const tariff = tariffFor(p, settings.config);
+  const {
+    rows: [draft],
+  } = await db.query(
+    "SELECT id,quantity FROM order_items WHERE order_id=$1 AND product_id=$2 AND account=$3 AND note=$4 AND tariff=$5::jsonb AND status='draft' ORDER BY id LIMIT 1",
+    [id, p.id, b.account, b.note, tariff],
+  );
+  if (draft) {
+    if (draft.quantity + b.quantity > 999)
+      fail(400, "La cantidad máxima es 999.");
+    await db.query(
+      "UPDATE order_items SET quantity=quantity+$1 WHERE id=$2",
+      [b.quantity, draft.id],
+    );
+  } else
+    await db.query(
+      "INSERT INTO order_items(id,order_id,product_id,product_name,area,quantity,account,note,tariff) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+      [
+        randomUUID(),
+        id,
+        p.id,
+        p.name,
+        p.area,
+        b.quantity,
+        b.account,
+        b.note,
+        tariff,
+      ],
+    );
 }
 app.post("/api/orders", async (req, res) => {
   allow(req.user, ["mesero"]);
@@ -299,7 +288,7 @@ app.post("/api/orders", async (req, res) => {
       await addProduct(db, id, req.body.firstItem);
       if (req.body.firstAccount) {
         const account = req.body.firstAccount;
-        if (!text(account.name, 100)) fail(400, "Nombre de cuenta inv?lido.");
+        if (!text(account.name, 100)) fail(400, "Nombre de cuenta inválido.");
         await db.query("UPDATE order_accounts SET name=$1 WHERE order_id=$2 AND number=$3",
           [account.name, id, req.body.firstItem.account]);
       }
