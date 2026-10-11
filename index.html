@@ -1,18 +1,76 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comandas</title><link rel="stylesheet" href="app.css"><script src="scripts.js" defer></script>
-</head>
-<body>
-<header><h1>Comandas</h1><div id="identity"></div></header>
-<p id="message" role="status" aria-live="polite"></p>
-<main>
-<section id="login"><h2>Iniciar sesión</h2>
-<form id="login-form">
-<label>Usuario<input name="username" autocomplete="username" required maxlength="80"></label>
-<label>Contraseña<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
-<button>Entrar</button>
-</form></section>
-<section id="workspace" hidden><nav id="navigation" aria-label="Áreas"></nav><div id="content"></div></section>
-</main></body></html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestión de Pedidos - Restaurante</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="app.css" />
+    <script src="scripts.js" type="module"></script>
+  </head>
+  <body>
+    <header id="session-header" class="app-topbar" hidden>
+      <div class="topbar-navigation">
+      <button
+        id="open-menu"
+        class="menu-toggle"
+        type="button"
+        aria-label="Abrir menú"
+        aria-controls="app-menu"
+        aria-expanded="false"
+      >
+        ☰
+      </button>
+      <button id="page-back" class="history-button" type="button" aria-label="Página anterior" disabled><span aria-hidden="true">‹</span></button>
+      <button id="page-forward" class="history-button" type="button" aria-label="Página siguiente" disabled><span aria-hidden="true">›</span></button>
+      </div>
+      <strong class="app-brand">Comandas</strong>
+      <div id="identity"></div>
+    </header>
+    <p id="message" role="status" aria-live="polite"></p>
+    <main>
+      <section id="login-screen" class="screen active">
+        <div class="container">
+          <h2>
+            <i class="fas fa-utensils" aria-hidden="true"></i> Inicio de Sesión
+          </h2>
+          <form id="login-form">
+            <input
+              aria-label="Usuario"
+              placeholder="Usuario"
+              name="username"
+              autocomplete="username"
+              required
+              maxlength="80"
+            />
+            <input
+              aria-label="Contraseña"
+              placeholder="Contraseña"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              maxlength="256"
+            />
+            <button>
+              <i class="fas fa-sign-in-alt" aria-hidden="true"></i> Entrar
+            </button>
+          </form>
+        </div>
+      </section>
+      <section id="workspace" hidden><div id="content"></div></section>
+      <dialog id="app-menu" class="app-drawer" aria-label="Menú principal">
+        <nav id="navigation" class="drawer-content" aria-label="Áreas"></nav>
+      </dialog>
+      <section id="precuenta-impresion" aria-hidden="true"></section>
+    </main>
+  </body>
+</html>
