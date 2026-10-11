@@ -107,6 +107,17 @@ app.use("/api", async (req, res, next) => {
   next();
 });
 app.get("/api/me", (req, res) => res.json(req.user));
+
+app.get("/api/customers", async (req, res) => {
+  if (!["caja", "admin"].includes(req.user.role)) fail(403, "Acceso solo para Caja y administrador.");
+  const identification = req.query.identification;
+  if (!text(identification, 200) || !identification.trim()) fail(400, "Identificación requerida.");
+  const { rows: [account] } = await pool.query(
+    "SELECT a.customer FROM order_accounts a JOIN orders o ON o.id=a.order_id WHERE btrim(a.customer->>'identification')=$1 AND btrim(COALESCE(a.customer->>'name',''))<>'' ORDER BY o.number DESC,a.number DESC LIMIT 1",
+    [identification.trim()],
+  );
+  res.json({ customer: account?.customer ?? null });
+});
 app.post("/api/logout", async (req, res) => {
   await pool.query("DELETE FROM sessions WHERE token_hash=$1", [
     req.sessionHash,
