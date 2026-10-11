@@ -991,12 +991,13 @@ test("ocupación explícita, liberación y eliminación del último plato", asyn
   await perform(waiter, implicit.id, "remove", { itemId: (await current(implicit.id)).items[0].id });
   assert.equal(await current(implicit.id), undefined);
   const confirmed = await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 201);
-  await perform(waiter, confirmed.id, "occupy");
+  await perform(waiter, confirmed.id, "occupy", {}, 409);
+  assert.equal((await current(confirmed.id)).occupied_explicitly, false);
   await perform(waiter, confirmed.id, "remove", { itemId: (await current(confirmed.id)).items[0].id });
-  assert.equal((await current(confirmed.id)).occupied_explicitly, true);
-  await perform(waiter, confirmed.id, "release");
+  assert.equal(await current(confirmed.id), undefined);
   const sent = await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 201);
   await perform(waiter, sent.id, "send");
+  await perform(waiter, sent.id, "occupy", {}, 409);
   await perform(waiter, sent.id, "remove", { itemId: (await current(sent.id)).items[0].id }, 409);
   await perform(waiter, sent.id, "release", {}, 409);
   await waiter.request("/api/orders", { occupiedExplicitly: true }, 400);

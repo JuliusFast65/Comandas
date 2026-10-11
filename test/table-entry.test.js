@@ -3,6 +3,32 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 
+test("Ocupar mesa se deshabilita con productos y se habilita cuando queda vacía", async () => {
+  const source = await readFile(new URL("../scripts.js", import.meta.url), "utf8");
+  const start = source.indexOf("function renderOrder(");
+  const end = source.indexOf("  if (!confirming) {", start);
+  const buttons = [];
+  const context = vm.createContext({
+    confirming: false, lastWorkedOrder: null,
+    menu: () => ({}), editableOrder: () => true, orderTitle: () => "Mesa 3",
+    heading: () => ({}), el: () => ({ append() {} }), action() {},
+    button: (label, click, disabled = false) => {
+      const b = { label, click, disabled };
+      buttons.push(b);
+      return b;
+    },
+  });
+  vm.runInContext(source.slice(start, end) + "}", context);
+  for (const status of ["draft", "preparing", "ready"]) {
+    buttons.length = 0;
+    context.renderOrder({}, { id: "order", table_number: 3, status: "open", occupied_explicitly: false, items: [{ status }] });
+    assert.equal(buttons.find((b) => b.label === "Ocupar mesa").disabled, true);
+  }
+  buttons.length = 0;
+  context.renderOrder({}, { id: "pending", pending: true, table_number: 3, status: "open", items: [] });
+  assert.equal(buttons.find((b) => b.label === "Ocupar mesa").disabled, false);
+});
+
 test("entrar y salir de una mesa libre no guarda ni asigna una orden", async () => {
   const source = await readFile(new URL("../scripts.js", import.meta.url), "utf8");
   const requests = [];

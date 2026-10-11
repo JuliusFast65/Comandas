@@ -732,7 +732,7 @@ function renderOrder(content, o) {
   header.append(heading(confirming ? "Confirmar Orden" : orderTitle(o)));
   if (!confirming && o.table_number && editable) {
     if (o.pending || !o.occupied_explicitly)
-      header.append(button("Ocupar mesa", () => action(o, "occupy")));
+      header.append(button("Ocupar mesa", () => action(o, "occupy"), o.items.length > 0 || o.status !== "open"));
     if (!o.pending && !o.items.length && o.status === "open")
       header.append(button("Liberar mesa", () => action(o, "release")));
     if (o.occupied_explicitly && !o.items.length)

@@ -372,6 +372,8 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       if (order.table_number === null || order.status !== "open")
         fail(409, "Esta acción requiere una mesa abierta.");
       if (action === "occupy") {
+        if ((await db.query("SELECT 1 FROM order_items WHERE order_id=$1 LIMIT 1", [id])).rowCount)
+          fail(409, "La mesa ya tiene productos; no requiere confirmar la ocupación.");
         await db.query("UPDATE orders SET occupied_explicitly=true WHERE id=$1", [id]);
       } else {
         const contents = await db.query(
