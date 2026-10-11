@@ -324,7 +324,15 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
         identification: "123",
         email: "ana@example.com",
       },
+      tipCents: 250,
     });
+    assert.equal((await order(caja)).accounts.find((a) => a.number === 1).tip_cents, 250);
+    assert.deepEqual((await caja.request("/api/customers?identification=%20123%20")).customer,
+      { name: "Ana Prueba", identification: "123", email: "ana@example.com" });
+    assert.equal((await caja.request("/api/customers?identification=not-registered")).customer, null);
+    await caja.request("/api/customers?identification=", undefined, 400);
+    await mesero.request("/api/customers?identification=123", undefined, 403);
+    await cocina.request("/api/customers?identification=123", undefined, 403);
     assert.equal(
       (await order(caja)).accounts.find((a) => a.number === 1).customer.name,
       "Ana Prueba",
@@ -761,4 +769,24 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
       assert.equal((await bar.request("/api/me")).role, "estacion");
     },
   );
+});
+
+
+test("primer plato crea y asigna la mesa en una sola transacci?n", async () => {
+  const waiter = client(), second = client();
+  const owner = await waiter.login("mesero");
+  await second.login("mesero2");
+  const state = await waiter.request("/api/state");
+  const table = state.tables.find((t) => !state.orders.some((o) => o.table_number === t.number && o.status !== "closed"));
+  assert.ok(table);
+  const firstItem = { productId: randomUUID(), quantity: 1, account: 1, note: "" };
+  await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 404);
+  assert.equal((await waiter.request("/api/state")).orders.some((o) => o.table_number === table.number && o.status !== "closed"), false);
+  firstItem.productId = state.products[0].id;
+  const created = await second.request("/api/orders", { tableNumber: table.number, firstItem }, 201);
+  const order = (await second.request("/api/state")).orders.find((o) => o.id === created.id);
+  assert.equal(order.items.length, 1);
+  assert.equal(order.items[0].quantity, 1);
+  assert.notEqual(order.waiter_id, owner.waiter_id);
+  await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 409);
 });

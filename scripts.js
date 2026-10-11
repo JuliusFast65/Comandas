@@ -3,6 +3,7 @@ let user = null,
   state = { tables: [], products: [], orders: [], waiters: [], settings: null },
   view = "mesas",
   selected = null,
+  pendingTable = null,
   lastWorkedOrder = null,
   confirming = false,
   billingAccount = 1,
@@ -320,6 +321,29 @@ async function run(fn) {
   }
 }
 function action(o, name, fields = {}) {
+  if (o.pending) {
+    if (name === "account") {
+      o.accounts = [{ number: fields.account, name: fields.name, customer: fields.customer }];
+      render();
+      return;
+    }
+    if (name === "assign") {
+      o.waiter_id = fields.waiterId;
+      render();
+      return;
+    }
+    if (name !== "add") return;
+    return run(async () => {
+      const created = await api("/orders", {
+        tableNumber: o.table_number, waiterId: o.waiter_id, firstItem: fields,
+        firstAccount: o.accounts.find((a) => a.number === fields.account),
+      });
+      const m = menus.get(o.id);
+      if (m) menus.set(created.id, m);
+      selected = created.id;
+      pendingTable = null;
+    });
+  }
   const current = state.orders.find((order) => order.id === o.id) ?? o;
   const confirmation = ["pickup", "pickup_all", "bill"].includes(name)
     ? confirmOtherWaiter(current, name) : {};
@@ -473,7 +497,8 @@ function render() {
     .forEach((d) => d.remove());
   const content = $("#content");
   content.replaceChildren();
-  const o = state.orders.find((o) => o.id === selected);
+  const o = state.orders.find((o) => o.id === selected) ??
+    (pendingTable?.id === selected ? pendingTable : null);
   if (!o) {
     selected = null;
     confirming = false;
@@ -567,19 +592,14 @@ function tableCard(table, o) {
     "",
     () => {
       if (o) navigate("mesas", o.id);
-      else
-        run(async () => {
-          const created = await api(
-            "/orders",
-            table
-              ? { tableNumber: table, waiterId: activeWaiter }
-              : { waiterId: activeWaiter },
-          );
-          selected = created.id;
-          confirming = false;
-          mobileDetail = false;
-          view = "mesas";
-        });
+      else {
+        pendingTable = {
+          id: "pending-table-" + table, pending: true, table_number: table,
+          waiter_id: activeWaiter, status: "open", version: 0, items: [], accounts: [],
+        };
+        menus.delete(pendingTable.id);
+        navigate("mesas", pendingTable.id);
+      }
     },
     false,
     `mesa ${stateName}`,
@@ -690,7 +710,7 @@ function accountName(o, n) {
   return o.accounts.find((a) => a.number === n)?.name || "";
 }
 function renderOrder(content, o) {
-  lastWorkedOrder = o.id;
+  if (!o.pending) lastWorkedOrder = o.id;
   const m = menu(o),
     editable = editableOrder(o),
     header = el("div", null, { class: "order-header" });
@@ -1567,6 +1587,31 @@ function renderBill(content, o) {
     );
     input.disabled = locked;
   }
+  const identification = form.elements.namedItem("identification");
+  const lookupStatus = el("p", "", { role: "status" });
+  form.append(lookupStatus);
+  let lookupTimer, lookupSequence = 0;
+  identification.addEventListener("input", () => {
+    clearTimeout(lookupTimer);
+    const sequence = ++lookupSequence;
+    const value = identification.value.trim();
+    lookupStatus.textContent = "";
+    if (!value || locked || user.role === "mesero") return;
+    lookupTimer = setTimeout(async () => {
+      try {
+        const result = await api(`/customers?identification=${encodeURIComponent(value)}`);
+        if (sequence !== lookupSequence || !form.isConnected || identification.value.trim() !== value) return;
+        if (result.customer) {
+          for (const key of ["name", "address", "phone", "email"])
+            form.elements.namedItem(key).value = result.customer[key] || "";
+          lookupStatus.textContent = "Datos del cliente recuperados. Puedes revisarlos y corregirlos.";
+        } else lookupStatus.textContent = "Cliente sin registro previo. Ingresa sus datos.";
+      } catch {
+        if (sequence === lookupSequence && form.isConnected)
+          lookupStatus.textContent = "No se pudo consultar el cliente. Puedes ingresar sus datos manualmente.";
+      }
+    }, 350);
+  });
   const tip = labeled(
     form,
     "Propina voluntaria",
