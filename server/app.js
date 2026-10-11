@@ -238,6 +238,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     add: ["mesero"],
     edit: ["mesero"],
     remove: ["mesero"],
+    delete_empty: ["mesero"],
     account: ["mesero", "caja"],
     assign: [],
     send: ["mesero"],
@@ -247,7 +248,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     send_lsoft: ["mesero", "caja"],
     pay: [],
     bill: ["mesero", "caja"],
-    close: ["caja"],
+    close: ["mesero", "caja"],
   };
   if (!Object.hasOwn(roleActions, action)) fail(400, "Acción inválida.");
   allow(req.user, roleActions[action]);
@@ -259,7 +260,10 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       req.params.id,
     ]);
     if (!order) fail(404, "Pedido no encontrado.");
-    ownOrder(req.user, order);
+    const permittedWaiterAction =
+      ["pickup", "pickup_all", "bill"].includes(action) &&
+      (order.table_number === null || req.body.confirmedOtherWaiterId === order.waiter_id);
+    if (!permittedWaiterAction) ownOrder(req.user, order);
     if (order.status === "closed") fail(409, "El pedido ya está cerrado.");
     if (order.version !== version)
       fail(
@@ -268,6 +272,20 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       );
     const id = order.id,
       b = req.body;
+    if (action === "delete_empty") {
+      if (order.table_number !== null || order.status !== "open")
+        fail(409, "Solo se puede eliminar un pedido para llevar vacío.");
+      const contents = await db.query(
+        "SELECT 1 FROM order_items WHERE order_id=$1 UNION ALL SELECT 1 FROM order_accounts WHERE order_id=$1 AND lsoft<>'{}'::jsonb",
+        [id],
+      );
+      if (contents.rowCount) fail(409, "El pedido ya tiene productos o una cuenta enviada.");
+      await db.query("DELETE FROM order_accounts WHERE order_id=$1", [id]);
+      await db.query("DELETE FROM order_events WHERE order_id=$1", [id]);
+      await db.query("DELETE FROM orders WHERE id=$1", [id]);
+      await db.query("SELECT pg_notify('comandas_changed','')");
+      return;
+    }
     if (
       ["add", "edit", "remove", "send"].includes(action) &&
       (
@@ -457,11 +475,11 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         fail(409, "Envía los productos antes de enviar la cuenta.");
       if (action === "send_lsoft") {
         if (
-          !["identification", "name", "address", "phone", "email"].every(
+          !["identification", "name"].every(
             (k) => text(account.customer[k], 200) && account.customer[k].trim(),
           )
         )
-          fail(400, "Completa los datos del cliente de esta cuenta.");
+          fail(400, "Completa la cédula / RUC y el nombre del cliente de esta cuenta.");
         const {
           rows: [waiter],
         } = await db.query("SELECT name FROM waiters WHERE id=$1", [
@@ -587,12 +605,12 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       );
       if (!counts.total || counts.pending)
         fail(409, "Hay productos pendientes de preparación.");
-      const unpaid = await db.query(
-        "SELECT 1 FROM order_accounts a WHERE a.order_id=$1 AND EXISTS(SELECT 1 FROM order_items i WHERE i.order_id=a.order_id AND i.account=a.number) AND COALESCE(a.lsoft->'response'->>'estado','')<>'pagado'",
+      const unsent = await db.query(
+        "SELECT 1 FROM order_items i LEFT JOIN order_accounts a ON a.order_id=i.order_id AND a.number=i.account WHERE i.order_id=$1 AND (a.lsoft->'json' IS NULL OR a.lsoft->'json'='null'::jsonb)",
         [id],
       );
-      if (unpaid.rowCount)
-        fail(409, "Hay cuentas pendientes de pago en el simulador.");
+      if (unsent.rowCount)
+        fail(409, "Envía todas las cuentas a LSoft antes de liberar la mesa.");
       await db.query(
         "UPDATE orders SET status='closed',closed_at=now() WHERE id=$1",
         [id],

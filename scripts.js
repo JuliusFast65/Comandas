@@ -3,6 +3,7 @@ let user = null,
   state = { tables: [], products: [], orders: [], waiters: [], settings: null },
   view = "mesas",
   selected = null,
+  lastWorkedOrder = null,
   confirming = false,
   billingAccount = 1,
   events = null;
@@ -76,7 +77,10 @@ function message(value, error = false) {
   $("#message").textContent = value;
   $("#message").className = error ? "error" : "";
 }
-function showOrderSent() {
+function showOrderSent(
+  title = "Orden enviada",
+  text = "Los alimentos se enviaron a Cocina y las bebidas al Bar.",
+) {
   const dialog = el("dialog", null, {
     class: "order-sent-dialog",
     "aria-labelledby": "aviso-titulo",
@@ -84,13 +88,16 @@ function showOrderSent() {
   });
   dialog.append(
     el("div", "✓", { class: "order-sent-icon", "aria-hidden": "true" }),
-    el("h2", "Orden enviada", { id: "aviso-titulo" }),
-    el("p", "Los alimentos se enviaron a Cocina y las bebidas al Bar.", {
+    el("h2", title, { id: "aviso-titulo" }),
+    el("p", text, {
       id: "aviso-mensaje",
     }),
     button("Entendido", () => dialog.close()),
   );
-  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    navigate("mesas");
+  });
   document.body.append(dialog);
   dialog.showModal();
   dialog.querySelector("button").focus();
@@ -108,6 +115,17 @@ function mayPrepare(area) {
 function mayBill(o) {
   return owned(o) || user?.role === "caja";
 }
+function mayPickup() {
+  return ["admin", "mesero"].includes(user?.role);
+}
+function confirmOtherWaiter(o, name) {
+  if (user?.role !== "mesero" || !o.table_number || !o.waiter_id || o.waiter_id === user.waiter_id)
+    return {};
+  const operation = name === "bill" ? "pedir la cuenta" : "retirar productos";
+  if (!window.confirm(`${orderTitle(o)} pertenece a ${waiterName(o.waiter_id)}. ¿Quieres ${operation} de esta orden de otro mesero?`))
+    return null;
+  return { confirmedOtherWaiterId: o.waiter_id };
+}
 function editableOrder(o) {
   return (
     owned(o) && o.status !== "closed" && !o.accounts.some((a) => a.lsoft?.json)
@@ -115,6 +133,21 @@ function editableOrder(o) {
 }
 function waiterName(id) {
   return state.waiters.find((w) => w.id === id)?.name || "Sin asignar";
+}
+function waiterBadge(o) {
+  const name = waiterName(o.waiter_id);
+  return el("span", name.trim().split(/\s+/).map((n) => n[0]).join("").slice(0, 3).toUpperCase(), {
+    class: "waiter-badge",
+    title: name,
+    "aria-label": `Mesero: ${name}`,
+  });
+}
+function stationOrderHeading(o) {
+  const header = el("h3", orderTitle(o) + " · " + waiterName(o.waiter_id), {
+    class: "station-order-heading",
+  });
+  if (o.waiter_id) header.append(waiterBadge(o));
+  return header;
 }
 function menu(o) {
   if (!menus.has(o.id))
@@ -287,11 +320,15 @@ async function run(fn) {
 }
 function action(o, name, fields = {}) {
   const current = state.orders.find((order) => order.id === o.id) ?? o;
+  const confirmation = ["pickup", "pickup_all", "bill"].includes(name)
+    ? confirmOtherWaiter(current, name) : {};
+  if (confirmation === null) return;
   return run(() =>
     api(`/orders/${o.id}/actions`, {
       action: name,
       version: current.version,
       ...fields,
+      ...confirmation,
     }),
   );
 }
@@ -317,6 +354,7 @@ $("#app-menu").addEventListener("close", () =>
   $("#open-menu").setAttribute("aria-expanded", "false"),
 );
 function signedIn() {
+  lastWorkedOrder = null;
   pageHistory = [];
   historyIndex = -1;
   $("#session-header").hidden = false;
@@ -540,6 +578,9 @@ function tableCard(table, o) {
     false,
     `mesa ${stateName}`,
   );
+  if (o && o.id === lastWorkedOrder) {
+    b.classList.add("mesa-seleccionada");
+  }
   b.append(
     el("strong", table ? `Mesa ${table}` : orderTitle(o)),
     el(
@@ -558,21 +599,19 @@ function tableCard(table, o) {
   if (r.draft && (r.ready || r.preparing))
     b.append(el("small", `${r.draft} sin enviar a preparación`));
   if (o?.waiter_id) {
-    const name = waiterName(o.waiter_id);
-    b.append(
-      el(
-        "span",
-        name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .slice(0, 3),
-        { class: "waiter-badge", title: name },
-      ),
-    );
+    b.append(waiterBadge(o));
   }
   if (o?.status === "bill_requested")
-    b.append(el("small", "Cuenta pedida", { class: "table-label" }));
+    b.append(el("small", o.items.length && o.items.every((i) => o.accounts.some((a) => a.number === i.account && a.lsoft?.json)) ? "Enviada a LSoft · Pendiente de liberar" : "Cuenta pedida", { class: "table-label" }));
+  if (o && !table && !o.items.length && editableOrder(o) && o.status === "open") {
+    const card = el("div", null, { class: "takeaway-card" });
+    const trash = button("", () => action(o, "delete_empty"), false, "delete-empty-order");
+    trash.setAttribute("aria-label", `Eliminar ${orderTitle(o)} vacío`);
+    trash.title = "Eliminar pedido vacío";
+    trash.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
+    card.append(b, trash);
+    return card;
+  }
   return b;
 }
 function renderTables(content) {
@@ -645,6 +684,7 @@ function accountName(o, n) {
   return o.accounts.find((a) => a.number === n)?.name || "";
 }
 function renderOrder(content, o) {
+  lastWorkedOrder = o.id;
   const m = menu(o),
     editable = editableOrder(o),
     header = el("div", null, { class: "order-header" });
@@ -711,6 +751,7 @@ function renderOrder(content, o) {
       header.append(el("small", "Mesero: " + waiterName(o.waiter_id)));
   }
   content.append(header);
+  if (!confirming) renderRelease(content, o);
   const layout = el("div", null, { class: "order-content" });
   if (!confirming) {
     const selection = el("div", null, { class: "selection-area" });
@@ -788,12 +829,12 @@ function renderOrder(content, o) {
       button(
         "Pedir Cuenta",
         () => openBill(o),
-        !mayBill(o) ||
+        !(mayBill(o) || user?.role === "mesero") ||
           !o.items.length ||
           o.items.some((i) => i.status === "draft"),
       ),
     );
-    if (owned(o)) summary.append(pickupAllButton(o));
+    if (mayPickup()) summary.append(pickupAllButton(o));
   }
   summary.append(footer);
   layout.append(summary);
@@ -955,7 +996,10 @@ function renderMenu(content, o, editable) {
       b.setAttribute("aria-pressed", String(active));
     }
     for (const p of list) {
-      const draftItems = o.items
+      const orderedItems = o.items.filter(
+          (i) => i.product_id === p.id && i.account === m.account,
+        ),
+        draftItems = orderedItems
           .filter(
             (i) =>
               i.product_id === p.id &&
@@ -963,6 +1007,8 @@ function renderMenu(content, o, editable) {
               i.status === "draft",
           ),
         quantity = draftItems.reduce((s, i) => s + i.quantity, 0),
+        orderedQuantity = orderedItems.reduce((s, i) => s + i.quantity, 0),
+        orderedSummary = summaryOf({ items: orderedItems }),
         b = button(
           "",
           () => {
@@ -975,7 +1021,7 @@ function renderMenu(content, o, editable) {
             });
           },
           !editable,
-          "product" + (quantity ? " product-selected" : ""),
+          "product" + (orderedQuantity ? " product-selected" : ""),
         );
       b.append(
         el("strong", p.name),
@@ -983,8 +1029,22 @@ function renderMenu(content, o, editable) {
           class: "product-price",
         }),
       );
-      if (quantity)
-        b.append(el("small", String(quantity), { class: "product-quantity" }));
+      if (orderedQuantity) {
+        b.append(el("small", `En la orden · ${orderedQuantity}`, { class: "product-quantity" }));
+        const statuses = el("span", null, { class: "product-statuses" });
+        for (const [status, label] of [
+          ["draft", "Por confirmar"],
+          ["preparing", "En preparación"],
+          ["ready", "Listos para retirar"],
+          ["picked", "Retirados"],
+        ]) {
+          if (orderedSummary[status])
+            statuses.append(el("small", `${label} · ${orderedSummary[status]}`, {
+              class: `product-status product-status-${status}`,
+            }));
+        }
+        b.append(statuses);
+      }
       const card = el("div", null, { class: "product-card" }),
         help = button("ⓘ", () => openProductHelp(p), false, "product-help");
       help.setAttribute("aria-label", `Ingredientes y preparación de ${p.name}`);
@@ -1115,7 +1175,7 @@ function renderItems(content, o, area = null) {
         !area || (i.area === area && i.status !== "draft" && remaining(i) > 0),
     );
   for (const i of items) {
-    const li = el("li", null, { class: area ? "preparation-row order-item" : "order-item" });
+    const li = el("li", null, { class: area ? `preparation-row order-item${i.status === "ready" ? " preparation-ready" : ""}` : "order-item" });
     li.append(
       el(
         "strong",
@@ -1156,7 +1216,7 @@ function renderItems(content, o, area = null) {
       );
       label.append(check, " Preparado");
       li.append(label);
-      if (owned(o) && i.status === "ready") {
+      if (mayPickup() && i.status === "ready") {
         const form = el("form", null, { class: "pickup-controls" }),
           input = el("input", null, {
             type: "number",
@@ -1319,7 +1379,18 @@ function renderPreparation(content) {
     }),
     withdrawn = el("div");
   let count = 0;
-  for (const o of state.orders) {
+  const firstPendingTime = (o) => Math.min(
+    ...o.items
+      .filter((i) => i.area === view && i.status !== "draft" && remaining(i) > 0)
+      .map((i) => {
+        const timestamp = i.sent_at ? new Date(i.sent_at).getTime() : NaN;
+        return Number.isFinite(timestamp) ? timestamp : Infinity;
+      }),
+  );
+  const orders = [...state.orders].sort(
+    (a, b) => firstPendingTime(a) - firstPendingTime(b),
+  );
+  for (const o of orders) {
     const items = o.items.filter(
       (i) => i.area === view && i.status !== "draft",
     );
@@ -1335,8 +1406,12 @@ function renderPreparation(content) {
     }
     if (!items.some((i) => remaining(i) > 0)) continue;
     const card = el("section", null, { class: view + "-item" });
-    card.append(el("h3", orderTitle(o) + " · " + waiterName(o.waiter_id)));
-    if (owned(o)) card.append(pickupAllButton(o, view));
+    card.append(stationOrderHeading(o));
+    if (mayPickup()) {
+      const pickupAll = pickupAllButton(o, view);
+      pickupAll.classList.add("station-pickup-all");
+      card.append(pickupAll);
+    }
     renderItems(card, o, view);
     cards.append(card);
   }
@@ -1352,12 +1427,16 @@ function renderPreparation(content) {
     withdrawn.append(el("p", "No hay retiros en los pedidos actuales."));
   history.append(el("summary", `Ver retirados (${count})`), withdrawn);
   content.append(cards, history);
+  updateTimers();
   if (areas().includes("mesas"))
     content.append(
       button("Volver a Mesas", () => navigate("mesas"), false, "center-button"),
     );
 }
 function openBill(o) {
+  o = state.orders.find((order) => order.id === o.id) ?? o;
+  const confirmation = o.status === "open" ? confirmOtherWaiter(o, "bill") : {};
+  if (confirmation === null) return;
   const accounts = o.accounts.filter((a) =>
     o.items.some((i) => i.account === a.number),
   );
@@ -1368,12 +1447,13 @@ function openBill(o) {
       await api(`/orders/${o.id}/actions`, {
         action: "bill",
         version: o.version,
+        ...confirmation,
       });
-      view = "precuenta";
-      selected = o.id;
       mobileDetail = false;
+      $("#detalle-dialogo")?.close();
+      showOrderSent("Cuenta solicitada", "La solicitud de cuenta se envió a Caja.");
     });
-  else navigate("precuenta", o.id);
+  else navigate("mesas");
 }
 function consumption(content, o, number, tip = 0) {
   const items = o.items.filter(
@@ -1448,7 +1528,7 @@ function renderBill(content, o) {
     consume,
     el(
       "p",
-      "Esta precuenta no es una factura fiscal. El envío y el cobro de LSoft son simulados.",
+      "Esta precuenta no es una factura fiscal. El envío a LSoft es simulado. El cobro y la firma se realizan físicamente en caja.",
       { class: "menu-help" },
     ),
   );
@@ -1472,7 +1552,7 @@ function renderBill(content, o) {
         type: key === "email" ? "email" : "text",
         maxlength: key === "accountName" ? "100" : "200",
         value: key === "accountName" ? a.name : a.customer?.[key] || "",
-        ...(key === "accountName" ? {} : { required: "" }),
+        ...(["identification", "name"].includes(key) ? { required: "" } : {}),
       }),
     );
     input.disabled = locked;
@@ -1488,7 +1568,6 @@ function renderBill(content, o) {
       max: "100000",
       step: "0.01",
       value: (a.tip_cents / 100).toFixed(2),
-      required: "",
     }),
   );
   tip.disabled = locked;
@@ -1553,6 +1632,7 @@ function renderBill(content, o) {
   });
   content.append(form);
   if (a.lsoft?.json) renderLSoft(content, o, a);
+  renderRelease(content, o);
 }
 function printBill(o, a, form) {
   if (!form.reportValidity()) return;
@@ -1581,7 +1661,7 @@ function renderLSoft(content, o, a) {
     el(
       "p",
       response
-        ? `${response.pedidoId} · ${response.estado === "pagado" ? "Pagado (simulado)" : "Pendiente de pago en LSoft (simulado)"}`
+        ? `${response.pedidoId} · Enviada a LSoft (simulado)`
         : "Sin enviar a LSoft",
     ),
   );
@@ -1599,37 +1679,25 @@ function renderLSoft(content, o, a) {
         action(o, "send_lsoft", { account: a.number }),
       ),
     );
-  if (user.role === "admin" && response?.estado !== "pagado") {
-    const method = select(
-      "Medio de pago simulado ",
-      [
-        ["efectivo", "Efectivo"],
-        ["tarjeta", "Tarjeta"],
-        ["transferencia", "Transferencia"],
-      ],
-      "efectivo",
-    );
-    panel.append(
-      method,
-      button(
-        "Simular cobro en LSoft",
-        () =>
-          action(o, "pay", {
-            account: a.number,
-            method: method.querySelector("select").value,
-          }),
-        !response,
-      ),
-    );
-  }
   content.append(panel);
+}
+function renderRelease(content, o) {
+  if (!mayBill(o)) return;
+  const sent = o.items.length > 0 && o.items.every((i) =>
+    o.accounts.some((a) => a.number === i.account && a.lsoft?.json),
+  );
+  if (!sent) return;
+  content.append(
+    el("p", o.table_number === null ? "Enviado a LSoft · Pendiente de finalizar" : "Enviada a LSoft · Mesa ocupada, pendiente de liberar"),
+    button(o.table_number === null ? "Finalizar pedido" : "Liberar mesa", () => confirmClose(o), o.items.some((i) => i.status !== "ready")),
+  );
 }
 function renderCash(content) {
   content.append(
     heading("LSoft · Caja", "cash-register"),
     el(
       "p",
-      "Simulador de recepción y pago; no conecta con LSoft ni emite facturas fiscales.",
+      "El envío a LSoft es simulado. Entrega el voucher en caja para el cobro y la firma físicos. Libera la mesa cuando los clientes se retiren.",
       { class: "menu-help" },
     ),
   );
@@ -1640,35 +1708,34 @@ function renderCash(content) {
     );
   for (const o of orders) {
     const card = el("section", null, { class: "caja-item" });
-    card.append(el("h3", orderTitle(o) + " · " + waiterName(o.waiter_id)));
+    card.append(stationOrderHeading(o));
     const accounts = o.accounts.filter((a) =>
       o.items.some((i) => i.account === a.number),
     );
     for (const a of accounts) {
-      card.append(
+      const accountCard = el("section", null, { class: "cash-account" });
+      accountCard.append(
         el("h4", `Cuenta ${a.number}${a.name ? " · " + a.name : ""}`),
       );
-      consumption(card, o, a.number, a.tip_cents);
-      renderLSoft(card, o, a);
-      card.append(
+      consumption(accountCard, o, a.number, a.tip_cents);
+      renderLSoft(accountCard, o, a);
+      accountCard.append(
         button("Ver precuenta y datos", () => {
           billingAccount = a.number;
           navigate("precuenta", o.id);
         }),
       );
+      card.append(accountCard);
     }
-    const unpaid = accounts.some((a) => a.lsoft?.response?.estado !== "pagado"),
+    const unsent = accounts.some((a) => !a.lsoft?.json),
       pending = o.items.some((i) => i.status !== "ready");
-    if (["admin", "caja"].includes(user.role))
-      card.append(
-        button("Cerrar mesa pagada", () => confirmClose(o), unpaid || pending),
-      );
-    if (unpaid || pending)
+    renderRelease(card, o);
+    if (unsent || pending)
       card.append(
         el(
           "p",
-          unpaid
-            ? "Hay cuentas pendientes de pago."
+          unsent
+            ? "Hay cuentas pendientes de enviar a LSoft."
             : "Esperando productos preparados.",
         ),
       );
@@ -1684,11 +1751,11 @@ function renderCash(content) {
 function confirmClose(o) {
   const dialog = el("dialog", null, {
       class: "note-dialog",
-      "aria-label": "Cerrar mesa",
+      "aria-label": o.table_number === null ? "Finalizar pedido" : "Liberar mesa",
     }),
     footer = el("div", null, { class: "footer" });
   footer.append(
-    button("Cerrar mesa", () =>
+    button(o.table_number === null ? "Finalizar pedido" : "Liberar mesa", () =>
       run(async () => {
         await api(`/orders/${o.id}/actions`, {
           action: "close",
@@ -1700,8 +1767,8 @@ function confirmClose(o) {
     button("Cancelar", () => dialog.close()),
   );
   dialog.append(
-    heading("Cerrar " + orderTitle(o)),
-    el("p", "Se archivará el pedido pagado y la mesa quedará libre."),
+    heading((o.table_number === null ? "Finalizar " : "Liberar ") + orderTitle(o)),
+    el("p", o.table_number === null ? "¿Deseas finalizar el pedido? Se conservará en el historial, sin registrar el cobro ni la firma." : "¿Los clientes ya se retiraron y deseas liberar la mesa? La cuenta se conservará en el historial, sin registrar el cobro ni la firma."),
     footer,
   );
   dialog.addEventListener("close", () => dialog.remove());
@@ -1933,7 +2000,11 @@ function updateTimers() {
           1000,
       ),
     );
-    node.textContent = `Tiempo de preparación: ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    node.textContent = `Prep. ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    node.classList.toggle("elapsed-normal", seconds < 600);
+    node.classList.toggle("elapsed-warning", seconds >= 600 && seconds < 1200);
+    node.classList.toggle("elapsed-late", seconds >= 1200);
+    node.title = `Tiempo de preparación${node.dataset.stop ? " final" : ""}`;
   });
 }
 setInterval(updateTimers, 1000);

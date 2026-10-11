@@ -9,7 +9,7 @@ No genera facturas fiscales, no transmite al SRI y no procesa pagos reales.
 
 - `POST /api/comandas/pedidos`: recibir un Pedido por cuenta.
 - `GET /api/comandas/pedidos/{idOperacion}`: consultar recepción, factura y pago.
-- El cobro ocurre en LSoft. **Simular cobro en LSoft** es solo una acción de prueba.
+- El cobro y la firma se realizan físicamente en caja, fuera de Comandas. La interfaz no ofrece simular cobros.
 
 El backend real deberá autenticar al restaurante, validar productos/precios/cargos
 y devolver sus propios identificadores. `productoReferencia` actualmente contiene el
@@ -34,12 +34,14 @@ estados separados de recepción, facturación, autorización SRI, pago y anulaci
 
 La demo bloquea nuevas rondas y edición de datos después del primer envío.
 Modificar pedidos recibidos requerirá una operación explícita de actualización
-o anulación acordada con LSoft. Solo se cierra la mesa cuando todas las cuentas
-están pagadas según el receptor. Antes de liberarla se archiva la operación local.
+o anulación acordada con LSoft. Se libera la mesa mediante confirmación del mesero
+responsable, caja o administrador cuando todas las cuentas estén enviadas y los
+productos preparados, después de que los clientes se retiren. Para llevar se
+finaliza el pedido. La operación se archiva sin marcarla pagada.
 
 ## Persistencia de la demo
 
-Pedidos, clientes por cuenta, tarifas, propinas, JSON enviados, pagos simulados
+Pedidos, clientes por cuenta, tarifas, propinas, JSON enviados, pagos simulados históricos
 y operaciones cerradas se conservan en PostgreSQL y se comparten mediante SSE.
 Las acciones usan transacciones y control de versión. Cada cuenta utiliza
 `COM-{UUID del pedido}-C{número de cuenta}` como identidad estable. Los cierres

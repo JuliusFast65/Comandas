@@ -176,6 +176,17 @@ h2 {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
+.takeaway-card { position: relative; min-width: 0; }
+.takeaway-card > .mesa { width: 100%; padding-right: 44px; }
+.delete-empty-order {
+  position: absolute; top: 6px; right: 6px;
+  width: 36px; height: 36px; display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 6px;
+  color: #a52d2d; background: #fff; cursor: pointer;
+}
+.delete-empty-order:hover { background: #ffe4e4; }
+.delete-empty-order:focus-visible { outline: 2px solid #a52d2d; outline-offset: 2px; }
+
 /* Color para mesas disponibles */
 .mesa.libre { background-color: #f1f3f5; border: 2px solid #a3adb7; }
 
@@ -553,6 +564,12 @@ textarea {
 }
 #products .product-selected { border-color: #3973ac; background: #f0f7ff; }
 .product-quantity { font-size: 12px; color: #32658a; }
+.product-statuses { display: flex; flex-wrap: wrap; gap: 5px; }
+.product-status { padding: 3px 7px; border-radius: 8px; font-size: 11px; line-height: 1.4; font-weight: 600; }
+.product-status-draft { color: #455466; background: #e9eef5; }
+.product-status-preparing { color: #805000; background: #fff0c2; }
+.product-status-ready { color: #245480; background: #dcecff; }
+.product-status-picked { color: #505963; background: #e5e8ec; }
 #products .product:active { background: #dcecff; }
 #categories button:focus-visible, #products button:focus-visible { outline: 3px solid #3973ac; outline-offset: 2px; }
 @media (min-width: 768px) { #products { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -595,6 +612,8 @@ textarea {
 .price-settings input { width: 90px; min-height: 44px; box-sizing: border-box; padding: 8px; font-size: 16px; }
 .mesa { position: relative; padding-top: 38px; }
 .waiter-badge { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 4px; border-radius: 14px; font-size: 12px; background: #173b60; color: white; font-weight: 700; }
+.station-order-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.station-order-heading .waiter-badge { position: static; flex-shrink: 0; }
 .waiter-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }
 .waiter-toolbar label, .waiter-assignment { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .waiter-toolbar select, .waiter-assignment select { min-height: 44px; max-width: 100%; font-size: 16px; border: 1px solid #a3adb7; border-radius: 8px; padding: 8px; }

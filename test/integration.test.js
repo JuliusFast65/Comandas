@@ -347,9 +347,6 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
           customer: {
             name: number === 1 ? "Ana Prueba" : "Luis Prueba",
             identification: "123",
-            address: "Dirección de prueba",
-            phone: "0990000000",
-            email: "cliente@example.com",
           },
           tipCents: number === 1 ? 150 : 0,
         });
@@ -381,13 +378,17 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
           { account: number, method: "invalid" },
           400,
         );
-        await action(administrator, "pay", {
-          account: number,
-          method: "efectivo",
-        });
-        if (number === 1) await action(caja, "close", {}, 409);
+        if (number === 1) await action(mesero, "close", {}, 409);
       }
-      await action(caja, "close");
+      assert.equal((await order()).status, "bill_requested");
+      await mesero.request("/api/orders", { tableNumber: 1 }, 409);
+      await action(cocina, "close", {}, 403);
+      await action(secondWaiter, "close", {}, 403);
+      const beforeClose = await order();
+      await action(mesero, "close");
+      await mesero.request(`/api/orders/${orderId}/actions`, {
+        action: "close", version: beforeClose.version,
+      }, 409);
       assert.equal(await order(), undefined);
       const history = await caja.request("/api/history");
       assert.equal(history[0].id, orderId);
@@ -402,7 +403,7 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
       );
       assert.equal(
         history[0].accounts.find((a) => a.number === 1).lsoft.response.estado,
-        "pagado",
+        "pendiente_pago",
       );
       assert.equal(
         history[0].accounts.find((a) => a.number === 1).lsoft.json
@@ -483,7 +484,24 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
       await perform(secondWaiter, "send", {}, 403);
       await perform(administrator, "send", {});
       assert.ok((await current()).items.every((i) => !i.additional));
-      await perform(administrator, "bill", {});
+      const confirmation = { confirmedOtherWaiterId: firstWaiter.id };
+      await perform(secondWaiter, "send", confirmation, 403);
+      for (const item of (await current()).items)
+        await perform(administrator, "ready", { itemId: item.id, ready: true });
+      const readyItem = (await current()).items[0];
+      await perform(secondWaiter, "pickup", { itemId: readyItem.id, quantity: 1 }, 403);
+      await perform(secondWaiter, "pickup", {
+        itemId: readyItem.id, quantity: 1, confirmedOtherWaiterId: second.id,
+      }, 403);
+      await perform(secondWaiter, "pickup", {
+        itemId: readyItem.id, quantity: 1, ...confirmation,
+      });
+      await perform(secondWaiter, "pickup_all", {}, 403);
+      await perform(secondWaiter, "pickup_all", confirmation);
+      assert.ok((await current()).items.every((i) => i.picked_up_quantity === i.quantity));
+      await perform(secondWaiter, "bill", {}, 403);
+      await perform(secondWaiter, "bill", confirmation);
+      assert.equal((await current()).waiter_id, firstWaiter.id);
       await perform(administrator, "add", {
         productId: drink.id,
         quantity: 1,
@@ -528,6 +546,21 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
       assert.equal((await current()).waiter_id, firstWaiter.id);
     },
   );
+  await t.test("eliminar para llevar solo vacío, con permisos y control de versión", async () => {
+    const created = await mesero.request("/api/orders", {}, 201);
+    const path = `/api/orders/${created.id}/actions`;
+    const current = async () => (await mesero.request("/api/state")).orders.find((o) => o.id === created.id);
+    const empty = await current();
+    await cocina.request(path, { action: "delete_empty", version: empty.version }, 403);
+    await mesero.request(path, { action: "delete_empty", version: empty.version + 1 }, 409);
+    await mesero.request(path, { action: "add", version: empty.version, productId: food.id, quantity: 1, account: 1, note: "" });
+    const filled = await current();
+    await mesero.request(path, { action: "delete_empty", version: filled.version }, 409);
+    await mesero.request(path, { action: "remove", version: filled.version, itemId: filled.items[0].id });
+    await mesero.request(path, { action: "delete_empty", version: (await current()).version });
+    assert.equal(await current(), undefined);
+    assert.equal((await pool.query("SELECT 1 FROM orders WHERE id=$1", [created.id])).rowCount, 0);
+  });
   await t.test("fichas de platos: permisos, concurrencia y conservación al cambiar precios", async () => {
     const initial = await administrator.request("/api/state"),
       product = initial.products.find((p) => p.category === "platos"),
