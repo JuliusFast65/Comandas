@@ -89,6 +89,8 @@ Las notificaciones PostgreSQL (`LISTEN/NOTIFY`) se transmiten mediante eventos S
 
 ## Validación
 
+Abrir una mesa libre solo permite consultar el menú. «Ocupar mesa» confirma que hay clientes y la asigna al mesero, incluso sin pedido; «Liberar mesa» permite terminar esa visita si no hay productos ni consumo enviado. Agregar el primer producto también ocupa la mesa. Si se eliminan todos los productos antes de enviarlos, la mesa vuelve a libre salvo que se haya confirmado «Ocupar mesa». Las visitas liberadas conservan sus eventos en el historial. Ejecutar `npm.cmd run db:init` para aplicar la migración 7 sin borrar datos y reiniciar el servidor.
+
 El catálogo ofrece ayuda con el botón ⓘ: ingredientes, preparación habitual y acompañamientos. Las fichas iniciales de entradas, platos, postres y adicionales son ejemplos ficticios identificados en la ventana. El administrador puede editarlas allí; las fichas guardadas se comparten en PostgreSQL y se conservan al cambiar precios. Las notas del pedido siguen siendo instrucciones ingresadas por el usuario. En las órdenes destacan cantidad, plato y notas; precios y totales quedan como información secundaria.
 
 ```sh

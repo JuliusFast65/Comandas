@@ -277,6 +277,9 @@ app.post("/api/orders", async (req, res) => {
   allow(req.user, ["mesero", "supervisor"]);
   const table = req.body.tableNumber ?? null;
   if (table !== null && !integer(table, 1, 999)) fail(400, "Mesa inválida.");
+  const occupied = req.body.occupiedExplicitly ?? false;
+  if (typeof occupied !== "boolean" || (occupied && table === null))
+    fail(400, "La ocupación requiere una mesa.");
   const order = await transaction(async (db) => {
     const id = randomUUID();
     const waiter =
@@ -297,8 +300,8 @@ app.post("/api/orders", async (req, res) => {
     const {
       rows: [order],
     } = await db.query(
-      "INSERT INTO orders(id,table_number,created_by,waiter_id) VALUES($1,$2,$3,$4) RETURNING *",
-      [id, table, req.user.id, waiter],
+      "INSERT INTO orders(id,table_number,created_by,waiter_id,occupied_explicitly) VALUES($1,$2,$3,$4,$5) RETURNING *",
+      [id, table, req.user.id, waiter, occupied],
     );
     if (req.body.firstItem) {
       await addProduct(db, id, req.body.firstItem);
@@ -322,6 +325,8 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     edit: ["mesero"],
     remove: ["mesero"],
     delete_empty: ["mesero"],
+    occupy: ["mesero"],
+    release: ["mesero"],
     account: ["mesero", "caja"],
     assign: ["supervisor"],
     send: ["mesero"],
@@ -363,6 +368,20 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       );
     const id = order.id,
       b = req.body;
+    if (["occupy", "release"].includes(action)) {
+      if (order.table_number === null || order.status !== "open")
+        fail(409, "Esta acción requiere una mesa abierta.");
+      if (action === "occupy") {
+        await db.query("UPDATE orders SET occupied_explicitly=true WHERE id=$1", [id]);
+      } else {
+        const contents = await db.query(
+          "SELECT 1 FROM order_items WHERE order_id=$1 UNION ALL SELECT 1 FROM order_accounts WHERE order_id=$1 AND lsoft<>'{}'::jsonb UNION ALL SELECT 1 FROM order_events WHERE order_id=$1 AND action IN ('send','send_lsoft','new_consumption')",
+          [id],
+        );
+        if (contents.rowCount) fail(409, "Solo puedes liberar una mesa sin productos ni consumo enviado.");
+        await db.query("UPDATE orders SET status='closed',closed_at=now() WHERE id=$1", [id]);
+      }
+    }
     if (["bill_delivered", "collected", "documents_received"].includes(action)) {
       if (order.status !== "bill_requested") fail(409, "Primero solicita la cuenta.");
       if (!integer(b.account, 1, 99)) fail(400, "Cuenta inválida.");
@@ -437,9 +456,19 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       } else {
         if (item.status !== "draft")
           fail(409, "Solo puedes editar productos que aún no se enviaron.");
-        if (action === "remove")
+        if (action === "remove") {
           await db.query("DELETE FROM order_items WHERE id=$1", [item.id]);
-        else {
+          if (order.table_number !== null && !order.occupied_explicitly && order.status === "open") {
+            const remaining = await db.query(
+              "SELECT 1 FROM order_items WHERE order_id=$1 UNION ALL SELECT 1 FROM order_events WHERE order_id=$1 AND action IN ('send','send_lsoft','new_consumption')",
+              [id],
+            );
+            if (!remaining.rowCount) {
+              await db.query("UPDATE orders SET status='closed',closed_at=now() WHERE id=$1", [id]);
+              await event(db, id, req.user.id, "release");
+            }
+          }
+        } else {
           if (!integer(b.quantity, 1, 999) || !text(b.note))
             fail(400, "Cantidad o nota inválidas.");
           await db.query(
@@ -685,7 +714,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       if (action === "new_consumption") {
         const nextId = randomUUID();
         await db.query(
-          "INSERT INTO orders(id,table_number,created_by,waiter_id) VALUES($1,$2,$3,$4)",
+          "INSERT INTO orders(id,table_number,created_by,waiter_id,occupied_explicitly) VALUES($1,$2,$3,$4,true)",
           [nextId, order.table_number, req.user.id, order.waiter_id],
         );
         await event(db, id, req.user.id, action);

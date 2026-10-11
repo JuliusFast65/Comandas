@@ -31,4 +31,10 @@ test("entrar y salir de una mesa libre no guarda ni asigna una orden", async () 
   assert.equal(requests[0].body.firstItem.productId, "dish");
   assert.equal(context.selected, "saved");
   assert.equal(context.pendingTable, null);
+  context.tableCard(4, null).click();
+  await context.action(context.pendingTable, "occupy");
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].body.tableNumber, 4);
+  assert.equal(requests[1].body.occupiedExplicitly, true);
+  assert.equal(requests[1].body.firstItem, undefined);
 });

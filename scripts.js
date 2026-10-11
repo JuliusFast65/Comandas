@@ -335,10 +335,12 @@ function action(o, name, fields = {}) {
       render();
       return;
     }
-    if (name !== "add") return;
+    if (!["add", "occupy"].includes(name)) return;
     return run(async () => {
       const created = await api("/orders", {
-        tableNumber: o.table_number, waiterId: o.waiter_id, firstItem: fields,
+        tableNumber: o.table_number, waiterId: o.waiter_id,
+        firstItem: name === "add" ? fields : undefined,
+        occupiedExplicitly: name === "occupy",
         firstAccount: o.accounts.find((a) => a.number === fields.account),
       });
       const m = menus.get(o.id);
@@ -632,7 +634,7 @@ function tableCard(table, o) {
             ? "Sin enviar a preparación"
             : r.picked > 0
             ? "Todo retirado"
-            : "Sin productos",
+            : table ? "Ocupada · Sin pedido" : "Sin productos",
     ),
   );
   if (r.draft && (r.ready || r.preparing))
@@ -728,6 +730,14 @@ function renderOrder(content, o) {
     editable = editableOrder(o),
     header = el("div", null, { class: "order-header" });
   header.append(heading(confirming ? "Confirmar Orden" : orderTitle(o)));
+  if (!confirming && o.table_number && editable) {
+    if (o.pending || !o.occupied_explicitly)
+      header.append(button("Ocupar mesa", () => action(o, "occupy")));
+    if (!o.pending && !o.items.length && o.status === "open")
+      header.append(button("Liberar mesa", () => action(o, "release")));
+    if (o.occupied_explicitly && !o.items.length)
+      header.append(el("p", "Ocupada · Sin pedido"));
+  }
   if (!confirming) {
     const form = el("form", null, {
         class: "mesa-info",

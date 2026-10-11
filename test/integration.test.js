@@ -951,3 +951,63 @@ test("supervisor coordina todas las mesas sin permisos de configuración ni caja
   assert.equal((await waiter.request("/api/me")).role,"mesero");
   await waiter.request("/api/history",undefined,403);
 });
+
+test("ocupación explícita, liberación y eliminación del último plato", async () => {
+  const waiter = client(), other = client(), administrator = client();
+  const owner = await waiter.login("mesero");
+  await other.login("mesero2");
+  await administrator.login("admin");
+  const state = await waiter.request("/api/state");
+  const table = state.tables.find((t) => !state.orders.some((o) => o.table_number === t.number));
+  assert.ok(table);
+  const firstItem = { productId: state.products[0].id, quantity: 1, account: 1, note: "" };
+  async function current(id) {
+    return (await waiter.request("/api/state")).orders.find((o) => o.id === id);
+  }
+  async function perform(c, id, action, fields = {}, expected = 200) {
+    return c.request(`/api/orders/${id}/actions`, {
+      action, version: (await current(id)).version, ...fields,
+    }, expected);
+  }
+  const occupied = await waiter.request("/api/orders", {
+    tableNumber: table.number, occupiedExplicitly: true,
+  }, 201);
+  assert.equal(occupied.waiter_id, owner.waiter_id);
+  assert.equal((await current(occupied.id)).occupied_explicitly, true);
+  await perform(other, occupied.id, "release", {}, 403);
+  await perform(waiter, occupied.id, "add", firstItem);
+  await perform(waiter, occupied.id, "release", {}, 409);
+  await perform(waiter, occupied.id, "remove", { itemId: (await current(occupied.id)).items[0].id });
+  assert.equal((await current(occupied.id)).items.length, 0);
+  assert.equal((await current(occupied.id)).occupied_explicitly, true);
+  const version = (await current(occupied.id)).version;
+  await waiter.request(`/api/orders/${occupied.id}/actions`, { action: "release", version: version - 1 }, 409);
+  await perform(waiter, occupied.id, "release");
+  assert.equal(await current(occupied.id), undefined);
+  const implicit = await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 201);
+  await perform(waiter, implicit.id, "add", { ...firstItem, note: "Otro plato" });
+  await perform(waiter, implicit.id, "remove", { itemId: (await current(implicit.id)).items[0].id });
+  assert.equal((await current(implicit.id)).items.length, 1);
+  await perform(waiter, implicit.id, "remove", { itemId: (await current(implicit.id)).items[0].id });
+  assert.equal(await current(implicit.id), undefined);
+  const confirmed = await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 201);
+  await perform(waiter, confirmed.id, "occupy");
+  await perform(waiter, confirmed.id, "remove", { itemId: (await current(confirmed.id)).items[0].id });
+  assert.equal((await current(confirmed.id)).occupied_explicitly, true);
+  await perform(waiter, confirmed.id, "release");
+  const sent = await waiter.request("/api/orders", { tableNumber: table.number, firstItem }, 201);
+  await perform(waiter, sent.id, "send");
+  await perform(waiter, sent.id, "remove", { itemId: (await current(sent.id)).items[0].id }, 409);
+  await perform(waiter, sent.id, "release", {}, 409);
+  await waiter.request("/api/orders", { occupiedExplicitly: true }, 400);
+  await waiter.request("/api/orders", { tableNumber: table.number, occupiedExplicitly: "yes" }, 400);
+  const archived = (await administrator.request("/api/history")).find((o) => o.id === implicit.id);
+  assert.equal(archived.status, "closed");
+  assert.equal(archived.waiter_id, owner.waiter_id);
+  assert.ok((await pool.query("SELECT 1 FROM order_events WHERE order_id=$1 AND action='release'", [implicit.id])).rowCount);
+  const init = spawnSync(process.execPath, ["server/init.js"], {
+    env: { ...process.env, SEED_PASSWORD: password }, encoding: "utf8",
+  });
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal((await current(sent.id)).items.length, 1);
+});
