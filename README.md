@@ -23,6 +23,19 @@ En el entorno de desarrollo de este hilo ya se generó `.env`, se inicializó Po
 
 ## Varios clientes
 
+La fase 1 de estaciones usa la migración 5: `stations` guarda las estaciones y
+`user_stations` vincula usuarios con una o varias estaciones, independientemente
+de su rol. Las cuentas existentes de Cocina y Bar pasan al rol `estacion`,
+manteniendo sus identificadores, contraseñas y sesiones, con su estación original
+asignada. Los campos `area` de productos y pedidos conservan sus valores e historial
+y ahora referencian `stations`. El permiso de preparación se valida por asignación
+a una estación activa; el administrador mantiene acceso a ambas.
+
+Ejecutar `npm.cmd run db:init` antes de arrancar esta versión. Repetirlo conserva
+las asignaciones existentes. Esta fase mantiene las pantallas de Cocina y Bar;
+el alta de estaciones, la gestión visual de asignaciones y el rol Supervisor
+corresponden a las siguientes fases.
+
 El backend escucha en `0.0.0.0:3000`. En una instalación dentro del restaurante, abrir `http://IP-DEL-SERVIDOR:3000` desde cada dispositivo conectado a la red local. Configurar `APP_ORIGIN` con esa dirección exacta (incluido el puerto), o eliminar esa variable para acceso directo sin proxy. Todos deben usar el mismo servidor y base de datos.
 
 Para probar roles simultáneos en una sola computadora, usar perfiles de navegador separados o distintos navegadores. Las pestañas de un mismo perfil comparten la cookie de sesión. Cerrar sesión en un dispositivo no cierra las sesiones de otros dispositivos.

@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS waiters (
   active boolean NOT NULL DEFAULT true
 );
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','mesero','cocina','bar','caja','auditor'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','mesero','cocina','bar','caja','auditor','estacion'));
 ALTER TABLE users ADD COLUMN IF NOT EXISTS waiter_id uuid REFERENCES waiters(id);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS waiter_id uuid REFERENCES waiters(id);
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS tariff jsonb NOT NULL DEFAULT '{}';
@@ -92,3 +92,31 @@ FROM products p WHERE p.id=i.product_id AND i.tariff='{}'::jsonb;
 INSERT INTO schema_migrations(version) VALUES (3) ON CONFLICT DO NOTHING;
 ALTER TABLE order_accounts ADD COLUMN IF NOT EXISTS collection jsonb NOT NULL DEFAULT '{}';
 INSERT INTO schema_migrations(version) VALUES (4) ON CONFLICT DO NOTHING;
+
+-- Station codes preserve the existing product and order-item destinations.
+CREATE TABLE IF NOT EXISTS stations (
+  code text PRIMARY KEY CHECK (code ~ '^[a-z][a-z0-9_]*$'),
+  name text NOT NULL UNIQUE,
+  active boolean NOT NULL DEFAULT true
+);
+INSERT INTO stations(code,name) VALUES ('cocina','Cocina'),('bar','Bar') ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS user_stations (
+  user_id uuid NOT NULL REFERENCES users(id),
+  station_code text NOT NULL REFERENCES stations(code),
+  PRIMARY KEY (user_id,station_code)
+);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=5) THEN
+    INSERT INTO user_stations(user_id,station_code)
+      SELECT id,role FROM users WHERE role IN ('cocina','bar') ON CONFLICT DO NOTHING;
+    UPDATE users SET role='estacion' WHERE role IN ('cocina','bar');
+    ALTER TABLE products DROP CONSTRAINT IF EXISTS products_area_check;
+    ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_area_check;
+    ALTER TABLE products ADD CONSTRAINT products_station_fk FOREIGN KEY (area) REFERENCES stations(code);
+    ALTER TABLE order_items ADD CONSTRAINT order_items_station_fk FOREIGN KEY (area) REFERENCES stations(code);
+    INSERT INTO schema_migrations(version) VALUES (5);
+  END IF;
+END $$;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','mesero','estacion','caja','auditor'));

@@ -42,6 +42,7 @@ const roles = {
   bar: "Bar",
   caja: "Caja",
   auditor: "Auditor / Sistemas",
+  estacion: "Personal de estación",
 };
 const categoryNames = {
   entradas: "Entradas",
@@ -110,7 +111,7 @@ function owned(o) {
   );
 }
 function mayPrepare(area) {
-  return user?.role === "admin" || user?.role === area;
+  return user?.role === "admin" || user?.stations?.includes(area);
 }
 function mayBill(o) {
   return owned(o) || user?.role === "caja";
@@ -366,7 +367,7 @@ function signedIn() {
     ? "mesas"
     : ["caja", "auditor"].includes(user.role)
       ? "caja"
-      : user.role;
+      : user.role === "estacion" ? (user.stations[0] || "sin-estacion") : user.role;
   events?.close();
   events = new EventSource("/api/events");
   events.addEventListener("changed", refresh);
@@ -406,6 +407,7 @@ function areas() {
     ];
   if (user.role === "mesero") return ["mesas", "cocina", "bar", "caja"];
   if (["caja", "auditor"].includes(user.role)) return ["caja", "historial"];
+  if (user.role === "estacion") return user.stations;
   return [user.role];
 }
 const areaNames = {
@@ -432,7 +434,9 @@ function renderNavigation() {
   );
   const dropdown = el("div", null, { class: "user-dropdown" });
   dropdown.append(
-    el("small", roles[user.role]),
+    el("small", user.role === "estacion"
+      ? user.stations.map((s) => areaNames[s] || s).join(" / ") || roles.estacion
+      : roles[user.role]),
     button("Cerrar sesión", async () => {
       try {
         await api("/logout", {});
@@ -500,6 +504,8 @@ function render() {
     renderConfig(page(content, "configuracion-screen"));
   else if (view === "meseros") renderWaiters(page(content, "meseros-screen"));
   else if (view === "usuarios") renderUsers(page(content, "usuarios-screen"));
+  else if (user.role === "estacion" && !user.stations.length)
+    content.append(el("p", "No tienes estaciones activas asignadas. Consulta al administrador."));
   else navigate("caja");
 }
 function select(label, options, value, change) {

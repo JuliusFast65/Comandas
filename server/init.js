@@ -17,14 +17,23 @@ try {
     for (const role of [
       "admin",
       "mesero",
-      "cocina",
-      "bar",
       "caja",
       "auditor",
     ]) {
       await db.query(
         "INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,$2) ON CONFLICT(username) DO NOTHING",
         [randomUUID(), role, hashPassword(password)],
+      );
+    }
+    for (const station of ["cocina", "bar"]) {
+      const { rows: [user] } = await db.query(
+        "INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,'estacion') ON CONFLICT(username) DO NOTHING RETURNING id",
+        [randomUUID(), station, hashPassword(password)],
+      );
+      // Seed assignments only for new accounts; preserve later changes on reinitialization.
+      if (user) await db.query(
+        "INSERT INTO user_stations(user_id,station_code) VALUES($1,$2)",
+        [user.id, station],
       );
     }
     for (const [username, name] of [

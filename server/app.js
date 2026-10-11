@@ -45,6 +45,12 @@ const text = (value, max = 500) =>
 const sessionCookie = (token, maxAge = 43200) =>
   `comandas_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${process.env.COOKIE_SECURE === "true" ? "; Secure" : ""}`;
 const dummyHash = hashPassword(randomBytes(24).toString("hex"));
+async function assignedStations(userId, db = pool) {
+  return (await db.query(
+    "SELECT s.code FROM user_stations us JOIN stations s ON s.code=us.station_code WHERE us.user_id=$1 AND s.active=true ORDER BY s.code",
+    [userId],
+  )).rows.map((s) => s.code);
+}
 app.post(
   "/api/login",
   rateLimit({
@@ -76,6 +82,7 @@ app.post(
       username: user.username,
       role: user.role,
       waiter_id: user.waiter_id,
+      stations: await assignedStations(user.id),
     });
   },
 );
@@ -95,6 +102,7 @@ app.use("/api", async (req, res, next) => {
   if (!user)
     return res.status(401).json({ error: "La sesión venció. Inicia sesión." });
   req.user = user;
+  req.user.stations = await assignedStations(user.id);
   req.sessionHash = tokenHash(token);
   next();
 });
@@ -157,6 +165,7 @@ app.get("/api/state", async (req, res) => {
     const settings = (await db.query("SELECT * FROM app_settings WHERE id=1"))
       .rows[0];
     return {
+      stations: (await db.query("SELECT * FROM stations ORDER BY code")).rows,
       tables,
       products: products.map((p) => ({ ...p, help: exampleProductHelp(p) })),
       waiters,
@@ -242,7 +251,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     account: ["mesero", "caja"],
     assign: [],
     send: ["mesero"],
-    ready: ["cocina", "bar"],
+    ready: [],
     pickup: ["mesero"],
     pickup_all: ["mesero"],
     send_lsoft: ["mesero", "caja"],
@@ -255,7 +264,8 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     new_consumption: ["mesero", "caja"],
   };
   if (!Object.hasOwn(roleActions, action)) fail(400, "Acción inválida.");
-  allow(req.user, roleActions[action]);
+  if (action !== "ready" || !req.user.stations.length)
+    allow(req.user, roleActions[action]);
   if (!integer(version, 0, 2147483647)) fail(400, "Versión requerida.");
   const result = await transaction(async (db) => {
     const {
@@ -267,7 +277,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     const permittedWaiterAction =
       ["pickup", "pickup_all", "bill"].includes(action) &&
       (order.table_number === null || req.body.confirmedOtherWaiterId === order.waiter_id);
-    if (!permittedWaiterAction) ownOrder(req.user, order);
+    if (!permittedWaiterAction && action !== "ready") ownOrder(req.user, order);
     if (order.status === "closed") fail(409, "El pedido ya está cerrado.");
     if (order.version !== version)
       fail(
@@ -372,7 +382,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       );
       if (!item) fail(404, "Ítem no encontrado.");
       if (action === "ready") {
-        if (req.user.role !== "admin" && req.user.role !== item.area)
+        if (req.user.role !== "admin" && !(await assignedStations(req.user.id, db)).includes(item.area))
           fail(403, "El ítem pertenece a otra área.");
         if (b.ready !== undefined && typeof b.ready !== "boolean")
           fail(400, "Estado de preparación inválido.");

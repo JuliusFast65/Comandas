@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { readFile } from "node:fs/promises";
 
 let admin, pool, app, server, base;
 const databaseClients = new Set();
@@ -28,6 +29,104 @@ before(async () => {
     client.once("end", () => databaseClients.delete(client));
   });
   await start();
+});
+
+test("preparación por asignaciones independientes del rol y revocación en sesión", async () => {
+  const waiter = client(), second = client(), kitchen = client();
+  const owner = await waiter.login("mesero");
+  const operator = await second.login("mesero2");
+  const cook = await kitchen.login("cocina");
+  assert.equal(cook.role, "estacion");
+  assert.deepEqual(cook.stations, ["cocina"]);
+  const state = await waiter.request("/api/state");
+  assert.deepEqual(state.stations.map((s) => s.code), ["bar", "cocina"]);
+  const created = await waiter.request("/api/orders", {}, 201);
+  async function current() {
+    return (await waiter.request("/api/state")).orders.find((o) => o.id === created.id);
+  }
+  async function perform(c, action, fields = {}, expected = 200) {
+    return c.request(`/api/orders/${created.id}/actions`, {
+      action, version: (await current()).version, ...fields,
+    }, expected);
+  }
+  for (const area of ["cocina", "bar"]) {
+    await perform(waiter, "add", {
+      productId: state.products.find((p) => p.area === area).id,
+      quantity: 1, account: 1, note: "",
+    });
+  }
+  await perform(waiter, "send");
+  const items = (await current()).items;
+  const food = items.find((i) => i.area === "cocina");
+  const drink = items.find((i) => i.area === "bar");
+  await perform(second, "ready", { itemId: food.id }, 403);
+  try {
+    await pool.query("INSERT INTO user_stations(user_id,station_code) VALUES($1,'cocina'),($1,'bar')", [operator.id]);
+    assert.deepEqual((await second.request("/api/me")).stations, ["bar", "cocina"]);
+    // Preparation is permitted even when the order belongs to a different waiter.
+    assert.notEqual(operator.waiter_id, owner.waiter_id);
+    await perform(second, "ready", { itemId: food.id });
+    await perform(second, "ready", { itemId: drink.id });
+    await perform(second, "edit", { itemId: food.id, quantity: 2, account: 1, note: "" }, 403);
+    await pool.query("DELETE FROM user_stations WHERE user_id=$1 AND station_code='bar'", [operator.id]);
+    await perform(second, "ready", { itemId: drink.id, ready: false }, 403);
+    await pool.query("UPDATE stations SET active=false WHERE code='cocina'");
+    assert.deepEqual((await second.request("/api/me")).stations, []);
+    await perform(second, "ready", { itemId: food.id, ready: false }, 403);
+  } finally {
+    await pool.query("UPDATE stations SET active=true WHERE code='cocina'");
+    await pool.query("DELETE FROM user_stations WHERE user_id=$1", [operator.id]);
+  }
+});
+
+test("migración de roles anteriores conserva datos y no repone asignaciones revocadas", async () => {
+  // Recreate the pre-v5 structure only in the disposable integration database.
+  await pool.query(`
+    ALTER TABLE products DROP CONSTRAINT products_station_fk;
+    ALTER TABLE order_items DROP CONSTRAINT order_items_station_fk;
+    DROP TABLE user_stations;
+    DROP TABLE stations;
+    DELETE FROM schema_migrations WHERE version=5;
+    ALTER TABLE users DROP CONSTRAINT users_role_check;
+    UPDATE users SET role=username WHERE username IN ('cocina','bar');
+  `);
+  const schema = await readFile(new URL("../server/schema.sql", import.meta.url), "utf8");
+  const preservedTables = ["products", "orders", "order_items", "order_accounts", "order_events", "sessions", "waiters", "app_settings"];
+  async function snapshot() {
+    const result = {};
+    for (const table of preservedTables) {
+      result[table] = (await pool.query(`SELECT row_to_json(t) AS data FROM ${table} t ORDER BY row_to_json(t)::text`)).rows;
+    }
+    return result;
+  }
+  const before = await snapshot();
+  const usersBefore = (await pool.query("SELECT * FROM users ORDER BY id")).rows;
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query(schema);
+    await db.query("COMMIT");
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  } finally { db.release(); }
+  assert.deepEqual(await snapshot(), before);
+  assert.deepEqual((await pool.query("SELECT * FROM users ORDER BY id")).rows,
+    usersBefore.map((u) => ({ ...u, role: ["cocina", "bar"].includes(u.role) ? "estacion" : u.role })));
+  const assignments = (await pool.query("SELECT u.username,us.station_code FROM user_stations us JOIN users u ON u.id=us.user_id ORDER BY u.username")).rows;
+  assert.deepEqual(assignments, [
+    { username: "bar", station_code: "bar" },
+    { username: "cocina", station_code: "cocina" },
+  ]);
+  await pool.query("DELETE FROM user_stations WHERE station_code='bar'");
+  const init = spawnSync(process.execPath, ["server/init.js"], {
+    env: { ...process.env, SEED_PASSWORD: password }, encoding: "utf8",
+  });
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal((await pool.query("SELECT * FROM user_stations WHERE station_code='bar'")).rowCount, 0);
+  assert.deepEqual(await snapshot(), before);
+  await assert.rejects(pool.query("UPDATE products SET area='inexistente' WHERE id=(SELECT id FROM products LIMIT 1)"), { code: "23503" });
+  await pool.query("INSERT INTO user_stations(user_id,station_code) SELECT id,'bar' FROM users WHERE username='bar'");
 });
 async function start() {
   server = app.listen(0, "127.0.0.1");
@@ -121,7 +220,7 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
         auditor.login("auditor"),
         secondWaiter.login("mesero2"),
       ]);
-      assert.equal((await cocina.request("/api/me")).role, "cocina");
+      assert.equal((await cocina.request("/api/me")).role, "estacion");
       await cocina.request("/api/orders", { tableNumber: 1 }, 403);
       await mesero.request("/api/history", undefined, 403);
       await auditor.request("/api/orders", {}, 403);
@@ -639,7 +738,9 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
       ...i, sent_at: new Date(i.sent_at).toISOString(), ready_at: new Date(i.ready_at).toISOString(),
     })).sort((a, b) => a.id.localeCompare(b.id));
     assert.deepEqual(normalizeItems(archived.items), normalizeItems(original.items));
-    assert.deepEqual(archived.accounts, original.accounts);
+    // PostgreSQL does not guarantee row order without ORDER BY.
+    const normalizeAccounts = (accounts) => [...accounts].sort((a, b) => a.number - b.number);
+    assert.deepEqual(normalizeAccounts(archived.accounts), normalizeAccounts(original.accounts));
     await mesero.request(`/api/orders/${result.orderId}/actions`, {
       action: "add", version: active[0].version, productId: drink.id, quantity: 1, account: 1, note: "Nueva ronda",
     });
@@ -653,11 +754,11 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
       await stop();
       await start();
       assert.ok((await caja.request("/api/history")).some((o) => o.id === orderId));
-      assert.equal((await cocina.request("/api/me")).role, "cocina");
+      assert.equal((await cocina.request("/api/me")).role, "estacion");
       await mesero.request("/api/logout", {});
       await mesero.request("/api/me", undefined, 401);
-      assert.equal((await cocina.request("/api/me")).role, "cocina");
-      assert.equal((await bar.request("/api/me")).role, "bar");
+      assert.equal((await cocina.request("/api/me")).role, "estacion");
+      assert.equal((await bar.request("/api/me")).role, "estacion");
     },
   );
 });
