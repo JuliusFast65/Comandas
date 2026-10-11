@@ -1,0 +1,21 @@
+{
+  "version": "0.1-provisional",
+  "idOperacion": "COM-demo-0001-C1",
+  "moneda": "USD",
+  "origen": { "sistema": "Comandas", "tipo": "mesa", "numero": 3, "cuenta": "1", "mesero": "Mesero demo" },
+  "cliente": { "identificacion": "IDENTIFICACION-DEMO", "nombre": "Cliente de demostración", "direccion": "Dirección ficticia", "telefono": "0000000000", "correo": "demo@example.test" },
+  "lineas": [
+    {
+      "linea": 1,
+      "productoReferencia": "Pizza",
+      "cantidad": 1,
+      "nota": "Sin cebolla",
+      "precioUnitarioCentavos": 1250,
+      "incluyeCargos": true,
+      "ivaPorcentaje": 15,
+      "servicioPorcentaje": 10,
+      "importesCentavos": { "base": 1000, "iva": 150, "servicio": 100, "total": 1250 }
+    }
+  ],
+  "totalesCentavos": { "base": 1000, "iva": 150, "servicio": 100, "total": 1250, "propina": 100, "pagar": 1350 }
+}
