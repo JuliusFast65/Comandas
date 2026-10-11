@@ -1,6 +1,6 @@
 import { tariffFor, amounts, totals } from "./money.js";
 let user = null,
-  state = { tables: [], products: [], orders: [], waiters: [], settings: null },
+  state = { tables: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null },
   view = "mesas",
   selected = null,
   pendingTable = null,
@@ -81,7 +81,7 @@ function message(value, error = false) {
 }
 function showOrderSent(
   title = "Orden enviada",
-  text = "Los alimentos se enviaron a Cocina y las bebidas al Bar.",
+  text = "Los productos se enviaron a sus estaciones de preparación.",
 ) {
   const dialog = el("dialog", null, {
     class: "order-sent-dialog",
@@ -207,7 +207,7 @@ function logoutUI() {
   confirming = false;
   mobileDetail = false;
   menus.clear();
-  state = { tables: [], products: [], orders: [], waiters: [], settings: null };
+  state = { tables: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null };
   document.querySelectorAll("dialog").forEach((d) => {
     if (d.id === "app-menu") {
       if (d.open) d.close();
@@ -230,14 +230,15 @@ function captureForms() {
       ),
     ]
       .filter((n) => n.id)
-      .map((n) => [n.id, n.value]),
+      .map((n) => [n.id, n.type === "checkbox" ? n.checked : n.value]),
   );
 }
 function restoreForms(values) {
   for (const [id, value] of values) {
     const n = document.getElementById(id);
     if (n) {
-      n.value = value;
+      if (n.type === "checkbox") n.checked = value;
+      else n.value = value;
       n.closest("form").dataset.dirty = "true";
     }
   }
@@ -418,18 +419,18 @@ $("#login-form").addEventListener("submit", async (e) => {
   }
 });
 function areas() {
+  const stations = activeStations().map((s) => s.code);
   if (user.role === "admin")
     return [
       "mesas",
-      "cocina",
-      "bar",
+      ...stations,
       "caja",
       "historial",
       "configuracion",
       "meseros",
       "usuarios",
     ];
-  if (user.role === "mesero") return ["mesas", "cocina", "bar", "caja"];
+  if (user.role === "mesero") return ["mesas", ...stations, "caja"];
   if (["caja", "auditor"].includes(user.role)) return ["caja", "historial"];
   if (user.role === "estacion") return user.stations;
   return [user.role];
@@ -440,10 +441,17 @@ const areaNames = {
   bar: "Bar",
   caja: "LSoft · Caja",
   historial: "Operaciones cerradas",
-  configuracion: "Precios y cargos",
+  configuracion: "Configuración",
   meseros: "Equipo de meseros",
   usuarios: "Usuarios y permisos",
 };
+function areaName(code) {
+  return state.stations.find((s) => s.code === code)?.name || areaNames[code] || code;
+}
+function activeStations() {
+  const rank = (code) => code === "cocina" ? 0 : code === "bar" ? 1 : 2;
+  return state.stations.filter((s) => s.active).sort((a,b) => rank(a.code)-rank(b.code) || a.name.localeCompare(b.name));
+}
 function renderNavigation() {
   const identity = $("#identity"),
     userOpen = identity.querySelector("details")?.open,
@@ -459,7 +467,7 @@ function renderNavigation() {
   const dropdown = el("div", null, { class: "user-dropdown" });
   dropdown.append(
     el("small", user.role === "estacion"
-      ? user.stations.map((s) => areaNames[s] || s).join(" / ") || roles.estacion
+      ? user.stations.map(areaName).join(" / ") || roles.estacion
       : roles[user.role]),
     button("Cerrar sesión", async () => {
       try {
@@ -478,7 +486,7 @@ function renderNavigation() {
   head.append(heading("Comandas"), button("×", closeMenu));
   nav.replaceChildren(head);
   for (const area of areas()) {
-    const b = button(areaNames[area], () => navigate(area));
+    const b = button(areaName(area), () => navigate(area));
     if (view === area) b.setAttribute("aria-current", "page");
     nav.append(b);
   }
@@ -492,6 +500,8 @@ function page(content, id) {
 }
 function render() {
   if (!user) return;
+  if (state.stations.some((s) => s.code === view) && !areas().includes(view))
+    view = areas()[0] || "sin-estacion";
   document
     .querySelectorAll("dialog[data-order-detail]")
     .forEach((d) => d.remove());
@@ -520,7 +530,7 @@ function render() {
   if (view === "mesas") {
     selected = null;
     renderTables(page(content, "seleccion-mesas-screen"));
-  } else if (["cocina", "bar"].includes(view))
+  } else if (state.stations.some((s) => s.code === view && s.active))
     renderPreparation(page(content, view + "-screen"));
   else if (view === "caja") renderCash(page(content, "caja-screen"));
   else if (view === "historial")
@@ -554,7 +564,7 @@ function labeled(form, label, node) {
 }
 function operationLinks(content) {
   const footer = el("div", null, { class: "footer" });
-  for (const area of ["cocina", "bar", "caja"].filter((a) =>
+  for (const area of [...activeStations().map((s) => s.code), "caja"].filter((a) =>
     areas().includes(a),
   )) {
     const r = state.orders.reduce(
@@ -570,7 +580,7 @@ function operationLinks(content) {
       button(
         area === "caja"
           ? "LSoft · Caja"
-          : `${roles[area]} · ${r.preparing} pendientes · ${r.ready} por retirar`,
+          : `${areaName(area)} · ${r.preparing} pendientes · ${r.ready} por retirar`,
         () => navigate(area),
       ),
     );
@@ -1394,11 +1404,11 @@ function editNote(o, i) {
 function renderPreparation(content) {
   content.append(
     heading(
-      "Órdenes en " + roles[view],
+      "Órdenes en " + areaName(view),
       view === "cocina" ? "utensils" : "glass-cheers",
     ),
   );
-  const cards = el("div", null, { class: view + "-list", id: view + "-list" }),
+  const cards = el("div", null, { class: "cocina-list", id: view + "-list" }),
     history = el("details", null, {
       class: "withdrawn-history",
       id: view + "-withdrawn",
@@ -1431,7 +1441,7 @@ function renderPreparation(content) {
       );
     }
     if (!items.some((i) => remaining(i) > 0)) continue;
-    const card = el("section", null, { class: view + "-item" });
+    const card = el("section", null, { class: "cocina-item" });
     card.append(stationOrderHeading(o));
     if (mayPickup()) {
       const pickupAll = pickupAllButton(o, view);
@@ -1939,6 +1949,11 @@ async function renderHistory(content) {
   }
 }
 function renderConfig(content) {
+  const links = el("div", null, { class: "footer" });
+  links.append(button("Estaciones y productos", () => {
+    document.getElementById("station-settings").scrollIntoView({ behavior: "smooth" });
+  }), button("Usuarios y estaciones", () => navigate("usuarios")));
+  content.append(heading("Configuración"), links);
   const settings = state.settings,
     config = settings.config;
   content.append(
@@ -1949,6 +1964,7 @@ function renderConfig(content) {
     ),
   );
   const form = el("form", null, { id: "config-form" });
+  form.append(el("input", null, { id: "config-form-version", type: "hidden", value: String(settings.version) }));
   for (const [key, label] of [
     ["iva", "IVA (%)"],
     ["servicio", "Servicio (%) — 0 para desactivar"],
@@ -2026,7 +2042,7 @@ function renderConfig(content) {
     );
     run(async () => {
       await api("/config", {
-        version: settings.version,
+        version: configVersion(form),
         config: {
           iva: Number($("#config-iva").value),
           servicio: Number($("#config-servicio").value),
@@ -2038,6 +2054,96 @@ function renderConfig(content) {
     });
   });
   content.append(form);
+  renderStationSettings(content);
+}
+function stationConfigForm(id) {
+  const form = el("form", null, { id, class: "station-settings-form" });
+  form.append(el("input", null, {
+    id: id + "-version", type: "hidden", value: String(state.settings.version),
+  }));
+  return form;
+}
+function configVersion(form) {
+  return Number(form.querySelector('input[type="hidden"]').value);
+}
+function checkbox(form, label, id, checked) {
+  const row = el("label", null, { class: "station-choice", for: id });
+  const input = el("input", null, { type: "checkbox", id });
+  input.checked = checked;
+  input.addEventListener("change", () => (form.dataset.dirty = "true"));
+  row.append(input, el("span", label));
+  return row;
+}
+function submitConfiguration(form, label, save) {
+  form.append(el("button", label, { type: "submit" }));
+  form.append(button("Descartar cambios", () => {
+    delete form.dataset.dirty;
+    render();
+  }));
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    run(async () => {
+      await save();
+      delete form.dataset.dirty;
+    });
+  });
+}
+function renderStationSettings(content) {
+  const section = el("section", null, { id: "station-settings" });
+  section.append(heading("Estaciones"), el("p",
+    "Asigna productos y personas a cada estación. Los pedidos existentes conservan su destino. Para desactivar una estación, reasigna sus productos y retira los pendientes."));
+  const create = stationConfigForm("station-create");
+  const name = labeled(create, "Nombre de la nueva estación", el("input", null,
+    { id: "station-create-name", required: "", maxlength: "60" }));
+  submitConfiguration(create, "Crear estación", () => api("/stations", {
+    name: name.value, version: configVersion(create),
+  }));
+  section.append(create);
+  for (const station of state.stations) {
+    const form = stationConfigForm("station-edit-" + station.code);
+    const title = labeled(form, "Nombre de estación", el("input", null, {
+      id: "station-name-" + station.code, value: station.name, required: "", maxlength: "60",
+    }));
+    const active = checkbox(form, "Estación activa", "station-active-" + station.code, station.active);
+    form.append(active);
+    const assigned = state.products.filter((p) => p.area === station.code).length;
+    form.append(el("p", `${assigned} productos asignados`));
+    submitConfiguration(form, "Guardar estación", () => api(`/stations/${station.code}`, {
+      name: title.value, active: active.querySelector("input").checked, version: configVersion(form),
+    }));
+    section.append(form);
+  }
+  section.append(heading("Asignar productos"), el("p", "Selecciona los productos y la estación que recibirá los nuevos pedidos."));
+  const products = stationConfigForm("station-products");
+  const destination = select("Estación de destino ", state.stations.filter((s) => s.active).map((s) => [s.code,s.name]), null);
+  const destinationInput = destination.querySelector("select");
+  destinationInput.id = "station-products-destination";
+  destinationInput.required = true;
+  destinationInput.selectedIndex = 0;
+  destinationInput.addEventListener("change", () => (products.dataset.dirty = "true"));
+  products.append(destination);
+  for (const category of [...new Set(state.products.map((p) => p.category))]) {
+    const group = el("details", null, { id: "station-products-" + category });
+    group.append(el("summary", categoryNames[category] || category));
+    group.append(button("Seleccionar categoría", () => {
+      group.querySelectorAll('input[type="checkbox"]').forEach((input) => (input.checked = true));
+      products.dataset.dirty = "true";
+    }));
+    for (const p of state.products.filter((p) => p.category === category)) {
+      const field = checkbox(products, `${p.name} · ${areaName(p.area)}`, "station-product-" + p.id, false);
+      field.querySelector("input").value = p.id;
+      group.append(field);
+    }
+    products.append(group);
+  }
+  submitConfiguration(products, "Asignar productos seleccionados", () => api("/products/station", {
+    stationCode: destinationInput.value,
+    productIds: [...products.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value),
+    version: configVersion(products),
+  }));
+  section.append(products);
+  content.append(section);
 }
 function renderWaiters(content) {
   content.append(
@@ -2083,7 +2189,7 @@ function renderWaiters(content) {
   });
   content.append(form);
 }
-async function renderUsers(content) {
+function renderUsers(content) {
   content.append(
     heading("Usuarios y permisos"),
     el(
@@ -2092,7 +2198,7 @@ async function renderUsers(content) {
     ),
   );
   try {
-    const users = await api("/users");
+    const users = state.users || [];
     if (view !== "usuarios" || !user) return;
     for (const u of users) {
       const card = el("section", null, { class: "client-info" });
@@ -2113,6 +2219,20 @@ async function renderUsers(content) {
             (v) => run(() => api(`/users/${u.id}/waiter`, { waiterId: v })),
           ),
         );
+      const assignments = stationConfigForm("user-stations-" + u.id);
+      assignments.append(el("p", "Estaciones de preparación"));
+      for (const station of state.stations) {
+        const field = checkbox(assignments, station.name + (station.active ? "" : " · Inactiva"),
+          "user-station-" + u.id + "-" + station.code, u.stations.includes(station.code));
+        field.querySelector("input").value = station.code;
+        assignments.append(field);
+      }
+      if (u.role === "admin") assignments.append(el("p", "El administrador puede operar todas las estaciones activas."));
+      submitConfiguration(assignments, "Guardar estaciones", () => api(`/users/${u.id}/stations`, {
+        stations: [...assignments.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value),
+        version: configVersion(assignments),
+      }));
+      card.append(assignments);
       content.append(card);
     }
   } catch (e) {

@@ -33,8 +33,24 @@ a una estación activa; el administrador mantiene acceso a ambas.
 
 Ejecutar `npm.cmd run db:init` antes de arrancar esta versión. Repetirlo conserva
 las asignaciones existentes. Esta fase mantiene las pantallas de Cocina y Bar;
-el alta de estaciones, la gestión visual de asignaciones y el rol Supervisor
-corresponden a las siguientes fases.
+el rol Supervisor corresponde a la siguiente fase.
+
+La fase 2 permite al administrador crear, renombrar, desactivar y reactivar
+estaciones desde **Configuración → Estaciones y productos**. Los productos se
+seleccionan individualmente o por categoría y se asignan a una estación activa.
+Cambiar el destino afecta únicamente a los productos añadidos después del cambio;
+los borradores, pedidos enviados y el historial conservan su destino original.
+Para desactivar una estación hay que reasignar sus productos y terminar de preparar
+y retirar los pendientes. Las estaciones se conservan en la base, sin borrarlas.
+
+En **Usuarios y permisos**, el administrador asigna una o varias estaciones a
+cualquier usuario sin cambiar su rol. Un mesero puede atender sus mesas y preparar
+los pedidos de Cafetería o Postres, incluso si pertenecen a otro mesero; esto no le
+permite editar las mesas ajenas. La asignación se conserva al desactivar una estación
+y vuelve a habilitarse al reactivarla. Las pantallas, nombres, resúmenes y retiros por
+estación se generan desde la configuración. Los cambios se comparten entre dispositivos
+y usan control de versión para impedir que se sobrescriban cambios simultáneos.
+Esta fase utiliza la estructura de la migración 5; no requiere otra migración.
 
 El backend escucha en `0.0.0.0:3000`. En una instalación dentro del restaurante, abrir `http://IP-DEL-SERVIDOR:3000` desde cada dispositivo conectado a la red local. Configurar `APP_ORIGIN` con esa dirección exacta (incluido el puerto), o eliminar esa variable para acceso directo sin proxy. Todos deben usar el mismo servidor y base de datos.
 

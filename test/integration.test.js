@@ -771,6 +771,90 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
   );
 });
 
+test("administrar estaciones, productos y usuarios conserva destinos y permisos", async () => {
+  const administrator = client(), waiter = client(), owner = client();
+  await administrator.login("admin");
+  const operator = await waiter.login("mesero");
+  await owner.login("mesero2");
+  async function state() { return administrator.request("/api/state"); }
+  async function configure(c, path, fields, expected=200) {
+    return c.request(path, { version: (await state()).settings.version, ...fields }, expected);
+  }
+  await configure(waiter, "/api/stations", { name: "Cafetería" }, 403);
+  const cafeteria = await configure(administrator, "/api/stations", { name: "Cafetería" }, 201);
+  const desserts = await configure(administrator, "/api/stations", { name: "Postres" }, 201);
+  await configure(administrator, "/api/stations", { name: "  CAFETERÍA  " }, 409);
+  await configure(administrator, "/api/stations", { name: " " }, 400);
+  assert.equal((await waiter.request("/api/state")).users, undefined);
+  assert.ok((await state()).users.every((u) => !Object.hasOwn(u, "password_hash")));
+  const userPath = `/api/users/${operator.id}/stations`;
+  await configure(waiter, userPath, { stations: [cafeteria.code] }, 403);
+  await configure(administrator, userPath, { stations: [cafeteria.code, desserts.code] });
+  assert.deepEqual((await waiter.request("/api/me")).stations.sort(), [cafeteria.code, desserts.code].sort());
+  assert.equal((await waiter.request("/api/me")).role, "mesero");
+  await configure(administrator, userPath, { stations: ["inexistente"] }, 400);
+  await configure(administrator, userPath, { stations: [cafeteria.code,cafeteria.code] }, 400);
+  const coffee = (await state()).products.find((p) => p.name === "Café");
+  const created = await owner.request("/api/orders", {}, 201);
+  async function current() {
+    return (await owner.request("/api/state")).orders.find((o) => o.id === created.id);
+  }
+  async function perform(c, action, fields={}, expected=200) {
+    return c.request(`/api/orders/${created.id}/actions`, { action, version: (await current()).version, ...fields }, expected);
+  }
+  const addCoffee = { productId: coffee.id, quantity: 1, account: 1, note: "" };
+  await perform(owner, "add", addCoffee);
+  const original = (await current()).items[0];
+  const productPath = "/api/products/station";
+  await configure(waiter, productPath, { productIds: [coffee.id], stationCode: cafeteria.code }, 403);
+  await configure(administrator, productPath, { productIds: [coffee.id,randomUUID()], stationCode: cafeteria.code }, 404);
+  assert.equal((await state()).products.find((p) => p.id === coffee.id).area, "bar");
+  await configure(administrator, productPath, { productIds: [coffee.id], stationCode: cafeteria.code });
+  await perform(owner, "add", addCoffee);
+  const items = (await current()).items;
+  assert.equal(items.length, 2);
+  assert.deepEqual(items.find((i) => i.id === original.id), original);
+  const newItem = items.find((i) => i.area === cafeteria.code);
+  assert.ok(newItem);
+  await perform(owner, "send");
+  await perform(owner, "ready", { itemId: newItem.id }, 403);
+  await perform(waiter, "ready", { itemId: original.id }, 403);
+  await perform(waiter, "ready", { itemId: newItem.id });
+  await configure(administrator, userPath, { stations: [desserts.code] });
+  await perform(waiter, "ready", { itemId: newItem.id, ready: false }, 403);
+  await configure(administrator, userPath, { stations: [cafeteria.code, desserts.code] });
+  const stationPath = `/api/stations/${cafeteria.code}`;
+  await configure(waiter, stationPath, { name: "Cafetería", active: true }, 403);
+  await configure(administrator, stationPath, { name: "Postres", active: true }, 409);
+  await configure(administrator, stationPath, { name: "Café y bebidas calientes", active: true });
+  assert.equal((await current()).items.find((i) => i.id === newItem.id).area, cafeteria.code);
+  await configure(administrator, stationPath, { name: "Café y bebidas calientes", active: false }, 409);
+  await configure(administrator, productPath, { productIds: [coffee.id], stationCode: "bar" });
+  await configure(administrator, stationPath, { name: "Café y bebidas calientes", active: false }, 409);
+  await perform(owner, "pickup_all", { area: cafeteria.code });
+  assert.equal((await current()).items.find((i) => i.id === original.id).picked_up_quantity, 0);
+  await perform(owner, "pickup_all", { area: "inexistente" }, 400);
+  await configure(administrator, stationPath, { name: "Café y bebidas calientes", active: false });
+  assert.deepEqual((await waiter.request("/api/me")).stations, [desserts.code]);
+  assert.ok((await administrator.request("/api/users")).find((u) => u.id===operator.id).stations.includes(cafeteria.code));
+  await configure(administrator, productPath, { productIds: [coffee.id], stationCode: cafeteria.code }, 400);
+  const configuration = await state();
+  const version = configuration.settings.version;
+  const concurrent = await Promise.all([1,2].map(() => fetch(base + `/api/stations/${desserts.code}`, {
+    method: "POST", headers: { Cookie: administrator.cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Postres", active: true, version }),
+  })));
+  assert.deepEqual(concurrent.map((r) => r.status).sort(), [200,409]);
+  const init = spawnSync(process.execPath, ["server/init.js"], {
+    env: { ...process.env, SEED_PASSWORD: password }, encoding: "utf8",
+  });
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal((await state()).stations.find((s) => s.code===cafeteria.code).active, false);
+  assert.equal((await state()).stations.find((s) => s.code===cafeteria.code).name, "Café y bebidas calientes");
+  await configure(administrator, stationPath, { name: "Café y bebidas calientes", active: true });
+  assert.ok((await waiter.request("/api/me")).stations.includes(cafeteria.code));
+});
+
 
 test("primer plato crea y asigna la mesa en una sola transacción", async () => {
   const waiter = client(), second = client();

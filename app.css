@@ -474,3 +474,12 @@ summary:focus-visible {
 .collection-steps { margin: 16px 0; padding: 12px; border: 1px solid #d5dde5; border-radius: 8px; }
 .collection-steps button { display: block; margin: 8px 0; }
 .collection-title { font-weight: bold; }
+.station-settings-form { margin: 16px 0; padding: 16px; border: 1px solid #d5dde5; border-radius: 8px; }
+.station-settings-form > div > label { display: block; margin-bottom: 6px; }
+.station-settings-form input:not([type="checkbox"]):not([type="hidden"]),
+.station-settings-form select { box-sizing: border-box; max-width: 100%; min-height: 44px; padding: 8px; font: inherit; }
+.station-settings-form button { min-height: 44px; margin: 8px 0; }
+.station-choice { display: flex; gap: 10px; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
+.station-choice input { flex-shrink: 0; width: 20px; height: 20px; }
+.station-settings-form details { margin: 12px 0; }
+.station-settings-form summary { padding: 12px 0; cursor: pointer; font-weight: bold; }

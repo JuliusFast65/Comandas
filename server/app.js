@@ -177,6 +177,9 @@ app.get("/api/state", async (req, res) => {
       .rows[0];
     return {
       stations: (await db.query("SELECT * FROM stations ORDER BY code")).rows,
+      ...(req.user.role === "admin" ? { users: (await db.query(
+        "SELECT u.id,u.username,u.role,u.waiter_id,u.active,ARRAY(SELECT station_code FROM user_stations WHERE user_id=u.id ORDER BY station_code) AS stations FROM users u ORDER BY username",
+      )).rows } : {}),
       tables,
       products: products.map((p) => ({ ...p, help: exampleProductHelp(p) })),
       waiters,
@@ -230,8 +233,9 @@ async function addProduct(db, id, b) {
     fail(400, "Producto, cantidad, cuenta o nota inválidos.");
   const {
     rows: [p],
-  } = await db.query("SELECT * FROM products WHERE id=$1", [b.productId]);
+  } = await db.query("SELECT p.*,s.active AS station_active FROM products p JOIN stations s ON s.code=p.area WHERE p.id=$1 FOR SHARE OF p,s", [b.productId]);
   if (!p) fail(404, "Producto no encontrado.");
+  if (!p.station_active) fail(409, "La estación de este producto está inactiva.");
   await db.query(
     "INSERT INTO order_accounts(order_id,number) VALUES($1,$2) ON CONFLICT DO NOTHING",
     [id, b.account],
@@ -243,8 +247,8 @@ async function addProduct(db, id, b) {
   const {
     rows: [draft],
   } = await db.query(
-    "SELECT id,quantity FROM order_items WHERE order_id=$1 AND product_id=$2 AND account=$3 AND note=$4 AND tariff=$5::jsonb AND status='draft' ORDER BY id LIMIT 1",
-    [id, p.id, b.account, b.note, tariff],
+    "SELECT id,quantity FROM order_items WHERE order_id=$1 AND product_id=$2 AND account=$3 AND note=$4 AND tariff=$5::jsonb AND area=$6 AND status='draft' ORDER BY id LIMIT 1",
+    [id, p.id, b.account, b.note, tariff, p.area],
   );
   if (draft) {
     if (draft.quantity + b.quantity > 999)
@@ -442,7 +446,8 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       }
     }
     if (action === "pickup_all") {
-      if (b.area !== undefined && !["cocina", "bar"].includes(b.area))
+      if (b.area !== undefined && (!text(b.area, 80) ||
+          !(await db.query("SELECT code FROM stations WHERE code=$1", [b.area])).rowCount))
         fail(400, "Área inválida.");
       const picked = await db.query(
         "UPDATE order_items SET picked_up_quantity=quantity WHERE order_id=$1 AND status='ready' AND picked_up_quantity<quantity AND ($2::text IS NULL OR area=$2)",
@@ -700,10 +705,83 @@ app.get("/api/users", async (req, res) => {
   res.json(
     (
       await pool.query(
-        "SELECT id,username,role,waiter_id,active FROM users ORDER BY username",
+        "SELECT u.id,u.username,u.role,u.waiter_id,u.active,ARRAY(SELECT station_code FROM user_stations WHERE user_id=u.id ORDER BY station_code) AS stations FROM users u ORDER BY username",
       )
     ).rows,
   );
+});
+// A shared configuration version prevents overwriting another administrator's changes.
+async function changeConfiguration(version, fn) {
+  if (!integer(version, 0, 2147483647)) fail(400, "Versión requerida.");
+  return transaction(async (db) => {
+    const { rows: [settings] } = await db.query("SELECT version FROM app_settings WHERE id=1 FOR UPDATE");
+    if (settings.version !== version) fail(409, "Otro usuario cambió la configuración. Actualiza los datos.");
+    const result = await fn(db);
+    await db.query("UPDATE app_settings SET version=version+1 WHERE id=1");
+    await db.query("SELECT pg_notify('comandas_changed','')");
+    return result;
+  });
+}
+app.post("/api/stations", async (req, res) => {
+  allow(req.user, []);
+  const { name, version } = req.body;
+  if (!text(name, 60) || !name.trim()) fail(400, "Nombre de estación inválido.");
+  const station = await changeConfiguration(version, async (db) => {
+    if ((await db.query("SELECT 1 FROM stations WHERE lower(name)=lower($1)", [name.trim()])).rowCount)
+      fail(409, "Ya existe una estación con ese nombre.");
+    return (await db.query("INSERT INTO stations(code,name) VALUES($1,$2) RETURNING *",
+      ["station_" + randomUUID().replaceAll("-", ""), name.trim()])).rows[0];
+  });
+  res.status(201).json(station);
+});
+app.post("/api/stations/:code", async (req, res) => {
+  allow(req.user, []);
+  const { name, active, version } = req.body;
+  if (!text(name, 60) || !name.trim() || typeof active !== "boolean") fail(400, "Estación inválida.");
+  await changeConfiguration(version, async (db) => {
+    const { rows: [station] } = await db.query("SELECT * FROM stations WHERE code=$1 FOR UPDATE", [req.params.code]);
+    if (!station) fail(404, "Estación no encontrada.");
+    if ((await db.query("SELECT 1 FROM stations WHERE lower(name)=lower($1) AND code<>$2", [name.trim(), station.code])).rowCount)
+      fail(409, "Ya existe una estación con ese nombre.");
+    if (!active) {
+      if ((await db.query("SELECT 1 FROM products WHERE area=$1 LIMIT 1", [station.code])).rowCount)
+        fail(409, "Reasigna los productos antes de desactivar esta estación.");
+      if ((await db.query("SELECT 1 FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.area=$1 AND o.status<>'closed' AND i.picked_up_quantity<i.quantity LIMIT 1", [station.code])).rowCount)
+        fail(409, "Hay productos pendientes de preparar o retirar en esta estación.");
+    }
+    await db.query("UPDATE stations SET name=$1,active=$2 WHERE code=$3", [name.trim(), active, station.code]);
+  });
+  res.json({ ok: true });
+});
+app.post("/api/products/station", async (req, res) => {
+  allow(req.user, []);
+  const { productIds, stationCode, version } = req.body;
+  if (!Array.isArray(productIds) || !productIds.length || productIds.length>500 ||
+      productIds.some((id) => !uuid(id)) || new Set(productIds).size!==productIds.length || !text(stationCode,80))
+    fail(400, "Productos o estación inválidos.");
+  await changeConfiguration(version, async (db) => {
+    if (!(await db.query("SELECT code FROM stations WHERE code=$1 AND active=true FOR SHARE", [stationCode])).rowCount)
+      fail(400, "Estación no disponible.");
+    const result = await db.query("UPDATE products SET area=$1 WHERE id=ANY($2::uuid[])", [stationCode, productIds]);
+    if (result.rowCount !== productIds.length) fail(404, "Producto no encontrado.");
+  });
+  res.json({ ok: true });
+});
+app.post("/api/users/:id/stations", async (req, res) => {
+  allow(req.user, []);
+  const { stations, version } = req.body;
+  if (!uuid(req.params.id) || !Array.isArray(stations) || stations.length>100 ||
+      stations.some((code) => !text(code,80)) || new Set(stations).size!==stations.length)
+    fail(400, "Asignaciones inválidas.");
+  await changeConfiguration(version, async (db) => {
+    if (!(await db.query("SELECT id FROM users WHERE id=$1", [req.params.id])).rowCount)
+      fail(404, "Usuario no encontrado.");
+    if ((await db.query("SELECT code FROM stations WHERE code=ANY($1::text[])", [stations])).rowCount !== stations.length)
+      fail(400, "Estación no encontrada.");
+    await db.query("DELETE FROM user_stations WHERE user_id=$1", [req.params.id]);
+    for (const code of stations) await db.query("INSERT INTO user_stations(user_id,station_code) VALUES($1,$2)", [req.params.id,code]);
+  });
+  res.json({ ok: true });
 });
 app.post("/api/users/:id/waiter", async (req, res) => {
   allow(req.user, []);
