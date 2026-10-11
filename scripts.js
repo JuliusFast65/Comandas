@@ -804,6 +804,8 @@ function renderOrder(content, o) {
   const layout = el("div", null, { class: "order-content" });
   if (!confirming) {
     const selection = el("div", null, { class: "selection-area" });
+    if (mayPickup() && summaryOf(o).ready > 0)
+      selection.append(pickupAllButton(o));
     renderMenu(selection, o, editable);
     layout.append(selection);
   }
