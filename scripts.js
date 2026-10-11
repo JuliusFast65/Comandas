@@ -1485,14 +1485,14 @@ function consumption(content, o, number, tip = 0, printed = false) {
     ["IVA", total.iva],
     ["Servicio", total.servicio],
     ...(printed ? [["Total", total.total]] : []),
-    ["Propina voluntaria", tip],
-    ["Total a pagar", total.total + tip],
+    ["Propina voluntaria", printed ? null : tip],
+    ["Total a pagar", printed ? null : total.total + tip],
   ]) {
     const r = el("tr");
     if (printed && label === "Propina voluntaria") r.className = "bill-tip";
     r.append(
       el("th", label, { colspan: "2", scope: "row" }),
-      el("td", money(value)),
+      el("td", value === null ? "________________" : money(value)),
     );
     foot.append(r);
   }
@@ -1639,22 +1639,21 @@ function renderBill(content, o) {
   if (a.lsoft?.json) renderLSoft(content, o, a);
   renderRelease(content, o);
 }
-function printBill(o, a, form) {
-  const data = form ? Object.fromEntries(new FormData(form)) : {},
-    target = $("#precuenta-impresion");
+function printBill(o, a) {
+  const target = $("#precuenta-impresion");
   target.replaceChildren(
     heading("Precuenta"),
     el("p", orderTitle(o) + ` · Cuenta ${a.number}`),
   );
-  for (const [key, label] of Object.entries({
+  for (const label of Object.values({
     identification: "Cédula / RUC",
     name: "Cliente",
     address: "Dirección",
     phone: "Teléfono",
     email: "Correo",
   }))
-    target.append(el("p", label + ": " + (data[key] || a.customer?.[key] || "________________________________")));
-  consumption(target, o, a.number, cents(data.tip ?? a.tip_cents / 100), true);
+    target.append(el("p", label + ": ________________________________"));
+  consumption(target, o, a.number, 0, true);
   target.append(el("p", "Firma del cliente: ________________________________"));
   target.append(el("p", "Precuenta informativa. No es una factura fiscal."));
   window.print();
