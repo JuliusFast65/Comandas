@@ -1456,7 +1456,7 @@ function openBill(o) {
     });
   else navigate("precuenta", o.id);
 }
-function consumption(content, o, number, tip = 0) {
+function consumption(content, o, number, tip = 0, printed = false) {
   const items = o.items.filter(
       (i) => i.account === number && i.status !== "draft",
     ),
@@ -1484,10 +1484,12 @@ function consumption(content, o, number, tip = 0) {
     ["Consumo base", total.base],
     ["IVA", total.iva],
     ["Servicio", total.servicio],
+    ...(printed ? [["Total", total.total]] : []),
     ["Propina voluntaria", tip],
     ["Total a pagar", total.total + tip],
   ]) {
     const r = el("tr");
+    if (printed && label === "Propina voluntaria") r.className = "bill-tip";
     r.append(
       el("th", label, { colspan: "2", scope: "row" }),
       el("td", money(value)),
@@ -1652,7 +1654,7 @@ function printBill(o, a, form) {
     email: "Correo",
   }))
     target.append(el("p", label + ": " + (data[key] || a.customer?.[key] || "________________________________")));
-  consumption(target, o, a.number, cents(data.tip ?? a.tip_cents / 100));
+  consumption(target, o, a.number, cents(data.tip ?? a.tip_cents / 100), true);
   target.append(el("p", "Firma del cliente: ________________________________"));
   target.append(el("p", "Precuenta informativa. No es una factura fiscal."));
   window.print();
