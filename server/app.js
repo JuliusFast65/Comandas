@@ -252,11 +252,12 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     collected: ["mesero"],
     documents_received: ["caja"],
     close: ["mesero", "caja"],
+    new_consumption: ["mesero", "caja"],
   };
   if (!Object.hasOwn(roleActions, action)) fail(400, "Acción inválida.");
   allow(req.user, roleActions[action]);
   if (!integer(version, 0, 2147483647)) fail(400, "Versión requerida.");
-  await transaction(async (db) => {
+  const result = await transaction(async (db) => {
     const {
       rows: [order],
     } = await db.query("SELECT * FROM orders WHERE id=$1 FOR UPDATE", [
@@ -610,7 +611,9 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         id,
       ]);
     }
-    if (action === "close") {
+    if (action === "close" || action === "new_consumption") {
+      if (action === "new_consumption" && order.table_number === null)
+        fail(409, "El nuevo consumo requiere una mesa.");
       if (order.status !== "bill_requested")
         fail(409, "Primero solicita la cuenta.");
       const {
@@ -627,14 +630,32 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       );
       if (unsent.rowCount)
         fail(409, "Envía todas las cuentas a LSoft antes de liberar la mesa.");
+      if (action === "new_consumption") {
+        const unpaid = await db.query(
+          "SELECT 1 FROM order_items i LEFT JOIN order_accounts a ON a.order_id=i.order_id AND a.number=i.account WHERE i.order_id=$1 AND NOT (COALESCE(a.collection->'collected','null'::jsonb)<>'null'::jsonb OR COALESCE(a.lsoft->'response'->>'estado','')='pagado')",
+          [id],
+        );
+        if (unpaid.rowCount)
+          fail(409, "Confirma el cobro de todas las cuentas antes de abrir un nuevo consumo.");
+      }
       await db.query(
         "UPDATE orders SET status='closed',closed_at=now() WHERE id=$1",
         [id],
       );
+      if (action === "new_consumption") {
+        const nextId = randomUUID();
+        await db.query(
+          "INSERT INTO orders(id,table_number,created_by,waiter_id) VALUES($1,$2,$3,$4)",
+          [nextId, order.table_number, req.user.id, order.waiter_id],
+        );
+        await event(db, id, req.user.id, action);
+        await event(db, nextId, req.user.id, "created");
+        return { orderId: nextId };
+      }
     }
     await event(db, id, req.user.id, action);
   });
-  res.json({ ok: true });
+  res.json({ ok: true, ...result });
 });
 app.get("/api/history", async (req, res) => {
   allow(req.user, ["caja", "auditor"]);

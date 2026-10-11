@@ -1717,6 +1717,13 @@ function renderRelease(content, o) {
   );
   if (!sent) return;
   const pending = o.items.some((i) => i.status !== "ready");
+  if (o.table_number !== null) {
+    const paid = o.items.every((i) => o.accounts.some((a) =>
+      a.number === i.account && (a.collection?.collected || a.lsoft?.response?.estado === "pagado"),
+    ));
+    content.append(button("Abrir nuevo consumo", () => confirmNewConsumption(o), pending || !paid));
+    if (!paid) content.append(el("p", "Confirma el cobro de todas las cuentas para abrir un nuevo consumo.", { role: "status" }));
+  }
   content.append(
     el("p", o.table_number === null ? "Enviado a LSoft · Pendiente de finalizar" : "Enviada a LSoft · Mesa ocupada, pendiente de liberar"),
     button(o.table_number === null ? "Finalizar pedido" : "Liberar mesa", () => confirmClose(o), pending),
@@ -1787,6 +1794,32 @@ function renderCash(content) {
     content.append(
       button("Ver operaciones cerradas", () => navigate("historial")),
     );
+}
+function confirmNewConsumption(o) {
+  const dialog = el("dialog", null, { class: "note-dialog", "aria-label": "Abrir nuevo consumo" }),
+    footer = el("div", null, { class: "footer" });
+  footer.append(
+    button("Abrir nuevo consumo", () => run(async () => {
+      const current = state.orders.find((order) => order.id === o.id) ?? o;
+      const result = await api(`/orders/${o.id}/actions`, {
+        action: "new_consumption", version: current.version,
+      });
+      selected = result.orderId;
+      view = ["admin", "mesero"].includes(user.role) ? "mesas" : "caja";
+      confirming = false;
+      mobileDetail = false;
+      dialog.close();
+    })),
+    button("Cancelar", () => dialog.close()),
+  );
+  dialog.append(
+    heading("Nuevo consumo · " + orderTitle(o)),
+    el("p", "La cuenta actual quedará archivada. Se abrirá una orden vacía en la misma mesa y con el mismo mesero. La mesa seguirá ocupada."),
+    footer,
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  document.body.append(dialog);
+  dialog.showModal();
 }
 function confirmClose(o) {
   const dialog = el("dialog", null, {

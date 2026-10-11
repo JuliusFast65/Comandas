@@ -595,12 +595,64 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
     await start();
     assert.deepEqual((await administrator.request("/api/state")).settings.config.productHelp[product.id], info);
   });
+  await t.test("nuevo consumo conserva la mesa, el mesero y la cuenta archivada", async () => {
+    const created = await mesero.request("/api/orders", { tableNumber: 3 }, 201);
+    const path = `/api/orders/${created.id}/actions`;
+    const current = async () => (await mesero.request("/api/state")).orders.find((o) => o.id === created.id);
+    const perform = async (who, name, fields = {}, expected = 200) => who.request(path,
+      { action: name, version: (await current()).version, ...fields }, expected);
+    await perform(mesero, "new_consumption", {}, 409);
+    for (const account of [1, 2]) await perform(mesero, "add", {
+      productId: drink.id, quantity: 1, account, note: "",
+    });
+    await perform(mesero, "send");
+    await perform(mesero, "bill");
+    await perform(mesero, "new_consumption", {}, 409);
+    for (const item of (await current()).items) await perform(bar, "ready", { itemId: item.id });
+    for (const account of [1, 2]) {
+      await perform(mesero, "account", { account, name: "Cliente", customer: { name: "Cliente prueba", identification: "123" } });
+      await perform(mesero, "send_lsoft", { account });
+    }
+    await perform(mesero, "new_consumption", {}, 409);
+    await perform(mesero, "bill_delivered", { account: 1 });
+    await perform(mesero, "collected", { account: 1 });
+    await perform(mesero, "new_consumption", {}, 409);
+    await perform(administrator, "pay", { account: 2, method: "efectivo" });
+    await perform(cocina, "new_consumption", {}, 403);
+    await perform(secondWaiter, "new_consumption", {}, 403);
+    const original = await current();
+    const responses = await Promise.all([1, 2].map(() => fetch(base + path, {
+      method: "POST", headers: { Cookie: mesero.cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "new_consumption", version: original.version }),
+    })));
+    assert.deepEqual(responses.map((r) => r.status).sort(), [200, 409]);
+    const result = await responses.find((r) => r.status === 200).json();
+    const active = (await mesero.request("/api/state")).orders.filter((o) => o.table_number === 3);
+    assert.equal(active.length, 1);
+    assert.equal(active[0].id, result.orderId);
+    assert.equal(active[0].waiter_id, original.waiter_id);
+    assert.equal(active[0].status, "open");
+    assert.deepEqual(active[0].items, []);
+    assert.deepEqual(active[0].accounts, []);
+    const archived = (await caja.request("/api/history")).find((o) => o.id === created.id);
+    const normalizeItems = (items) => items.map((i) => ({
+      ...i, sent_at: new Date(i.sent_at).toISOString(), ready_at: new Date(i.ready_at).toISOString(),
+    })).sort((a, b) => a.id.localeCompare(b.id));
+    assert.deepEqual(normalizeItems(archived.items), normalizeItems(original.items));
+    assert.deepEqual(archived.accounts, original.accounts);
+    await mesero.request(`/api/orders/${result.orderId}/actions`, {
+      action: "add", version: active[0].version, productId: drink.id, quantity: 1, account: 1, note: "Nueva ronda",
+    });
+    await mesero.request("/api/orders", { tableNumber: 3 }, 409);
+    const takeaway = await mesero.request("/api/orders", {}, 201);
+    await mesero.request(`/api/orders/${takeaway.id}/actions`, { action: "new_consumption", version: takeaway.version }, 409);
+  });
   await t.test(
     "persistencia al reiniciar HTTP y sesiones independientes al salir",
     async () => {
       await stop();
       await start();
-      assert.equal((await caja.request("/api/history"))[0].id, orderId);
+      assert.ok((await caja.request("/api/history")).some((o) => o.id === orderId));
       assert.equal((await cocina.request("/api/me")).role, "cocina");
       await mesero.request("/api/logout", {});
       await mesero.request("/api/me", undefined, 401);
