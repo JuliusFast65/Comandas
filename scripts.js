@@ -1716,22 +1716,30 @@ function renderRelease(content, o) {
     o.accounts.some((a) => a.number === i.account && a.lsoft?.json),
   );
   if (!sent) return;
-  const pending = o.items.some((i) => i.status !== "ready");
+  const pending = o.items.some((i) => i.status !== "ready"),
+    panel = el("section", null, { class: "consumption-controls", "aria-label": "Estado y acciones del consumo" }),
+    statuses = el("div", null, { class: "consumption-statuses", role: "status" }),
+    actions = el("div", null, { class: "consumption-actions" });
+  statuses.append(
+    el("span", "Enviada a LSoft", { class: "consumption-status consumption-status-sent" }),
+    el("span", o.table_number === null ? "Pedido pendiente de finalizar" : "Mesa ocupada", { class: "consumption-status consumption-status-occupied" }),
+  );
+  panel.append(statuses, actions);
   if (o.table_number !== null) {
     const paid = o.items.every((i) => o.accounts.some((a) =>
       a.number === i.account && (a.collection?.collected || a.lsoft?.response?.estado === "pagado"),
     ));
-    content.append(button("Abrir nuevo consumo", () => confirmNewConsumption(o), pending || !paid));
-    if (!paid) content.append(el("p", "Confirma el cobro de todas las cuentas para abrir un nuevo consumo.", { role: "status" }));
+    actions.append(button("Abrir nuevo consumo", () => confirmNewConsumption(o), pending || !paid));
+    if (!paid) panel.append(el("p", "Confirma el cobro de todas las cuentas para abrir un nuevo consumo.", { class: "consumption-notice", role: "status" }));
   }
-  content.append(
-    el("p", o.table_number === null ? "Enviado a LSoft · Pendiente de finalizar" : "Enviada a LSoft · Mesa ocupada, pendiente de liberar"),
+  actions.append(
     button(o.table_number === null ? "Finalizar pedido" : "Liberar mesa", () => confirmClose(o), pending),
   );
-  if (pending) content.append(el("p", o.table_number === null
+  if (pending) panel.append(el("p", o.table_number === null
     ? "No puedes finalizar el pedido: hay productos pendientes de preparación. El botón se habilitará cuando todos estén listos."
-    : "No puedes liberar la mesa: hay productos pendientes de preparación. El botón se habilitará cuando todos estén listos.",
-  { role: "status" }));
+    : "Hay productos pendientes de preparación. Podrás abrir un nuevo consumo o liberar la mesa cuando todos estén listos.",
+  { class: "consumption-notice", role: "status" }));
+  content.append(panel);
 }
 function renderCash(content) {
   content.append(

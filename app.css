@@ -141,6 +141,46 @@ summary:focus-visible {
 .drawer-content button[aria-current="page"] {
   background: #dcecff;
 }
+.consumption-controls {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 20px;
+  padding: 16px;
+  border: 1px solid #b9ccdf;
+  border-left: 4px solid #173b60;
+  border-radius: 12px;
+  background: #f0f7ff;
+}
+.consumption-statuses,
+.consumption-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.consumption-status {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.consumption-status-sent { color: #216039; background: #def2e4; }
+.consumption-status-occupied { color: #173b60; background: #dcecff; }
+.consumption-actions .pickup-button {
+  flex: 0 1 auto;
+  min-height: 44px;
+  margin: 0;
+}
+.consumption-controls .consumption-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid #b66a00;
+  border-radius: 6px;
+  background: #fff0c2;
+  color: #754100;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
 .footer {
   flex-wrap: wrap;
   gap: 8px;
