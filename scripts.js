@@ -1019,6 +1019,18 @@ function renderMenu(content, o, editable) {
     h,
     el("span", `Cuenta ${m.account}`, { id: "menu-cuenta" }),
     button(
+      "Enviar a Preparación",
+      () =>
+        run(async () => {
+          await api(`/orders/${o.id}/actions`, {
+            action: "send",
+            version: o.version,
+          });
+          showOrderSent();
+        }),
+      !editableOrder(o) || !o.items.some((i) => i.status === "draft"),
+    ),
+    button(
       o.status === "bill_requested" ? "Ver precuenta" : "Pedir Cuenta",
       () => openBill(o),
       !(mayBill(o) || user?.role === "mesero") ||
