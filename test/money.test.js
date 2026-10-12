@@ -3,15 +3,8 @@ import assert from "node:assert/strict";
 import { amounts, totals, tariffFor } from "../money.js";
 test("precuenta: cargos incluidos, separados, redondeos y sumas por cuenta", () => {
   const tariff = { precio: 1000, iva: 15, servicio: 10, incluidos: true };
-  const config = { iva: 15, servicio: 10, incluidos: true, precios: {} };
-  assert.equal(
-    tariffFor({ name: "Ensalada", category: "adicionales" }, config).precio,
-    1000,
-  );
-  assert.equal(
-    tariffFor({ name: "Guacamole", category: "adicionales" }, config).precio,
-    500,
-  );
+  const config = { iva: 15, servicio: 10, incluidos: true };
+  assert.deepEqual(tariffFor({ name: "Ensalada", price_cents: 1000 }, config), tariff);
   assert.deepEqual(amounts(tariff, 3), {
     base: 2400,
     iva: 360,

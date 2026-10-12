@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 import { pool, transaction } from "./db.js";
 import { hashPassword } from "./password.js";
 import { catalog } from "./catalog.js";
+// Demonstration prices of the seed catalog, in cents. Later changes are made in the application.
+const seedPrices = { entradas: 500, platos: 1000, postres: 400, bebidas: 250, bebidasAlcoolicas: 600, adicionales: 200 },
+  seedPricesByName = { Guacamole: 500, Ensalada: 1000 };
 const password = process.env.SEED_PASSWORD;
 if (!password || password.length < 12 || password.startsWith("change-this")) {
   throw new Error(
@@ -56,15 +59,18 @@ try {
     await db.query(
       "INSERT INTO dining_tables(number) SELECT generate_series(1,9) ON CONFLICT DO NOTHING",
     );
-    for (const [category, names] of Object.entries(catalog)) {
+    // The seed catalog only fills an empty menu; it never restores renamed or removed products.
+    const seeded = (await db.query("SELECT 1 FROM products LIMIT 1")).rowCount;
+    for (const [category, names] of seeded ? [] : Object.entries(catalog)) {
       for (const name of names)
         await db.query(
-          "INSERT INTO products(id,name,category,area) VALUES($1,$2,$3,$4) ON CONFLICT(category,name) DO NOTHING",
+          "INSERT INTO products(id,name,category,area,price_cents) VALUES($1,$2,$3,$4,$5)",
           [
             randomUUID(),
             name,
             category,
             category.startsWith("bebidas") ? "bar" : "cocina",
+            seedPricesByName[name] ?? seedPrices[category],
           ],
         );
     }

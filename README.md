@@ -1,6 +1,6 @@
 # Comandas
 
-Aplicación web con servidor Node.js y PostgreSQL 17. Los navegadores acceden a la API; la base de datos no se expone a los clientes. El catálogo original y las nueve mesas se conservan.
+Aplicación web con servidor Node.js y PostgreSQL 17. Los navegadores acceden a la API; la base de datos no se expone a los clientes. El catálogo y las mesas iniciales son datos de demostración que el administrador modifica desde la aplicación.
 
 ## Puesta en marcha
 
@@ -44,6 +44,16 @@ Ejecutar `npm.cmd run db:init` para aplicar la migración 9 y reiniciar el servi
 - **Cambiar a mesa**: traslada el pedido completo a una mesa libre.
 
 Una cuenta ya enviada a LSoft no admite correcciones; las demás cuentas de la mesa sí. Si se anula todo, la mesa se libera con «Liberar mesa» (o el pedido para llevar con su botón de eliminar) y el pedido queda en el historial con sus anulaciones.
+
+## Catálogo y mesas
+
+Ejecutar `npm.cmd run db:init` para aplicar la migración 10 y reiniciar el servidor. El administrador usa **Catálogo y mesas**:
+
+- **Categorías**: crear, renombrar, ordenar y ocultar del menú.
+- **Productos y precios**: crear productos; editar nombre, categoría, estación de preparación y disponibilidad; escribir varios precios y guardarlos juntos. El precio pertenece a cada producto: dos productos con el mismo nombre en categorías distintas ya no comparten precio.
+- **Mesas**: crear mesas con número y zona opcional, y desactivarlas o reactivarlas. Una mesa con pedido activo no se puede desactivar.
+
+Nada se elimina: los productos, categorías y mesas que dejan de usarse se desactivan y siguen en el historial. Los cambios afectan a lo que se pida después; los productos ya pedidos conservan su nombre, tarifa y estación. La migración traslada a cada producto el precio que tenía (los guardados en la configuración por nombre, o el de demostración de su categoría). `db:init` solo carga el catálogo de demostración cuando no existe ningún producto, de modo que no repone productos renombrados. IVA, servicio y la interpretación de precios siguen en **Configuración**.
 
 ## Auditoría
 
@@ -107,7 +117,7 @@ Para probar roles simultáneos en una sola computadora, usar perfiles de navegad
 
 - Mesero: atender sus mesas, usar chips y búsqueda sin distinguir acentos en todo el menú, añadir productos y notas por cuenta, confirmar rondas y enviar a cocina/bar. Retirar una cantidad o todo lo preparado y enviar la precuenta por cuenta al simulador.
 - Cocina y bar: marcar sus productos preparados. Preparación y retiro son acciones separadas; los productos totalmente retirados salen de la lista activa y permanecen en la consulta de retirados.
-- Administrador: configurar precios, IVA y servicio, mantener el equipo de meseros, vincular usuarios y reasignar mesas.
+- Administrador: administrar catálogo, precios, mesas, IVA y servicio, mantener el equipo de meseros y los usuarios, y reasignar mesas.
 - Mesero responsable, supervisor, caja y administrador: liberar la mesa cuando todas las cuentas estén enviadas a LSoft, los productos estén preparados y los clientes se hayan retirado.
 - Auditor: consultar cuentas y operaciones cerradas sin modificar datos.
 - Caja, auditor, supervisor y administrador: consultar los últimos 100 pedidos cerrados; el historial completo permanece en PostgreSQL.
@@ -140,4 +150,4 @@ Esta es la primera base funcional, no una instalación publicada. Puede usar un 
 
 Para acceso desde Internet, configurar dominio y HTTPS en un proxy inverso, `APP_ORIGIN` con el origen público y `COOKIE_SECURE=true`; permitir SSE sin almacenamiento intermedio. Ejecutar el backend como servicio supervisado. La conexión local a PostgreSQL se publica solo en `127.0.0.1`; usar un usuario de base con permisos mínimos para el backend y otro para inicialización/migraciones. Configurar y verificar copias de seguridad con `pg_dump` y restauraciones antes de operar. El servidor dentro de la red local funciona sin Internet; no hay modo de trabajo desconectado del servidor.
 
-Quedan pendientes los descuentos, la administración del catálogo e integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor. Roboto y los iconos usan los proveedores del diseño anterior; sin Internet se usa la fuente de respaldo y los textos siguen disponibles.
+Quedan pendientes los descuentos y la integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor. Roboto y los iconos usan los proveedores del diseño anterior; sin Internet se usa la fuente de respaldo y los textos siguen disponibles.

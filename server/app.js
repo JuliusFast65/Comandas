@@ -203,7 +203,10 @@ app.get("/api/state", async (req, res) => {
   const state = await transaction(async (db) => {
     await db.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const tables = (
-      await db.query("SELECT number FROM dining_tables ORDER BY number")
+      await db.query("SELECT number,zone,active FROM dining_tables ORDER BY number")
+    ).rows;
+    const categories = (
+      await db.query("SELECT * FROM categories ORDER BY position,name")
     ).rows;
     const products = (
       await db.query("SELECT * FROM products ORDER BY category,name")
@@ -238,6 +241,7 @@ app.get("/api/state", async (req, res) => {
         "SELECT u.id,u.username,u.role,u.waiter_id,u.active,u.must_change_password,ARRAY(SELECT station_code FROM user_stations WHERE user_id=u.id ORDER BY station_code) AS stations FROM users u ORDER BY username",
       )).rows } : {}),
       tables,
+      categories,
       products: products.map((p) => ({ ...p, help: exampleProductHelp(p) })),
       waiters,
       settings,
@@ -291,8 +295,9 @@ async function addProduct(db, id, b) {
     fail(400, "Producto, cantidad, cuenta o nota inválidos.");
   const {
     rows: [p],
-  } = await db.query("SELECT p.*,s.active AS station_active FROM products p JOIN stations s ON s.code=p.area WHERE p.id=$1 FOR SHARE OF p,s", [b.productId]);
+  } = await db.query("SELECT p.*,s.active AS station_active,c.active AS category_active FROM products p JOIN stations s ON s.code=p.area JOIN categories c ON c.code=p.category WHERE p.id=$1 FOR SHARE OF p,s", [b.productId]);
   if (!p) fail(404, "Producto no encontrado.");
+  if (!p.active || !p.category_active) fail(409, "Este producto ya no está disponible en el menú.");
   if (!p.station_active) fail(409, "La estación de este producto está inactiva.");
   await db.query(
     "INSERT INTO order_accounts(order_id,number) VALUES($1,$2) ON CONFLICT DO NOTHING",
@@ -355,6 +360,13 @@ app.post("/api/orders", async (req, res) => {
   if (typeof occupied !== "boolean" || (occupied && table === null))
     fail(400, "La ocupación requiere una mesa.");
   const order = await transaction(async (db) => {
+    if (table !== null) {
+      const {
+        rows: [seat],
+      } = await db.query("SELECT active FROM dining_tables WHERE number=$1 FOR SHARE", [table]);
+      if (!seat) fail(400, "La mesa o el registro no existe.");
+      if (!seat.active) fail(409, "Esta mesa está desactivada.");
+    }
     const id = randomUUID();
     const waiter =
       ["admin", "supervisor"].includes(req.user.role)
@@ -725,8 +737,8 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         ).rowCount
       )
         fail(409, "El pedido ya fue enviado a LSoft.");
-      if (!(await db.query("SELECT 1 FROM dining_tables WHERE number=$1 FOR SHARE", [b.tableNumber])).rowCount)
-        fail(400, "La mesa de destino no existe.");
+      if (!(await db.query("SELECT 1 FROM dining_tables WHERE number=$1 AND active=true FOR SHARE", [b.tableNumber])).rowCount)
+        fail(400, "La mesa de destino no existe o está desactivada.");
       if ((await db.query("SELECT 1 FROM orders WHERE table_number=$1 AND status<>'closed'", [b.tableNumber])).rowCount)
         fail(409, "La mesa de destino está ocupada.");
       await db.query("UPDATE orders SET table_number=$1 WHERE id=$2", [b.tableNumber, id]);
@@ -1076,6 +1088,96 @@ app.post("/api/stations/:code", async (req, res) => {
   }, { user: req.user.id, action: "station_changed", details: { code: req.params.code, name: name.trim(), active } });
   res.json({ ok: true });
 });
+const cleanName = (value, max) => (text(value, max) && value.trim() ? value.trim() : null);
+const price = (value) => integer(value, 0, 10000000);
+app.post("/api/categories", async (req, res) => {
+  allow(req.user, []);
+  const name = cleanName(req.body.name, 60);
+  if (!name) fail(400, "Nombre de categoría inválido.");
+  const category = await changeConfiguration(req.body.version, async (db) => {
+    if ((await db.query("SELECT 1 FROM categories WHERE lower(name)=lower($1)", [name])).rowCount)
+      fail(409, "Ya existe una categoría con ese nombre.");
+    return (await db.query(
+      "INSERT INTO categories(code,name,position) VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM categories)) RETURNING *",
+      ["cat_" + randomUUID().replaceAll("-", ""), name],
+    )).rows[0];
+  }, { user: req.user.id, action: "category_created", details: { name } });
+  res.status(201).json(category);
+});
+app.post("/api/categories/:code", async (req, res) => {
+  allow(req.user, []);
+  const name = cleanName(req.body.name, 60),
+    { position, active } = req.body;
+  if (!name || !integer(position, 0, 999) || typeof active !== "boolean")
+    fail(400, "Categoría inválida.");
+  await changeConfiguration(req.body.version, async (db) => {
+    if (!(await db.query("SELECT 1 FROM categories WHERE code=$1 FOR UPDATE", [req.params.code])).rowCount)
+      fail(404, "Categoría no encontrada.");
+    if ((await db.query("SELECT 1 FROM categories WHERE lower(name)=lower($1) AND code<>$2", [name, req.params.code])).rowCount)
+      fail(409, "Ya existe una categoría con ese nombre.");
+    await db.query("UPDATE categories SET name=$1,position=$2,active=$3 WHERE code=$4", [name, position, active, req.params.code]);
+  }, { user: req.user.id, action: "category_changed", details: { name, position, active } });
+  res.json({ ok: true });
+});
+// Shared validation of a product: unique name in its category, existing category, active station.
+async function checkProduct(db, product, id = null) {
+  if (!(await db.query("SELECT 1 FROM categories WHERE code=$1 FOR SHARE", [product.category])).rowCount)
+    fail(400, "Categoría no encontrada.");
+  const {
+    rows: [station],
+  } = await db.query("SELECT active FROM stations WHERE code=$1 FOR SHARE", [product.area]);
+  if (!station) fail(400, "Estación no encontrada.");
+  if (!station.active && product.area !== product.previousArea) fail(400, "Estación no disponible.");
+  if ((await db.query("SELECT 1 FROM products WHERE category=$1 AND lower(name)=lower($2) AND ($3::uuid IS NULL OR id<>$3)",
+    [product.category, product.name, id])).rowCount)
+    fail(409, "Ya existe un producto con ese nombre en la categoría.");
+}
+function productFields(body) {
+  const product = {
+    name: cleanName(body.name, 80),
+    category: body.category,
+    area: body.stationCode,
+    price_cents: body.priceCents,
+  };
+  if (!product.name || !text(product.category, 80) || !text(product.area, 80) || !price(product.price_cents))
+    fail(400, "Nombre, categoría, estación o precio inválidos.");
+  return product;
+}
+app.post("/api/products", async (req, res) => {
+  allow(req.user, []);
+  const product = productFields(req.body);
+  const created = await changeConfiguration(req.body.version, async (db) => {
+    await checkProduct(db, product);
+    return (await db.query(
+      "INSERT INTO products(id,name,category,area,price_cents) VALUES($1,$2,$3,$4,$5) RETURNING *",
+      [randomUUID(), product.name, product.category, product.area, product.price_cents],
+    )).rows[0];
+  }, { user: req.user.id, action: "product_created", details: product });
+  res.status(201).json(created);
+});
+app.post("/api/products/prices", async (req, res) => {
+  allow(req.user, []);
+  const { prices } = req.body;
+  if (!prices || typeof prices !== "object" || Array.isArray(prices))
+    fail(400, "Precios inválidos.");
+  const entries = Object.entries(prices);
+  if (!entries.length || entries.length > 2000 || entries.some(([id, value]) => !uuid(id) || !price(value)))
+    fail(400, "Precios inválidos.");
+  const changes = [];
+  await changeConfiguration(req.body.version, async (db) => {
+    const { rows } = await db.query("SELECT id,name,price_cents FROM products WHERE id=ANY($1::uuid[]) FOR UPDATE", [entries.map(([id]) => id)]);
+    if (rows.length !== entries.length) fail(404, "Producto no encontrado.");
+    for (const product of rows) {
+      const next = prices[product.id];
+      if (next === product.price_cents) continue;
+      await db.query("UPDATE products SET price_cents=$1 WHERE id=$2", [next, product.id]);
+      changes.push({ product: product.name, from: product.price_cents, to: next });
+    }
+    // The record is written inside the same transaction, after the changes are known.
+    if (changes.length) await audit(db, req.user.id, "prices_changed", { changes });
+  });
+  res.json({ ok: true, changed: changes.length });
+});
 app.post("/api/products/station", async (req, res) => {
   allow(req.user, []);
   const { productIds, stationCode, version } = req.body;
@@ -1088,6 +1190,56 @@ app.post("/api/products/station", async (req, res) => {
     const result = await db.query("UPDATE products SET area=$1 WHERE id=ANY($2::uuid[])", [stationCode, productIds]);
     if (result.rowCount !== productIds.length) fail(404, "Producto no encontrado.");
   }, { user: req.user.id, action: "products_station", details: { station: stationCode, products: productIds.length } });
+  res.json({ ok: true });
+});
+app.post("/api/products/:id", async (req, res) => {
+  allow(req.user, []);
+  if (!uuid(req.params.id) || typeof req.body.active !== "boolean") fail(400, "Producto inválido.");
+  const product = productFields(req.body),
+    details = {};
+  await changeConfiguration(req.body.version, async (db) => {
+    const {
+      rows: [before],
+    } = await db.query("SELECT * FROM products WHERE id=$1 FOR UPDATE", [req.params.id]);
+    if (!before) fail(404, "Producto no encontrado.");
+    await checkProduct(db, { ...product, previousArea: before.area }, before.id);
+    await db.query(
+      "UPDATE products SET name=$1,category=$2,area=$3,price_cents=$4,active=$5 WHERE id=$6",
+      [product.name, product.category, product.area, product.price_cents, req.body.active, before.id],
+    );
+    const after = { ...product, active: req.body.active };
+    details.product = before.name;
+    for (const key of Object.keys(after))
+      if (after[key] !== before[key]) details[key] = { from: before[key], to: after[key] };
+    await audit(db, req.user.id, "product_changed", details);
+  });
+  res.json({ ok: true });
+});
+app.post("/api/tables", async (req, res) => {
+  allow(req.user, []);
+  const { number } = req.body,
+    zone = req.body.zone ?? "";
+  if (!integer(number, 1, 999) || !text(zone, 40)) fail(400, "Número o zona de mesa inválidos.");
+  const table = await changeConfiguration(req.body.version, async (db) => {
+    if ((await db.query("SELECT 1 FROM dining_tables WHERE number=$1", [number])).rowCount)
+      fail(409, "Ya existe una mesa con ese número.");
+    return (await db.query("INSERT INTO dining_tables(number,zone) VALUES($1,$2) RETURNING *", [number, zone.trim()])).rows[0];
+  }, { user: req.user.id, action: "table_created", details: { number, zone: zone.trim() } });
+  res.status(201).json(table);
+});
+app.post("/api/tables/:number", async (req, res) => {
+  allow(req.user, []);
+  const number = Number(req.params.number),
+    { zone, active } = req.body;
+  if (!integer(number, 1, 999) || !text(zone, 40) || typeof active !== "boolean")
+    fail(400, "Mesa inválida.");
+  await changeConfiguration(req.body.version, async (db) => {
+    if (!(await db.query("SELECT 1 FROM dining_tables WHERE number=$1 FOR UPDATE", [number])).rowCount)
+      fail(404, "Mesa no encontrada.");
+    if (!active && (await db.query("SELECT 1 FROM orders WHERE table_number=$1 AND status<>'closed'", [number])).rowCount)
+      fail(409, "La mesa tiene un pedido activo. Libérala antes de desactivarla.");
+    await db.query("UPDATE dining_tables SET zone=$1,active=$2 WHERE number=$3", [zone.trim(), active, number]);
+  }, { user: req.user.id, action: "table_changed", details: { number, zone: zone.trim(), active } });
   res.json({ ok: true });
 });
 app.post("/api/users/:id/stations", async (req, res) => {
@@ -1165,11 +1317,7 @@ app.post("/api/config", async (req, res) => {
         config[k] >= 0 &&
         config[k] <= 100,
     ) ||
-    typeof config.incluidos !== "boolean" ||
-    !config.precios ||
-    typeof config.precios !== "object" ||
-    Array.isArray(config.precios) ||
-    Object.values(config.precios).some((v) => !integer(v, 0, 10000000))
+    typeof config.incluidos !== "boolean"
   )
     fail(400, "Configuración inválida.");
   await transaction(async (db) => {
@@ -1178,11 +1326,6 @@ app.post("/api/config", async (req, res) => {
     } = await db.query("SELECT * FROM app_settings WHERE id=1 FOR UPDATE");
     if (settings.version !== version)
       fail(409, "Otro usuario cambió la configuración. Actualiza los datos.");
-    const names = new Set(
-      (await db.query("SELECT name FROM products")).rows.map((p) => p.name),
-    );
-    if (Object.keys(config.precios).some((name) => !names.has(name)))
-      fail(400, "Producto no encontrado.");
     await db.query(
       "UPDATE app_settings SET config=$1,version=version+1 WHERE id=1",
       [
@@ -1190,24 +1333,17 @@ app.post("/api/config", async (req, res) => {
           iva: config.iva,
           servicio: config.servicio,
           incluidos: config.incluidos,
-          precios: config.precios,
           ...(settings.config.productHelp ? { productHelp: settings.config.productHelp } : {}),
         },
       ],
     );
-    const before = settings.config,
-      prices = Object.fromEntries(
-        Object.entries(config.precios)
-          .filter(([name, value]) => before.precios?.[name] !== value)
-          .map(([name, value]) => [name, { from: before.precios?.[name] ?? null, to: value }]),
-      );
+    const before = settings.config;
     await audit(db, req.user.id, "config_changed", {
       ...Object.fromEntries(
         ["iva", "servicio", "incluidos"]
           .filter((key) => before[key] !== config[key])
           .map((key) => [key, { from: before[key], to: config[key] }]),
       ),
-      ...(Object.keys(prices).length ? { precios: prices } : {}),
     });
     await db.query("SELECT pg_notify('comandas_changed','')");
   });

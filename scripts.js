@@ -1,6 +1,6 @@
 import { tariffFor, amounts, totals } from "./money.js";
 let user = null,
-  state = { tables: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null },
+  state = { tables: [], categories: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null },
   view = "mesas",
   selected = null,
   pendingTable = null,
@@ -50,14 +50,12 @@ const roles = {
   auditor: "Auditor / Sistemas",
   estacion: "Personal de estación",
 };
-const categoryNames = {
-  entradas: "Entradas",
-  platos: "Platos fuertes",
-  postres: "Postres",
-  bebidas: "Bebidas",
-  bebidasAlcoolicas: "Bebidas alcohólicas",
-  adicionales: "Adicionales",
-};
+function categoryName(code) {
+  return state.categories.find((c) => c.code === code)?.name || code;
+}
+function menuCategories() {
+  return state.categories.filter((c) => c.active);
+}
 const $ = (selector) => document.querySelector(selector),
   money = (cents) => `$${(cents / 100).toFixed(2)}`,
   cents = (value) => Math.round(Number(value) * 100);
@@ -173,7 +171,7 @@ function stationOrderHeading(o) {
 function menu(o) {
   if (!menus.has(o.id))
     menus.set(o.id, {
-      category: "entradas",
+      category: null,
       query: "",
       searchOpen: false,
       account: 1,
@@ -227,7 +225,7 @@ function logoutUI() {
   mobileDetail = false;
   menus.clear();
   createdOrders.clear();
-  state = { tables: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null };
+  state = { tables: [], categories: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null };
   document.querySelectorAll("dialog").forEach((d) => {
     if (d.id === "app-menu") {
       if (d.open) d.close();
@@ -533,6 +531,7 @@ function areas() {
       "historial",
       "auditoria",
       "configuracion",
+      "catalogo",
       "meseros",
       "usuarios",
     ];
@@ -551,6 +550,7 @@ const areaNames = {
   historial: "Operaciones cerradas",
   auditoria: "Auditoría",
   configuracion: "Configuración",
+  catalogo: "Catálogo y mesas",
   meseros: "Equipo de meseros",
   usuarios: "Usuarios y permisos",
 };
@@ -651,6 +651,7 @@ function render() {
   else if (view === "auditoria") renderAudit(page(content, "auditoria-screen"));
   else if (view === "configuracion")
     renderConfig(page(content, "configuracion-screen"));
+  else if (view === "catalogo") renderCatalog(page(content, "catalogo-screen"));
   else if (view === "meseros") renderWaiters(page(content, "meseros-screen"));
   else if (view === "usuarios") renderUsers(page(content, "usuarios-screen"));
   else if (user.role === "estacion" && !user.stations.length)
@@ -701,7 +702,7 @@ function operationLinks(content) {
   }
   content.append(footer);
 }
-function tableCard(table, o) {
+function tableCard(table, o, zone = "") {
   const r = o ? summaryOf(o) : { draft: 0, preparing: 0, ready: 0, picked: 0 },
     stateName = !o
       ? "libre"
@@ -734,6 +735,7 @@ function tableCard(table, o) {
   }
   b.append(
     el("strong", table ? `Mesa ${table}` : orderTitle(o)),
+    ...(zone ? [el("small", zone, { class: "table-zone" })] : []),
     el(
       "small",
       !o
@@ -808,7 +810,7 @@ function renderTables(content) {
     grid = el("div", null, { class: "mesas", id: "mesas" });
   for (const t of state.tables) {
     const o = state.orders.find((o) => o.table_number === t.number);
-    if (visible(o)) grid.append(tableCard(t.number, o));
+    if ((t.active || o) && visible(o)) grid.append(tableCard(t.number, o, t.zone));
   }
   const takeaway = el("div", null, { class: "para-llevar", id: "para-llevar" });
   for (const o of state.orders.filter((o) => !o.table_number && visible(o)))
@@ -909,7 +911,7 @@ function renderOrder(content, o) {
     else if (["admin", "supervisor"].includes(user.role))
       header.append(el("small", "Mesero: " + waiterName(o.waiter_id)));
   }
-  const freeTables = state.tables.filter((t) => !state.orders.some((other) => other.table_number === t.number));
+  const freeTables = state.tables.filter((t) => t.active && !state.orders.some((other) => other.table_number === t.number));
   if (!confirming && !o.pending && o.table_number && editable && freeTables.length) {
     const transfer = select("Cambiar a mesa ", [["", "—"], ...freeTables.map((t) => [t.number, `Mesa ${t.number}`])], "",
       (v) => v && action(o, "transfer", { tableNumber: Number(v) }));
@@ -1059,6 +1061,7 @@ window.addEventListener("resize", () => {
 });
 function renderMenu(content, o, editable) {
   const m = menu(o),
+    visibleCategories = menuCategories(),
     nav = el("nav", null, {
       id: "categories",
       class: "categories",
@@ -1112,7 +1115,8 @@ function renderMenu(content, o, editable) {
   controls.append(input, clear);
   searchBox.append(controls);
   nav.append(search, searchBox);
-  for (const [key, label] of Object.entries(categoryNames)) {
+  if (!visibleCategories.some((c) => c.code === m.category)) m.category = visibleCategories[0]?.code ?? null;
+  for (const { code: key, name: label } of visibleCategories) {
     const b = button(
       label,
       () => {
@@ -1172,12 +1176,13 @@ function renderMenu(content, o, editable) {
   function updateProducts() {
     const query = normalize(m.query.trim()),
       list = state.products.filter((p) =>
-        query ? normalize(p.name).includes(query) : p.category === m.category,
+        p.active && visibleCategories.some((c) => c.code === p.category) &&
+        (query ? normalize(p.name).includes(query) : p.category === m.category),
       );
     products.replaceChildren();
     clear.hidden = !m.query;
     count.textContent = query ? `${list.length} resultados` : "";
-    h.textContent = categoryNames[m.category];
+    h.textContent = categoryName(m.category);
     h.hidden = !!query;
     for (const b of nav.querySelectorAll("[data-categoria]")) {
       const active = !query && b.dataset.categoria === m.category;
@@ -2247,6 +2252,19 @@ function describeEvent(e) {
       ...["iva", "servicio", "incluidos"].filter((k) => d[k]).map((k) => `${k} ${d[k].from} → ${d[k].to}`),
       ...Object.entries(d.precios || {}).map(([name, p]) => `${name} ${p.from === null ? "predeterminado" : money(p.from)} → ${money(p.to)}`),
     ].join(" · ") || "sin diferencias");
+    case "prices_changed": return "Cambió precios: " + d.changes.map((c) => `${c.product} ${money(c.from)} → ${money(c.to)}`).join(" · ");
+    case "product_created": return `Creó el producto ${d.name} · ${categoryName(d.category)} · ${areaName(d.area)} · ${money(d.price_cents)}`;
+    case "product_changed": return `Modificó el producto ${d.product}: ` + ([
+      d.name && `nombre → ${d.name.to}`,
+      d.category && `categoría ${categoryName(d.category.from)} → ${categoryName(d.category.to)}`,
+      d.area && `estación ${areaName(d.area.from)} → ${areaName(d.area.to)}`,
+      d.price_cents && `precio ${money(d.price_cents.from)} → ${money(d.price_cents.to)}`,
+      d.active && (d.active.to ? "reactivado" : "desactivado"),
+    ].filter(Boolean).join(" · ") || "sin diferencias");
+    case "category_created": return `Creó la categoría ${d.name}`;
+    case "category_changed": return `Modificó la categoría ${d.name} (${d.active ? "visible" : "oculta"}, orden ${d.position})`;
+    case "table_created": return `Creó la Mesa ${d.number}` + (d.zone ? ` · ${d.zone}` : "");
+    case "table_changed": return `Modificó la Mesa ${d.number} (${d.active ? "activa" : "desactivada"})` + (d.zone ? ` · ${d.zone}` : "");
     case "product_help": return `Editó la ficha de ${state.products.find((p) => p.id === d.product)?.name || "un producto"}`;
     case "waiters_changed": return `Actualizó el equipo de meseros: ${d.names.join(", ")}`;
     case "order_deleted": return `Eliminó el pedido para llevar ${d.number}, vacío`;
@@ -2327,15 +2345,16 @@ function renderConfig(content) {
   const links = el("div", null, { class: "footer" });
   links.append(button("Estaciones y productos", () => {
     document.getElementById("station-settings").scrollIntoView({ behavior: "smooth" });
-  }), button("Usuarios y estaciones", () => navigate("usuarios")));
+  }), button("Usuarios y estaciones", () => navigate("usuarios")),
+  button("Catálogo, precios y mesas", () => navigate("catalogo")));
   content.append(heading("Configuración"), links);
   const settings = state.settings,
     config = settings.config;
   content.append(
-    heading("Precios y cargos"),
+    heading("Cargos"),
     el(
       "p",
-      "Los productos ya pedidos conservan su tarifa. Los cambios se comparten entre dispositivos.",
+      "Los productos ya pedidos conservan su tarifa. Los cambios se comparten entre dispositivos. Los precios se administran en Catálogo y mesas.",
     ),
   );
   const form = el("form", null, { id: "config-form" });
@@ -2378,28 +2397,6 @@ function renderConfig(content) {
       "IVA y servicio se calculan sobre la misma base. La propina voluntaria va aparte. Cambiar el modo conserva los números escritos y cambia su interpretación.",
     ),
   );
-  const prices = el("div", null, { class: "price-settings" }),
-    seen = new Set();
-  for (const p of state.products) {
-    if (seen.has(p.name)) continue;
-    seen.add(p.name);
-    const input = labeled(
-      prices,
-      p.name,
-      el("input", null, {
-        id: "price-" + p.id,
-        type: "number",
-        min: "0",
-        max: "100000",
-        step: "0.01",
-        value: (tariffFor(p, config).precio / 100).toFixed(2),
-        required: "",
-      }),
-    );
-    input.dataset.product = p.name;
-    input.addEventListener("input", () => (form.dataset.dirty = "true"));
-  }
-  form.append(prices);
   const footer = el("div", null, { class: "footer" });
   footer.append(
     el("button", "Guardar configuración", { type: "submit" }),
@@ -2409,12 +2406,6 @@ function renderConfig(content) {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!form.reportValidity()) return;
-    const precios = Object.fromEntries(
-      [...prices.querySelectorAll("input")].map((i) => [
-        i.dataset.product,
-        cents(i.value),
-      ]),
-    );
     run(async () => {
       await api("/config", {
         version: configVersion(form),
@@ -2422,7 +2413,6 @@ function renderConfig(content) {
           iva: Number($("#config-iva").value),
           servicio: Number($("#config-servicio").value),
           incluidos: $("#config-incluidos").value === "incluidos",
-          precios,
         },
       });
       navigate("mesas");
@@ -2430,6 +2420,141 @@ function renderConfig(content) {
   });
   content.append(form);
   renderStationSettings(content);
+}
+function renderCatalog(content) {
+  content.append(
+    heading("Catálogo y mesas"),
+    el("p", "Los cambios se aplican a los pedidos nuevos. Los productos ya pedidos conservan su nombre, precio y estación. Nada se elimina: lo que deja de usarse se desactiva y sigue en el historial."),
+  );
+  // Categories.
+  const categories = el("section", null, { id: "category-settings" });
+  categories.append(heading("Categorías"));
+  const createCategory = stationConfigForm("category-create"),
+    newCategory = labeled(createCategory, "Nombre de la nueva categoría", el("input", null,
+      { id: "category-create-name", required: "", maxlength: "60" }));
+  submitConfiguration(createCategory, "Crear categoría", () => api("/categories", {
+    name: newCategory.value, version: configVersion(createCategory),
+  }));
+  categories.append(createCategory);
+  for (const c of state.categories) {
+    const form = stationConfigForm("category-edit-" + c.code),
+      name = labeled(form, "Nombre de categoría", el("input", null, {
+        id: "category-name-" + c.code, value: c.name, required: "", maxlength: "60",
+      })),
+      position = labeled(form, "Orden en el menú", el("input", null, {
+        id: "category-position-" + c.code, type: "number", min: "0", max: "999", step: "1",
+        value: String(c.position), required: "",
+      })),
+      active = checkbox(form, "Visible en el menú", "category-active-" + c.code, c.active);
+    form.append(active, el("p", `${state.products.filter((p) => p.category === c.code).length} productos`));
+    submitConfiguration(form, "Guardar categoría", () => api(`/categories/${c.code}`, {
+      name: name.value, position: Number(position.value),
+      active: active.querySelector("input").checked, version: configVersion(form),
+    }));
+    categories.append(form);
+  }
+  content.append(categories);
+  // Products and prices.
+  const products = el("section", null, { id: "product-settings" });
+  products.append(
+    heading("Productos y precios"),
+    el("p", "Escribe los precios y guárdalos juntos. «Editar» cambia nombre, categoría, estación o disponibilidad."),
+    button("Nuevo producto", () => openProduct(null)),
+  );
+  const prices = stationConfigForm("catalog-prices");
+  for (const c of state.categories) {
+    const list = state.products.filter((p) => p.category === c.code),
+      group = el("details", null, { id: "catalog-products-" + c.code });
+    group.append(el("summary", `${c.name} (${list.length})${c.active ? "" : " · Oculta"}`));
+    for (const p of list) {
+      const row = el("div", null, { class: "catalog-row" + (p.active ? "" : " catalog-inactive") }),
+        input = el("input", null, {
+          id: "catalog-price-" + p.id, type: "number", min: "0", max: "100000", step: "0.01",
+          value: (p.price_cents / 100).toFixed(2), required: "", "aria-label": `Precio de ${p.name}`,
+        }),
+        name = el("span", null, { class: "catalog-name" });
+      name.append(el("strong", p.name), el("small", areaName(p.area) + (p.active ? "" : " · Inactivo")));
+      input.dataset.product = p.id;
+      input.addEventListener("input", () => (prices.dataset.dirty = "true"));
+      row.append(name, input, button("Editar", () => openProduct(p)));
+      group.append(row);
+    }
+    if (!list.length) group.append(el("p", "Sin productos."));
+    prices.append(group);
+  }
+  submitConfiguration(prices, "Guardar precios", () => api("/products/prices", {
+    version: configVersion(prices),
+    prices: Object.fromEntries([...prices.querySelectorAll("input[data-product]")].map((i) => [i.dataset.product, cents(i.value)])),
+  }));
+  products.append(prices);
+  content.append(products);
+  // Tables.
+  const tables = el("section", null, { id: "table-settings" });
+  tables.append(heading("Mesas"), el("p", "La zona es opcional (por ejemplo, Terraza). Una mesa desactivada deja de mostrarse; no puede tener un pedido activo."));
+  const createTable = stationConfigForm("table-create"),
+    number = labeled(createTable, "Número de la nueva mesa", el("input", null, {
+      id: "table-create-number", type: "number", min: "1", max: "999", step: "1", required: "",
+      value: String(Math.max(0, ...state.tables.map((t) => t.number)) + 1),
+    })),
+    newZone = labeled(createTable, "Zona", el("input", null, { id: "table-create-zone", maxlength: "40" }));
+  submitConfiguration(createTable, "Crear mesa", () => api("/tables", {
+    number: Number(number.value), zone: newZone.value, version: configVersion(createTable),
+  }));
+  tables.append(createTable);
+  for (const t of state.tables) {
+    const form = stationConfigForm("table-edit-" + t.number);
+    form.append(el("strong", `Mesa ${t.number}` + (state.orders.some((o) => o.table_number === t.number) ? " · Con pedido activo" : "")));
+    const zone = labeled(form, "Zona", el("input", null, { id: "table-zone-" + t.number, value: t.zone, maxlength: "40" })),
+      active = checkbox(form, "Mesa activa", "table-active-" + t.number, t.active);
+    form.append(active);
+    submitConfiguration(form, "Guardar mesa", () => api(`/tables/${t.number}`, {
+      zone: zone.value, active: active.querySelector("input").checked, version: configVersion(form),
+    }));
+    tables.append(form);
+  }
+  content.append(tables);
+}
+function openProduct(p) {
+  const { dialog, form, footer } = correctionDialog(p ? `Editar ${p.name}` : "Nuevo producto", p ? "Guardar producto" : "Crear producto"),
+    name = labeled(form, "Nombre", el("input", null, {
+      id: "product-name", value: p?.name ?? "", required: "", maxlength: "80",
+    })),
+    category = select("Categoría ", state.categories.map((c) => [c.code, c.name + (c.active ? "" : " · Oculta")]),
+      p?.category ?? menuCategories()[0]?.code),
+    station = select("Estación de preparación ",
+      state.stations.filter((s) => s.active || s.code === p?.area).map((s) => [s.code, s.name]),
+      p?.area ?? activeStations()[0]?.code),
+    categoryInput = category.querySelector("select"),
+    stationInput = station.querySelector("select");
+  categoryInput.id = "product-category";
+  stationInput.id = "product-station";
+  categoryInput.required = stationInput.required = true;
+  form.append(category, station);
+  const priceInput = labeled(form, "Precio", el("input", null, {
+    id: "product-price", type: "number", min: "0", max: "100000", step: "0.01", required: "",
+    value: p ? (p.price_cents / 100).toFixed(2) : "",
+  }));
+  let active = null;
+  if (p) {
+    active = checkbox(form, "Disponible en el menú", "product-active", p.active);
+    form.append(active);
+  }
+  form.append(footer);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    run(async () => {
+      await api(p ? `/products/${p.id}` : "/products", {
+        name: name.value, category: categoryInput.value, stationCode: stationInput.value,
+        priceCents: cents(priceInput.value), version: state.settings.version,
+        ...(p ? { active: active.querySelector("input").checked } : {}),
+      });
+      dialog.close();
+    });
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  name.focus();
 }
 function stationConfigForm(id) {
   const form = el("form", null, { id, class: "station-settings-form" });
@@ -2500,7 +2625,7 @@ function renderStationSettings(content) {
   products.append(destination);
   for (const category of [...new Set(state.products.map((p) => p.category))]) {
     const group = el("details", null, { id: "station-products-" + category });
-    group.append(el("summary", categoryNames[category] || category));
+    group.append(el("summary", categoryName(category)));
     group.append(button("Seleccionar categoría", () => {
       group.querySelectorAll('input[type="checkbox"]').forEach((input) => (input.checked = true));
       products.dataset.dirty = "true";

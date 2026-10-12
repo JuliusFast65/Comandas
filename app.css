@@ -502,3 +502,11 @@ summary:focus-visible {
 .audit-scroll { overflow-x: auto; }
 .consumption-table.audit-table td, .consumption-table.audit-table th { text-align: left; vertical-align: top; font-size: 14px; }
 .audit-table .audit-void td { color: #7a1712; font-weight: bold; }
+.catalog-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0; border-bottom: 1px solid #e3e8ee; }
+.catalog-row .catalog-name { flex: 1 1 180px; display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.catalog-row .catalog-name small { color: #59636d; }
+.catalog-row input { width: 110px; min-height: 40px; padding: 6px 8px; font-size: 16px; box-sizing: border-box; }
+.catalog-row button { min-height: 40px; margin: 0; }
+.catalog-inactive .catalog-name { color: #8a949e; }
+.correction-dialog .station-choice { margin-top: 12px; }
+.mesa .table-zone { display: block; font-size: 12px; opacity: 0.85; }

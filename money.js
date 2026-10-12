@@ -1,21 +1,7 @@
 // Shared, integer-cent calculations matching the restored precuenta.
-export const defaultPrices = {
-  entradas: 500,
-  platos: 1000,
-  postres: 400,
-  bebidas: 250,
-  bebidasAlcoolicas: 600,
-  adicionales: 200,
-};
 export function tariffFor(product, config) {
-  // The original menu shared a price by name across categories.
-  const sharedDefaults = { Guacamole: 500, Ensalada: 1000 };
   return {
-    precio:
-      config.precios[product.name] ??
-      sharedDefaults[product.name] ??
-      defaultPrices[product.category] ??
-      0,
+    precio: product.price_cents,
     iva: config.iva,
     servicio: config.servicio,
     incluidos: config.incluidos,

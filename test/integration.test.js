@@ -575,7 +575,6 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
         oldTariff = first.tariff;
       const config = {
         ...s.settings.config,
-        precios: { Pizza: 2000 },
         incluidos: false,
       };
       await administrator.request("/api/config", {
@@ -587,6 +586,10 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
         { version: s.settings.version, config },
         409,
       );
+      await administrator.request("/api/products/prices", {
+        version: s.settings.version + 1,
+        prices: { [food.id]: 2000 },
+      });
       assert.deepEqual((await current()).items[0].tariff, oldTariff);
       await perform(secondWaiter, "add", {
         productId: food.id,
@@ -1281,6 +1284,149 @@ test("un pedido con todo anulado se libera y conserva su rastro", async () => {
   assert.equal(deleted.details.number, Number(empty.number));
   assert.deepEqual(deleted.details.events.map((e) => e.action), ["created", "remove"]);
   assert.equal(deleted.details.events[1].details.product, product.name);
+});
+
+test("catálogo: categorías, productos, precios y mesas administrados desde la aplicación", async () => {
+  const administrator = client(), waiter = client(), auditor = client();
+  await administrator.login("admin");
+  await waiter.login("mesero");
+  await auditor.login("auditor");
+  const state = () => administrator.request("/api/state");
+  const configure = async (c, path, fields, expected = 200) =>
+    c.request(path, { version: (await state()).settings.version, ...fields }, expected);
+  const initial = await state();
+  assert.deepEqual(initial.categories.slice(0, 2).map((c) => [c.code, c.name, c.active]),
+    [["entradas", "Entradas", true], ["platos", "Platos fuertes", true]]);
+  assert.ok(initial.products.every((p) => Number.isInteger(p.price_cents) && p.active === true));
+  assert.equal(initial.settings.config.precios, undefined);
+
+  // Categories.
+  await configure(waiter, "/api/categories", { name: "Menú del día" }, 403);
+  await configure(administrator, "/api/categories", { name: "  " }, 400);
+  await configure(administrator, "/api/categories", { name: "ENTRADAS" }, 409);
+  const category = await configure(administrator, "/api/categories", { name: "Menú del día" }, 201);
+  assert.ok(category.position > 6);
+  await configure(administrator, `/api/categories/${category.code}`, { name: "Platos fuertes", position: 0, active: true }, 409);
+  await configure(administrator, "/api/categories/inexistente", { name: "Otra", position: 0, active: true }, 404);
+  await configure(administrator, `/api/categories/${category.code}`, { name: "Almuerzos", position: 0, active: true });
+  assert.equal((await state()).categories[0].name, "Almuerzos");
+
+  // Products.
+  const fields = { name: "Sopa del día", category: category.code, stationCode: "cocina", priceCents: 450 };
+  await configure(waiter, "/api/products", fields, 403);
+  await configure(administrator, "/api/products", { ...fields, name: " " }, 400);
+  await configure(administrator, "/api/products", { ...fields, priceCents: -1 }, 400);
+  await configure(administrator, "/api/products", { ...fields, priceCents: 4.5 }, 400);
+  await configure(administrator, "/api/products", { ...fields, category: "inexistente" }, 400);
+  await configure(administrator, "/api/products", { ...fields, stationCode: "inexistente" }, 400);
+  const product = await configure(administrator, "/api/products", fields, 201);
+  await configure(administrator, "/api/products", { ...fields, name: "SOPA DEL DÍA" }, 409);
+  await administrator.request("/api/products", { ...fields, name: "Otra sopa", version: 0 }, 409);
+
+  const free = initial.tables.map((t) => t.number).filter((n) => !initial.orders.some((o) => o.table_number === n));
+  const order = await waiter.request("/api/orders", {
+    tableNumber: free[0], firstItem: { productId: product.id, quantity: 1, account: 1, note: "" },
+  }, 201);
+  const current = async () => (await waiter.request("/api/state")).orders.find((o) => o.id === order.id);
+  const add = async (expected = 200) => waiter.request(`/api/orders/${order.id}/actions`, {
+    action: "add", version: (await current()).version, productId: product.id, quantity: 1, account: 1, note: "",
+  }, expected);
+  assert.equal((await current()).items[0].tariff.precio, 450);
+
+  // Renaming and repricing only affects what is ordered afterwards.
+  const changed = { ...fields, name: "Sopa de la casa", priceCents: 500, active: true };
+  await configure(waiter, `/api/products/${product.id}`, changed, 403);
+  await configure(administrator, `/api/products/${randomUUID()}`, changed, 404);
+  await configure(administrator, `/api/products/${product.id}`, changed);
+  await add();
+  assert.deepEqual((await current()).items.map((i) => [i.product_name, i.tariff.precio]).sort(),
+    [["Sopa de la casa", 500], ["Sopa del día", 450]]);
+
+  // Unavailable products and hidden categories cannot be ordered; nothing is deleted.
+  await configure(administrator, `/api/products/${product.id}`, { ...changed, active: false });
+  await add(409);
+  assert.equal((await state()).products.find((p) => p.id === product.id).active, false);
+  await configure(administrator, `/api/products/${product.id}`, changed);
+  await configure(administrator, `/api/categories/${category.code}`, { name: "Almuerzos", position: 0, active: false });
+  await add(409);
+  await configure(administrator, `/api/categories/${category.code}`, { name: "Almuerzos", position: 0, active: true });
+
+  // Prices saved together.
+  const other = initial.products.find((p) => p.category === "postres");
+  await configure(waiter, "/api/products/prices", { prices: { [product.id]: 700 } }, 403);
+  await configure(administrator, "/api/products/prices", { prices: {} }, 400);
+  await configure(administrator, "/api/products/prices", { prices: { [randomUUID()]: 700 } }, 404);
+  await administrator.request("/api/products/prices", { version: 0, prices: { [product.id]: 700 } }, 409);
+  const saved = await configure(administrator, "/api/products/prices", {
+    prices: { [product.id]: 700, [other.id]: other.price_cents },
+  });
+  assert.equal(saved.changed, 1);
+  await add();
+  assert.ok((await current()).items.some((i) => i.tariff.precio === 700));
+
+  // Tables.
+  await configure(waiter, "/api/tables", { number: 50, zone: "Terraza" }, 403);
+  await configure(administrator, "/api/tables", { number: 0, zone: "" }, 400);
+  await configure(administrator, "/api/tables", { number: free[0], zone: "" }, 409);
+  await configure(administrator, "/api/tables", { number: 50, zone: " Terraza " }, 201);
+  assert.deepEqual((await state()).tables.find((t) => t.number === 50), { number: 50, zone: "Terraza", active: true });
+  await waiter.request("/api/orders", { tableNumber: 51 }, 400);
+  await waiter.request(`/api/orders/${order.id}/actions`, { action: "transfer", version: (await current()).version, tableNumber: 50 });
+  await configure(administrator, "/api/tables/50", { zone: "Terraza", active: false }, 409);
+  await configure(administrator, "/api/tables/51", { zone: "", active: true }, 404);
+  await configure(administrator, `/api/tables/${free[0]}`, { zone: "Salón", active: false });
+  await waiter.request("/api/orders", { tableNumber: free[0], occupiedExplicitly: true }, 409);
+  await waiter.request(`/api/orders/${order.id}/actions`, { action: "transfer", version: (await current()).version, tableNumber: free[0] }, 400);
+  await configure(administrator, `/api/tables/${free[0]}`, { zone: "Salón", active: true });
+
+  // Reinitializing never restores the seed catalog over the administered one.
+  const first = initial.products.find((p) => p.category === "entradas");
+  await configure(administrator, `/api/products/${first.id}`, {
+    name: first.name + " especial", category: first.category, stationCode: first.area, priceCents: first.price_cents, active: true,
+  });
+  const before = (await pool.query("SELECT count(*)::int AS n FROM products")).rows[0].n;
+  const init = spawnSync(process.execPath, ["server/init.js"], {
+    env: { ...process.env, SEED_PASSWORD: password }, encoding: "utf8",
+  });
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM products")).rows[0].n, before);
+
+  const audit = await auditor.request("/api/audit?scope=administracion");
+  for (const action of ["category_created", "category_changed", "product_created", "product_changed", "prices_changed", "table_created", "table_changed"])
+    assert.ok(audit.some((e) => e.action === action), action);
+  assert.deepEqual(audit.find((e) => e.action === "prices_changed").details.changes,
+    [{ product: "Sopa de la casa", from: 500, to: 700 }]);
+  const rename = audit.find((e) => e.action === "product_changed" && e.details.name?.to === "Sopa de la casa");
+  assert.deepEqual(rename.details.price_cents, { from: 450, to: 500 });
+});
+
+test("la migración 10 traslada los precios guardados por nombre a cada producto", async () => {
+  // Recreate the previous storage only in the disposable integration database.
+  await pool.query(`
+    UPDATE app_settings SET config=config || '{"precios":{"Bruschetta":777}}'::jsonb;
+    ALTER TABLE products DROP CONSTRAINT products_category_fk;
+    UPDATE products SET price_cents=0;
+    DELETE FROM schema_migrations WHERE version=10;
+  `);
+  const schema = await readFile(new URL("../server/schema.sql", import.meta.url), "utf8");
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query(schema);
+    await db.query("COMMIT");
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  } finally { db.release(); }
+  const price = async (name, category) =>
+    (await pool.query("SELECT price_cents FROM products WHERE name=$1 AND category=$2", [name, category])).rows[0].price_cents;
+  assert.equal(await price("Bruschetta", "entradas"), 777);
+  assert.equal(await price("Guacamole", "adicionales"), 500);
+  assert.equal(await price("Ensalada", "adicionales"), 1000);
+  assert.equal(await price("Pasta", "platos"), 1000);
+  assert.equal(await price("Tarta de Queso", "postres"), 400);
+  assert.equal((await pool.query("SELECT config ? 'precios' AS kept FROM app_settings")).rows[0].kept, false);
+  await assert.rejects(pool.query("UPDATE products SET category='inexistente' WHERE name='Pasta'"), { code: "23503" });
 });
 
 test("el límite de ingresos cuenta solo los intentos fallidos y responde JSON", async () => {
