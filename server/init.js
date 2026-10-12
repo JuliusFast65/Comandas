@@ -22,13 +22,13 @@ try {
       "auditor",
     ]) {
       await db.query(
-        "INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,$2) ON CONFLICT(username) DO NOTHING",
+        "INSERT INTO users(id,username,password_hash,role,must_change_password) VALUES($1,$2,$3,$2,true) ON CONFLICT(username) DO NOTHING",
         [randomUUID(), role, hashPassword(password)],
       );
     }
     for (const station of ["cocina", "bar"]) {
       const { rows: [user] } = await db.query(
-        "INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,'estacion') ON CONFLICT(username) DO NOTHING RETURNING id",
+        "INSERT INTO users(id,username,password_hash,role,must_change_password) VALUES($1,$2,$3,'estacion',true) ON CONFLICT(username) DO NOTHING RETURNING id",
         [randomUUID(), station, hashPassword(password)],
       );
       // Seed assignments only for new accounts; preserve later changes on reinitialization.
@@ -49,7 +49,7 @@ try {
         [randomUUID(), name],
       );
       await db.query(
-        "INSERT INTO users(id,username,password_hash,role,waiter_id) VALUES($1,$2,$3,'mesero',$4) ON CONFLICT(username) DO UPDATE SET waiter_id=COALESCE(users.waiter_id,EXCLUDED.waiter_id)",
+        "INSERT INTO users(id,username,password_hash,role,waiter_id,must_change_password) VALUES($1,$2,$3,'mesero',$4,true) ON CONFLICT(username) DO UPDATE SET waiter_id=COALESCE(users.waiter_id,EXCLUDED.waiter_id)",
         [randomUUID(), username, hashPassword(password), waiter.id],
       );
     }

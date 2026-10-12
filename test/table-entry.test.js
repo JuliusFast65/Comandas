@@ -34,7 +34,7 @@ test("entrar y salir de una mesa libre no guarda ni asigna una orden", async () 
   const requests = [];
   const context = vm.createContext({
     pendingTable: null, selected: null, activeWaiter: "waiter-1",
-    lastWorkedOrder: null, state: { orders: [] }, menus: new Map(),
+    lastWorkedOrder: null, state: { orders: [] }, menus: new Map(), createdOrders: new Map(),
     summaryOf: () => ({}), el: () => ({}),
     button: (_label, click) => ({ click, append() {}, classList: { add() {} } }),
     navigate: (_view, id = null) => { context.selected = id; },
@@ -63,4 +63,55 @@ test("entrar y salir de una mesa libre no guarda ni asigna una orden", async () 
   assert.equal(requests[1].body.tableNumber, 4);
   assert.equal(requests[1].body.occupiedExplicitly, true);
   assert.equal(requests[1].body.firstItem, undefined);
+});
+
+test("los toques rápidos se guardan en orden y con la versión vigente", async () => {
+  const source = await readFile(new URL("../scripts.js", import.meta.url), "utf8");
+  const requests = [], workspace = { setAttribute() {}, removeAttribute() {} };
+  // Minimal server: each saved change increases the version of the order.
+  const saved = { id: "order", version: 4, items: [{ id: "item", status: "draft", quantity: 1, note: "" }] };
+  const context = vm.createContext({
+    pendingRuns: 0, runQueue: Promise.resolve(), busy: false, pendingTable: null, selected: null,
+    state: { orders: [structuredClone(saved)] }, menus: new Map(), createdOrders: new Map(),
+    $: () => workspace, message() {}, render() {},
+    refresh: async () => { context.state = { orders: [structuredClone(saved)] }; },
+    api: async (path, body) => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      requests.push({ path, body });
+      if (path === "/orders") {
+        Object.assign(saved, { id: "created", version: 1 });
+        return { id: "created" };
+      }
+      if (body.version !== saved.version) throw new Error("conflicto");
+      saved.version++;
+      if (body.action === "edit") saved.items[0].quantity = body.quantity;
+      if (body.action === "remove") saved.items = [];
+      return { ok: true };
+    },
+  });
+  vm.runInContext(source.slice(source.indexOf("function run("), source.indexOf("function navigate(")), context);
+  const order = context.state.orders[0];
+  const more = (current) => {
+    const item = current.items.find((i) => i.id === "item");
+    return item ? { itemId: item.id, quantity: item.quantity + 1, note: item.note } : null;
+  };
+  // Three taps on the same button before the first one is answered.
+  const taps = [context.action(order, "edit", more), context.action(order, "edit", more), context.action(order, "edit", more)];
+  // A different operation during that time is still ignored, as a double-submit guard.
+  assert.equal(await context.action(order, "send"), false);
+  assert.deepEqual(await Promise.all(taps), [true, true, true]);
+  assert.deepEqual(requests.map((r) => [r.body.version, r.body.quantity]), [[4, 2], [5, 3], [6, 4]]);
+  assert.equal(context.busy, false);
+  // Removing twice sends one request; the second tap finds nothing to remove.
+  const gone = (current) => current.items.some((i) => i.id === "item") ? { itemId: "item" } : null;
+  await Promise.all([context.action(order, "remove", gone), context.action(order, "remove", gone)]);
+  assert.equal(requests.filter((r) => r.body.action === "remove").length, 1);
+
+  // Two taps on a free table create one order; the second product is added to it.
+  requests.length = 0;
+  const pending = { id: "pending-table-3", pending: true, table_number: 3, waiter_id: "w", version: 0, items: [], accounts: [] };
+  const product = { productId: "dish", quantity: 1, account: 1, note: "" };
+  await Promise.all([context.action(pending, "add", product), context.action(pending, "add", product)]);
+  assert.deepEqual(requests.map((r) => r.path), ["/orders", "/orders/created/actions"]);
+  assert.equal(requests[1].body.version, 1);
 });

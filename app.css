@@ -483,3 +483,7 @@ summary:focus-visible {
 .station-choice input { flex-shrink: 0; width: 20px; height: 20px; }
 .station-settings-form details { margin: 12px 0; }
 .station-settings-form summary { padding: 12px 0; cursor: pointer; font-weight: bold; }
+.password-dialog label { display: block; margin-top: 12px; font-weight: bold; }
+.password-dialog input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px; font-size: 16px; border: 1px solid #ddd; border-radius: var(--border-radius); }
+.password-dialog .error { color: #b3261e; }
+.client-info label[hidden] { display: none; }

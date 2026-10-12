@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { readFile } from "node:fs/promises";
 
-let admin, pool, app, server, base;
+let admin, pool, app, server, base, seededWithOwnPassword;
 const databaseClients = new Set();
 const database = `comandas_test_${randomUUID().replaceAll("-", "")}`;
 const password = "integration-only-password";
@@ -24,6 +24,9 @@ before(async () => {
   assert.equal(init.status, 0, init.stderr);
   ({ pool } = await import("../server/db.js"));
   ({ app } = await import("../server/app.js"));
+  // Seeded accounts start with a temporary password; the other tests use them directly.
+  seededWithOwnPassword = (await pool.query("SELECT count(*)::int AS n FROM users WHERE NOT must_change_password")).rows[0].n;
+  await pool.query("UPDATE users SET must_change_password=false");
   pool.on("connect", (client) => {
     databaseClients.add(client);
     client.once("end", () => databaseClients.delete(client));
@@ -176,8 +179,8 @@ function client() {
       assert.equal(response.status, expected, JSON.stringify(data));
       return data;
     },
-    login(role) {
-      return this.request("/api/login", { username: role, password });
+    login(role, secret = password, expected = 200) {
+      return this.request("/api/login", { username: role, password: secret }, expected);
     },
   };
 }
@@ -1011,4 +1014,72 @@ test("ocupación explícita, liberación y eliminación del último plato", asyn
   });
   assert.equal(init.status, 0, init.stderr);
   assert.equal((await current(sent.id)).items.length, 1);
+});
+
+test("contraseñas propias, cuentas nuevas, restablecimiento y desactivación", async () => {
+  assert.equal(seededWithOwnPassword, 0);
+  const administrator = client(), waiter = client(), person = client(), otherDevice = client();
+  const adminUser = await administrator.login("admin");
+  await waiter.login("mesero");
+  const waiterId = (await administrator.request("/api/state")).waiters.find((w) => w.active).id;
+  const fields = { username: "nueva.persona", role: "mesero", password: "temporal-123", waiterId };
+  await waiter.request("/api/users", fields, 403);
+  await administrator.request("/api/users", { ...fields, username: "Con Espacios" }, 400);
+  await administrator.request("/api/users", { ...fields, password: "corta" }, 400);
+  await administrator.request("/api/users", { ...fields, waiterId: null }, 400);
+  await administrator.request("/api/users", { ...fields, role: "caja" }, 400);
+  await administrator.request("/api/users", { ...fields, username: "admin" }, 409);
+  const created = await administrator.request("/api/users", fields, 201);
+  assert.equal(Object.hasOwn(created, "password_hash"), false);
+
+  // A temporary password only allows replacing it.
+  const signed = await person.login("nueva.persona", "temporal-123");
+  assert.equal(signed.must_change_password, true);
+  const blocked = await person.request("/api/state", undefined, 403);
+  assert.equal(blocked.code, "password_change_required");
+  await person.request("/api/orders", {}, 403);
+  assert.equal((await person.request("/api/me")).must_change_password, true);
+  await otherDevice.login("nueva.persona", "temporal-123");
+  await person.request("/api/password", { current: "incorrecta-000", password: "propia-456789" }, 400);
+  await person.request("/api/password", { current: "temporal-123", password: "corta" }, 400);
+  await person.request("/api/password", { current: "temporal-123", password: "temporal-123" }, 400);
+  await person.request("/api/password", { current: "temporal-123", password: "propia-456789" });
+  assert.equal((await person.request("/api/me")).must_change_password, false);
+  assert.ok((await person.request("/api/state")).tables.length);
+  // The change closes the other devices and the previous password stops working.
+  await otherDevice.request("/api/me", undefined, 401);
+  await otherDevice.login("nueva.persona", "temporal-123", 401);
+
+  await waiter.request(`/api/users/${created.id}/password`, { password: "temporal-999" }, 403);
+  await administrator.request(`/api/users/${adminUser.id}/password`, { password: "temporal-999" }, 400);
+  await administrator.request(`/api/users/${created.id}/password`, { password: "temporal-999" });
+  await person.request("/api/me", undefined, 401);
+  await person.login("nueva.persona", "propia-456789", 401);
+  assert.equal((await person.login("nueva.persona", "temporal-999")).must_change_password, true);
+  assert.equal((await administrator.request("/api/state")).users.find((u) => u.id === created.id).must_change_password, true);
+
+  await administrator.request(`/api/users/${adminUser.id}/active`, { active: false }, 400);
+  await waiter.request(`/api/users/${created.id}/active`, { active: false }, 403);
+  await administrator.request(`/api/users/${created.id}/active`, { active: false });
+  await person.request("/api/me", undefined, 401);
+  await person.login("nueva.persona", "temporal-999", 401);
+  await administrator.request(`/api/users/${created.id}/active`, { active: true });
+  await person.login("nueva.persona", "temporal-999");
+  // A request without a JSON body is rejected as invalid, not as a server error.
+  const empty = await fetch(base + "/api/login", { method: "POST" });
+  assert.equal(empty.status, 400);
+});
+
+test("el servidor continúa cuando PostgreSQL cierra sus conexiones inactivas", async () => {
+  const waiter = client();
+  await waiter.login("mesero");
+  await waiter.request("/api/state");
+  assert.ok(pool.listenerCount("error") > 0);
+  const terminated = await admin.query(
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()",
+    [database],
+  );
+  assert.ok(terminated.rowCount > 0);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.ok((await waiter.request("/api/state")).tables.length);
 });

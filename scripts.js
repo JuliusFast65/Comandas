@@ -9,12 +9,16 @@ let user = null,
   billingAccount = 1,
   events = null;
 let busy = false,
-  syncing = false,
+  syncing = null,
+  pendingRuns = 0,
+  runQueue = Promise.resolve(),
   refreshAgain = false,
   mobileDetail = false,
   activeWaiter = null,
   onlyMine = false;
 const menus = new Map();
+// A free table becomes a saved order with its first product; later taps follow it here.
+const createdOrders = new Map();
 let pageHistory = [], historyIndex = -1;
 function recordPage() {
   const entry = { view, selected, confirming, billingAccount };
@@ -208,6 +212,7 @@ function logoutUI() {
   confirming = false;
   mobileDetail = false;
   menus.clear();
+  createdOrders.clear();
   state = { tables: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null };
   document.querySelectorAll("dialog").forEach((d) => {
     if (d.id === "app-menu") {
@@ -244,21 +249,22 @@ function restoreForms(values) {
     }
   }
 }
-async function refresh() {
-  if (!user) return;
-  if (busy) {
+// A forced refresh runs between saved changes, when no operation is in flight.
+async function refresh(force = false) {
+  if (!user || user.must_change_password) return;
+  if (force === true) while (syncing) await syncing;
+  else if (busy || syncing) {
     refreshAgain = true;
     return;
   }
-  if (syncing) {
-    refreshAgain = true;
-    return;
-  }
-  syncing = true;
+  let finished;
+  syncing = new Promise((resolve) => (finished = resolve));
   try {
     const [next, liveMe] = await Promise.all([api("/state"), api("/me")]);
     if (!user) return;
     if (busy) {
+      // Queued taps keep their buttons; they only need the latest versions.
+      if (force === true) state = next;
       refreshAgain = true;
       return;
     }
@@ -299,68 +305,91 @@ async function refresh() {
   } catch (e) {
     message(e.message, true);
   } finally {
-    syncing = false;
-    if (refreshAgain) {
+    syncing = null;
+    finished();
+    if (refreshAgain && !busy) {
       refreshAgain = false;
       await refresh();
     }
   }
 }
-async function run(fn) {
-  if (busy) return false;
+// Queued changes (quantity taps) wait their turn; any other change is ignored while one is running.
+function run(fn, queued = false) {
+  if (pendingRuns && !queued) return Promise.resolve(false);
+  pendingRuns++;
   busy = true;
   $("#workspace").setAttribute("aria-busy", "true");
-  try {
-    await fn();
-    message("Cambio guardado.");
-    return true;
-  } catch (e) {
-    message(e.message, true);
-    return false;
-  } finally {
-    busy = false;
-    $("#workspace").removeAttribute("aria-busy");
-    await refresh();
-  }
+  const result = runQueue.then(async () => {
+    try {
+      await fn();
+      message("Cambio guardado.");
+      return true;
+    } catch (e) {
+      message(e.message, true);
+      return false;
+    } finally {
+      pendingRuns--;
+      if (!pendingRuns) {
+        busy = false;
+        $("#workspace").removeAttribute("aria-busy");
+      }
+      await refresh(true);
+    }
+  });
+  runQueue = result;
+  return result;
 }
+// Product and quantity taps are queued. Their fields may be a function of the latest order,
+// evaluated when the change is sent; returning null skips it.
 function action(o, name, fields = {}) {
-  if (o.pending) {
+  const queued = ["add", "edit", "remove"].includes(name);
+  let current = latest(o);
+  if (current.pending && !queued) {
     if (name === "account") {
-      o.accounts = [{ number: fields.account, name: fields.name, customer: fields.customer }];
+      current.accounts = [{ number: fields.account, name: fields.name, customer: fields.customer }];
       render();
       return;
     }
     if (name === "assign") {
-      o.waiter_id = fields.waiterId;
+      current.waiter_id = fields.waiterId;
       render();
       return;
     }
-    if (!["add", "occupy"].includes(name)) return;
-    return run(async () => {
-      const created = await api("/orders", {
-        tableNumber: o.table_number, waiterId: o.waiter_id,
-        firstItem: name === "add" ? fields : undefined,
-        occupiedExplicitly: name === "occupy",
-        firstAccount: o.accounts.find((a) => a.number === fields.account),
-      });
-      const m = menus.get(o.id);
-      if (m) menus.set(created.id, m);
-      selected = created.id;
-      pendingTable = null;
-    });
+    if (name !== "occupy") return;
   }
-  const current = state.orders.find((order) => order.id === o.id) ?? o;
   const confirmation = ["pickup", "pickup_all", "bill"].includes(name)
     ? confirmOtherWaiter(current, name) : {};
   if (confirmation === null) return;
-  return run(() =>
-    api(`/orders/${o.id}/actions`, {
+  return run(async () => {
+    current = latest(o);
+    const body = typeof fields === "function" ? fields(current) : fields;
+    if (!body) return;
+    if (current.pending) {
+      if (!["add", "occupy"].includes(name)) return;
+      const created = await api("/orders", {
+        tableNumber: current.table_number, waiterId: current.waiter_id,
+        firstItem: name === "add" ? body : undefined,
+        occupiedExplicitly: name === "occupy",
+        firstAccount: current.accounts.find((a) => a.number === body.account),
+      });
+      const m = menus.get(current.id);
+      if (m) menus.set(created.id, m);
+      createdOrders.set(current.id, created.id);
+      selected = created.id;
+      pendingTable = null;
+      return;
+    }
+    await api(`/orders/${current.id}/actions`, {
       action: name,
       version: current.version,
-      ...fields,
+      ...body,
       ...confirmation,
-    }),
-  );
+    });
+  }, queued);
+}
+function latest(o) {
+  const id = createdOrders.get(o.id) ?? o.id;
+  return state.orders.find((order) => order.id === id) ?? o;
 }
 function navigate(area, id = null) {
   view = area;
@@ -383,12 +412,70 @@ $("#open-menu").addEventListener("click", () => {
 $("#app-menu").addEventListener("close", () =>
   $("#open-menu").setAttribute("aria-expanded", "false"),
 );
+function passwordField(form, id, label, autocomplete) {
+  return labeled(form, label, el("input", null, {
+    id, type: "password", autocomplete, required: "", maxlength: "256",
+    ...(autocomplete === "new-password" ? { minlength: "8" } : {}),
+  }));
+}
+// With required=true the dialog stays open until the temporary password is replaced.
+function openPasswordChange(required = false) {
+  const dialog = el("dialog", null, { class: "note-dialog password-dialog", "aria-labelledby": "password-title" }),
+    form = el("form"),
+    status = el("p", "", { role: "status", class: "error" }),
+    footer = el("div", null, { class: "footer" }),
+    save = el("button", "Guardar contraseña", { type: "submit" });
+  form.append(
+    el("h3", "Cambiar contraseña", { id: "password-title" }),
+    el("p", required
+      ? "Tu contraseña es temporal. Define una propia, de al menos 8 caracteres, para continuar."
+      : "Usa al menos 8 caracteres. Tus otros dispositivos deberán iniciar sesión de nuevo."),
+  );
+  const current = passwordField(form, "password-current", required ? "Contraseña temporal" : "Contraseña actual", "current-password"),
+    next = passwordField(form, "password-new", "Nueva contraseña", "new-password"),
+    repeat = passwordField(form, "password-repeat", "Repetir nueva contraseña", "new-password");
+  footer.append(save, required
+    ? button("Cerrar sesión", async () => {
+        await api("/logout", {}).catch(() => {});
+        logoutUI();
+      })
+    : button("Cancelar", () => dialog.close()));
+  form.append(status, footer);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (next.value !== repeat.value) {
+      status.textContent = "Las contraseñas nuevas no coinciden.";
+      return;
+    }
+    save.disabled = true;
+    try {
+      await api("/password", { current: current.value, password: next.value });
+      if (required) user = await api("/me");
+      dialog.close();
+      message("Contraseña actualizada.");
+      if (required) signedIn();
+    } catch (error) {
+      status.textContent = error.message;
+      save.disabled = false;
+    }
+  });
+  if (required) dialog.addEventListener("cancel", (e) => e.preventDefault());
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  current.focus();
+}
 function signedIn() {
   lastWorkedOrder = null;
   pageHistory = [];
   historyIndex = -1;
-  $("#session-header").hidden = false;
   $("#login-screen").hidden = true;
+  if (user.must_change_password) {
+    openPasswordChange(true);
+    return;
+  }
+  $("#session-header").hidden = false;
   $("#workspace").hidden = false;
   onlyMine = user.role === "mesero";
   activeWaiter = user.waiter_id;
@@ -474,6 +561,10 @@ function renderNavigation() {
     el("small", user.role === "estacion"
       ? user.stations.map(areaName).join(" / ") || roles.estacion
       : roles[user.role]),
+    button("Cambiar contraseña", () => {
+      chip.open = false;
+      openPasswordChange();
+    }),
     button("Cerrar sesión", async () => {
       try {
         await api("/logout", {});
@@ -613,6 +704,7 @@ function tableCard(table, o) {
           waiter_id: activeWaiter, status: "open", version: 0, items: [], accounts: [],
         };
         menus.delete(pendingTable.id);
+        createdOrders.delete(pendingTable.id);
         navigate("mesas", pendingTable.id);
       }
     },
@@ -848,7 +940,7 @@ function renderOrder(content, o) {
           run(async () => {
             await api(`/orders/${o.id}/actions`, {
               action: "send",
-              version: o.version,
+              version: latest(o).version,
             });
             confirming = false;
             showOrderSent();
@@ -868,7 +960,7 @@ function renderOrder(content, o) {
           run(async () => {
             await api(`/orders/${o.id}/actions`, {
               action: "send",
-              version: o.version,
+              version: latest(o).version,
             });
             mobileDetail = false;
             $("#detalle-dialogo")?.close();
@@ -1024,7 +1116,7 @@ function renderMenu(content, o, editable) {
         run(async () => {
           await api(`/orders/${o.id}/actions`, {
             action: "send",
-            version: o.version,
+            version: latest(o).version,
           });
           showOrderSent();
         }),
@@ -1082,7 +1174,7 @@ function renderMenu(content, o, editable) {
         b = button(
           "",
           () => {
-            if (!$("#cuentas").reportValidity()) return;
+            if ($("#cuentas") && !$("#cuentas").reportValidity()) return;
             action(o, "add", {
               productId: p.id,
               quantity: 1,
@@ -1124,15 +1216,15 @@ function renderMenu(content, o, editable) {
         const remove = button(
           "−",
           () => {
-            const item = [...o.items].reverse().find(
-              (i) => i.product_id === p.id && i.account === m.account && i.status === "draft",
-            );
-            if (!item) return;
-            if (item.quantity === 1) action(o, "remove", { itemId: item.id });
-            else action(o, "edit", {
-              itemId: item.id,
-              quantity: item.quantity - 1,
-              note: item.note,
+            const account = m.account;
+            action(o, "edit", (current) => {
+              const item = [...current.items].reverse().find(
+                (i) => i.product_id === p.id && i.account === account && i.status === "draft",
+              );
+              if (!item) return null;
+              return item.quantity === 1
+                ? { action: "remove", itemId: item.id }
+                : { itemId: item.id, quantity: item.quantity - 1, note: item.note };
             });
           },
           !editable,
@@ -1315,34 +1407,22 @@ function renderItems(content, o, area = null) {
       }
     }
     if (!area && i.status === "draft" && editableOrder(o)) {
-      const controls = el("div", null, { class: "quantity-controls" });
+      const controls = el("div", null, { class: "quantity-controls" }),
+        change = (step) => (current) => {
+          const item = current.items.find((item) => item.id === i.id && item.status === "draft");
+          if (!item || item.quantity + step < 1 || item.quantity + step > 999) return null;
+          return { itemId: item.id, quantity: item.quantity + step, note: item.note };
+        };
       controls.append(
-        button(
-          "−",
-          () =>
-            action(o, "edit", {
-              itemId: i.id,
-              quantity: i.quantity - 1,
-              note: i.note,
-            }),
-          i.quantity <= 1,
-        ),
+        button("−", () => action(o, "edit", change(-1)), i.quantity <= 1),
         el("span", String(i.quantity)),
-        button(
-          "+",
-          () =>
-            action(o, "edit", {
-              itemId: i.id,
-              quantity: i.quantity + 1,
-              note: i.note,
-            }),
-          i.quantity >= 999,
-        ),
+        button("+", () => action(o, "edit", change(1)), i.quantity >= 999),
       );
       li.append(
         controls,
         button("Nota", () => editNote(o, i)),
-        button("Quitar", () => action(o, "remove", { itemId: i.id })),
+        button("Quitar", () => action(o, "remove", (current) =>
+          current.items.some((item) => item.id === i.id) ? { itemId: i.id } : null)),
       );
     }
     list.append(li);
@@ -1699,7 +1779,7 @@ function renderBill(content, o) {
     run(async () => {
       await api(`/orders/${o.id}/actions`, {
         action: "account",
-        version: o.version,
+        version: latest(o).version,
         account: a.number,
         name: accountName,
         customer,
@@ -1935,7 +2015,7 @@ function confirmClose(o) {
       run(async () => {
         await api(`/orders/${o.id}/actions`, {
           action: "close",
-          version: o.version,
+          version: latest(o).version,
         });
         dialog.close();
       }),
@@ -2228,20 +2308,31 @@ function renderUsers(content) {
     heading("Usuarios y permisos"),
     el(
       "p",
-      "Las cuentas usan la contraseña configurada al inicializar la base. Las contraseñas existentes se conservan.",
+      "Cada persona define su contraseña al entrar por primera vez con la contraseña temporal que le entregues. Restablecerla o desactivar la cuenta cierra sus sesiones.",
     ),
   );
   try {
     const users = state.users || [];
     if (view !== "usuarios" || !user) return;
+    renderUserCreate(content);
     for (const u of users) {
       const card = el("section", null, { class: "client-info" });
       card.append(
         el(
           "strong",
-          u.username + " · " + roles[u.role] + (u.active ? "" : " · Inactivo"),
+          u.username + " · " + roles[u.role] + (u.active ? "" : " · Inactivo") +
+            (u.must_change_password ? " · Contraseña temporal" : ""),
         ),
       );
+      if (u.id !== user.id) {
+        const access = el("div", null, { class: "footer" });
+        access.append(
+          button("Restablecer contraseña", () => openPasswordReset(u)),
+          button(u.active ? "Desactivar usuario" : "Reactivar usuario", () =>
+            run(() => api(`/users/${u.id}/active`, { active: !u.active }))),
+        );
+        card.append(access);
+      }
       if (["mesero", "supervisor"].includes(u.role))
         card.append(
           select(
@@ -2284,6 +2375,85 @@ function renderUsers(content) {
   } catch (e) {
     message(e.message, true);
   }
+}
+function renderUserCreate(content) {
+  const form = el("form", null, { id: "user-create", class: "client-info" });
+  form.append(el("strong", "Nuevo usuario"));
+  const username = labeled(form, "Usuario", el("input", null, {
+      id: "user-create-username", required: "", maxlength: "40", autocomplete: "off",
+      autocapitalize: "none", pattern: "[a-z0-9][a-z0-9._\\-]{2,39}",
+      title: "De 3 a 40 letras minúsculas, números, puntos o guiones",
+    })),
+    role = select("Rol ", ["mesero", "supervisor", "estacion", "caja", "auditor", "admin"].map((r) => [r, roles[r]]), "mesero"),
+    waiter = select("Mesero vinculado ", [["", "Sin vincular"], ...state.waiters.filter((w) => w.active).map((w) => [w.id, w.name])], ""),
+    roleInput = role.querySelector("select"),
+    waiterInput = waiter.querySelector("select");
+  roleInput.id = "user-create-role";
+  waiterInput.id = "user-create-waiter";
+  const linkable = () => {
+    waiter.hidden = !["mesero", "supervisor"].includes(roleInput.value);
+    waiterInput.required = roleInput.value === "mesero";
+  };
+  for (const input of [roleInput, waiterInput])
+    input.addEventListener("change", () => {
+      form.dataset.dirty = "true";
+      linkable();
+    });
+  form.append(role, waiter);
+  const password = labeled(form, "Contraseña temporal (mínimo 8 caracteres)", el("input", null, {
+    id: "user-create-password", type: "text", required: "", minlength: "8", maxlength: "256", autocomplete: "off",
+  }));
+  form.append(el("button", "Crear usuario", { type: "submit" }));
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    linkable();
+    if (!form.reportValidity()) return;
+    run(async () => {
+      await api("/users", {
+        username: username.value, role: roleInput.value, password: password.value,
+        waiterId: waiter.hidden || !waiterInput.value ? null : waiterInput.value,
+      });
+      delete form.dataset.dirty;
+    });
+  });
+  content.append(form);
+  // Restored selections are applied after rendering; keep the linked waiter in step.
+  queueMicrotask(linkable);
+  linkable();
+}
+function openPasswordReset(u) {
+  const dialog = el("dialog", null, { class: "note-dialog password-dialog", "aria-labelledby": "reset-title" }),
+    form = el("form"),
+    status = el("p", "", { role: "status", class: "error" }),
+    footer = el("div", null, { class: "footer" }),
+    save = el("button", "Restablecer", { type: "submit" });
+  form.append(
+    el("h3", `Restablecer contraseña de ${u.username}`, { id: "reset-title" }),
+    el("p", "Entrega esta contraseña temporal a la persona. Deberá cambiarla al entrar y se cerrarán sus sesiones abiertas."),
+  );
+  const password = labeled(form, "Contraseña temporal (mínimo 8 caracteres)", el("input", null, {
+    id: "reset-password", type: "text", required: "", minlength: "8", maxlength: "256", autocomplete: "off",
+  }));
+  footer.append(save, button("Cancelar", () => dialog.close()));
+  form.append(status, footer);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    save.disabled = true;
+    try {
+      await api(`/users/${u.id}/password`, { password: password.value });
+      dialog.close();
+      message("Contraseña restablecida.");
+      refresh();
+    } catch (error) {
+      status.textContent = error.message;
+      save.disabled = false;
+    }
+  });
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  password.focus();
 }
 setInterval(refresh, 15000);
 function updateTimers() {

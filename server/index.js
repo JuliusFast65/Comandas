@@ -1,7 +1,7 @@
 import { app, notifyClients } from "./app.js";
 import { pool } from "./db.js";
 const { rowCount: migrated } = await pool.query(
-  "SELECT version FROM schema_migrations WHERE version=7",
+  "SELECT version FROM schema_migrations WHERE version=8",
 );
 if (!migrated)
   throw new Error(

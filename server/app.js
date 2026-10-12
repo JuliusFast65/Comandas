@@ -11,6 +11,7 @@ export const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "64kb" }));
 app.use((req, res, next) => {
+  req.body ??= {};
   res.set("X-Content-Type-Options", "nosniff");
   res.set("Referrer-Policy", "same-origin");
   res.set(
@@ -45,6 +46,9 @@ const text = (value, max = 500) =>
 const sessionCookie = (token, maxAge = 43200) =>
   `comandas_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${process.env.COOKIE_SECURE === "true" ? "; Secure" : ""}`;
 const dummyHash = hashPassword(randomBytes(24).toString("hex"));
+const newPassword = (value) => text(value, 256) && value.length >= 8;
+const passwordRule = "La contraseña debe tener entre 8 y 256 caracteres.";
+const userRoles = ["admin", "supervisor", "mesero", "estacion", "caja", "auditor"];
 async function assignedStations(userId, db = pool) {
   return (await db.query(
     "SELECT s.code FROM user_stations us JOIN stations s ON s.code=us.station_code WHERE us.user_id=$1 AND s.active=true ORDER BY s.code",
@@ -82,6 +86,7 @@ app.post(
       username: user.username,
       role: user.role,
       waiter_id: user.waiter_id,
+      must_change_password: user.must_change_password,
       stations: await assignedStations(user.id),
     });
   },
@@ -96,7 +101,7 @@ app.use("/api", async (req, res, next) => {
   const {
     rows: [user],
   } = await pool.query(
-    "SELECT u.id,u.username,u.role,u.waiter_id FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true",
+    "SELECT u.id,u.username,u.role,u.waiter_id,u.must_change_password FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true",
     [tokenHash(token)],
   );
   if (!user)
@@ -104,9 +109,46 @@ app.use("/api", async (req, res, next) => {
   req.user = user;
   req.user.stations = await assignedStations(user.id);
   req.sessionHash = tokenHash(token);
+  if (user.must_change_password && !["/me", "/password", "/logout"].includes(req.path))
+    return res.status(403).json({
+      error: "Cambia tu contraseña para continuar.",
+      code: "password_change_required",
+    });
   next();
 });
 app.get("/api/me", (req, res) => res.json(req.user));
+app.post(
+  "/api/password",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 40,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+  }),
+  async (req, res) => {
+    const { current, password } = req.body;
+    if (!text(current, 256) || !newPassword(password)) fail(400, passwordRule);
+    const {
+      rows: [stored],
+    } = await pool.query("SELECT password_hash FROM users WHERE id=$1", [req.user.id]);
+    if (!verifyPassword(current, stored.password_hash))
+      fail(400, "La contraseña actual no es correcta.");
+    if (current === password)
+      fail(400, "La nueva contraseña debe ser distinta de la actual.");
+    await transaction(async (db) => {
+      await db.query(
+        "UPDATE users SET password_hash=$1,must_change_password=false WHERE id=$2",
+        [hashPassword(password), req.user.id],
+      );
+      // The other devices of this user must sign in with the new password.
+      await db.query("DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2", [
+        req.user.id,
+        req.sessionHash,
+      ]);
+    });
+    res.json({ ok: true });
+  },
+);
 
 app.get("/api/customers", async (req, res) => {
   if (!["caja", "admin"].includes(req.user.role)) fail(403, "Acceso solo para Caja y administrador.");
@@ -178,7 +220,7 @@ app.get("/api/state", async (req, res) => {
     return {
       stations: (await db.query("SELECT * FROM stations ORDER BY code")).rows,
       ...(req.user.role === "admin" ? { users: (await db.query(
-        "SELECT u.id,u.username,u.role,u.waiter_id,u.active,ARRAY(SELECT station_code FROM user_stations WHERE user_id=u.id ORDER BY station_code) AS stations FROM users u ORDER BY username",
+        "SELECT u.id,u.username,u.role,u.waiter_id,u.active,u.must_change_password,ARRAY(SELECT station_code FROM user_stations WHERE user_id=u.id ORDER BY station_code) AS stations FROM users u ORDER BY username",
       )).rows } : {}),
       tables,
       products: products.map((p) => ({ ...p, help: exampleProductHelp(p) })),
@@ -740,10 +782,72 @@ app.get("/api/users", async (req, res) => {
   res.json(
     (
       await pool.query(
-        "SELECT u.id,u.username,u.role,u.waiter_id,u.active,ARRAY(SELECT station_code FROM user_stations WHERE user_id=u.id ORDER BY station_code) AS stations FROM users u ORDER BY username",
+        "SELECT u.id,u.username,u.role,u.waiter_id,u.active,u.must_change_password,ARRAY(SELECT station_code FROM user_stations WHERE user_id=u.id ORDER BY station_code) AS stations FROM users u ORDER BY username",
       )
     ).rows,
   );
+});
+app.post("/api/users", async (req, res) => {
+  allow(req.user, []);
+  const { username, role, password } = req.body;
+  const waiterId = req.body.waiterId ?? null;
+  if (!text(username, 40) || !/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username))
+    fail(400, "El usuario debe tener de 3 a 40 letras minúsculas, números, puntos o guiones.");
+  if (!userRoles.includes(role)) fail(400, "Rol inválido.");
+  if (!newPassword(password)) fail(400, passwordRule);
+  if (waiterId !== null && (!uuid(waiterId) || !["mesero", "supervisor"].includes(role)))
+    fail(400, "Mesero inválido.");
+  if (role === "mesero" && !waiterId) fail(400, "Vincula un mesero a este usuario.");
+  const created = await transaction(async (db) => {
+    if ((await db.query("SELECT 1 FROM users WHERE lower(username)=$1", [username])).rowCount)
+      fail(409, "Ya existe un usuario con ese nombre.");
+    if (waiterId && !(await db.query("SELECT 1 FROM waiters WHERE id=$1 AND active=true", [waiterId])).rowCount)
+      fail(400, "Mesero no disponible.");
+    const {
+      rows: [user],
+    } = await db.query(
+      "INSERT INTO users(id,username,password_hash,role,waiter_id,must_change_password) VALUES($1,$2,$3,$4,$5,true) RETURNING id,username,role,waiter_id,active",
+      [randomUUID(), username, hashPassword(password), role, waiterId],
+    );
+    await db.query("SELECT pg_notify('comandas_changed','')");
+    return user;
+  });
+  res.status(201).json(created);
+});
+app.post("/api/users/:id/password", async (req, res) => {
+  allow(req.user, []);
+  if (!uuid(req.params.id)) fail(400, "Usuario inválido.");
+  if (!newPassword(req.body.password)) fail(400, passwordRule);
+  if (req.params.id === req.user.id)
+    fail(400, "Usa «Cambiar contraseña» para tu propia cuenta.");
+  await transaction(async (db) => {
+    const updated = await db.query(
+      "UPDATE users SET password_hash=$1,must_change_password=true WHERE id=$2",
+      [hashPassword(req.body.password), req.params.id],
+    );
+    if (!updated.rowCount) fail(404, "Usuario no encontrado.");
+    await db.query("DELETE FROM sessions WHERE user_id=$1", [req.params.id]);
+    await db.query("SELECT pg_notify('comandas_changed','')");
+  });
+  res.json({ ok: true });
+});
+app.post("/api/users/:id/active", async (req, res) => {
+  allow(req.user, []);
+  if (!uuid(req.params.id) || typeof req.body.active !== "boolean")
+    fail(400, "Usuario inválido.");
+  // The acting administrator stays active, so one administrator always remains.
+  if (req.params.id === req.user.id) fail(400, "No puedes desactivar tu propia cuenta.");
+  await transaction(async (db) => {
+    const updated = await db.query("UPDATE users SET active=$1 WHERE id=$2", [
+      req.body.active,
+      req.params.id,
+    ]);
+    if (!updated.rowCount) fail(404, "Usuario no encontrado.");
+    if (!req.body.active)
+      await db.query("DELETE FROM sessions WHERE user_id=$1", [req.params.id]);
+    await db.query("SELECT pg_notify('comandas_changed','')");
+  });
+  res.json({ ok: true });
 });
 // A shared configuration version prevents overwriting another administrator's changes.
 async function changeConfiguration(version, fn) {

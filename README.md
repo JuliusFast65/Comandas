@@ -17,9 +17,22 @@ npm run db:init
 npm start
 ```
 
-Abrir `http://localhost:3000`. La inicialización crea las cuentas `admin`, `supervisor`, `mesero`, `mesero1`, `mesero2`, `cocina`, `bar`, `caja` y `auditor`, con la contraseña definida en `SEED_PASSWORD`. Las contraseñas existentes se conservan; no se restaura la contraseña `1234` de la antigua demo. Ejecutar nuevamente `db:init` aplica las migraciones sin eliminar pedidos ni cambiar las tarifas ya guardadas.
+Abrir `http://localhost:3000`. La inicialización crea las cuentas `admin`, `supervisor`, `mesero`, `mesero1`, `mesero2`, `cocina`, `bar`, `caja` y `auditor`, con la contraseña definida en `SEED_PASSWORD`, que es temporal: cada cuenta debe reemplazarla por una propia en su primer ingreso y no puede operar hasta hacerlo. Entrar primero como `admin` y cambiar su contraseña al instalar. Las contraseñas existentes se conservan; no se restaura la contraseña `1234` de la antigua demo. Ejecutar nuevamente `db:init` aplica las migraciones sin eliminar pedidos ni cambiar las tarifas ya guardadas.
 
 En el entorno de desarrollo de este hilo ya se generó `.env`, se inicializó PostgreSQL y se arrancó el servidor. No guardar `.env` en Git.
+
+## Usuarios y contraseñas
+
+La migración 8 marca todas las cuentas existentes para cambiar la contraseña en el próximo ingreso, porque compartían `SEED_PASSWORD`. Ejecutar `npm.cmd run db:init` y reiniciar el servidor.
+
+- Cada persona cambia su contraseña desde el menú de usuario → **Cambiar contraseña** (mínimo 8 caracteres). El cambio cierra sus sesiones en otros dispositivos.
+- El administrador crea usuarios en **Usuarios y permisos** con una contraseña temporal, la restablece cuando alguien la olvida y desactiva o reactiva cuentas. Restablecer o desactivar cierra las sesiones de esa cuenta. Un administrador no puede desactivar ni restablecer su propia cuenta desde esa pantalla.
+- Un usuario con rol Mesero debe estar vinculado a un integrante del equipo de meseros.
+
+## Robustez
+
+- Si PostgreSQL se reinicia o cierra conexiones inactivas, el servidor registra el aviso y continúa; las conexiones se restablecen en la siguiente operación.
+- Los toques seguidos sobre un producto o sobre los botones de cantidad se guardan en orden, uno tras otro, sin descartarse. Las demás operaciones (enviar, pedir cuenta, liberar) siguen ignorando un segundo toque mientras la primera está en curso.
 
 ## Varios clientes
 
@@ -107,4 +120,4 @@ Esta es la primera base funcional, no una instalación publicada. Puede usar un 
 
 Para acceso desde Internet, configurar dominio y HTTPS en un proxy inverso, `APP_ORIGIN` con el origen público y `COOKIE_SECURE=true`; permitir SSE sin almacenamiento intermedio. Ejecutar el backend como servicio supervisado. La conexión local a PostgreSQL se publica solo en `127.0.0.1`; usar un usuario de base con permisos mínimos para el backend y otro para inicialización/migraciones. Configurar y verificar copias de seguridad con `pg_dump` y restauraciones antes de operar. El servidor dentro de la red local funciona sin Internet; no hay modo de trabajo desconectado del servidor.
 
-Quedan pendientes el alta de usuarios y cambio de contraseñas desde la interfaz, cancelación de pedidos, administración del catálogo e integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor. Roboto y los iconos usan los proveedores del diseño anterior; sin Internet se usa la fuente de respaldo y los textos siguen disponibles.
+Quedan pendientes la cancelación de pedidos, administración del catálogo e integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor. Roboto y los iconos usan los proveedores del diseño anterior; sin Internet se usa la fuente de respaldo y los textos siguen disponibles.
