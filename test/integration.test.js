@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { readFile } from "node:fs/promises";
+import { amounts } from "../money.js";
 
 let admin, pool, app, server, base, seededWithOwnPassword;
 const databaseClients = new Set();
@@ -88,6 +89,7 @@ test("migración de roles anteriores conserva datos y no repone asignaciones rev
     ALTER TABLE products DROP CONSTRAINT products_station_fk;
     ALTER TABLE order_items DROP CONSTRAINT order_items_station_fk;
     DROP TABLE user_stations;
+    DROP TABLE order_item_voids;
     DROP TABLE stations;
     DELETE FROM schema_migrations WHERE version=5;
     ALTER TABLE users DROP CONSTRAINT users_role_check;
@@ -1082,4 +1084,217 @@ test("el servidor continúa cuando PostgreSQL cierra sus conexiones inactivas", 
   assert.ok(terminated.rowCount > 0);
   await new Promise((resolve) => setTimeout(resolve, 300));
   assert.ok((await waiter.request("/api/state")).tables.length);
+});
+
+test("anulaciones, correcciones tras el envío y bitácora detallada", async () => {
+  const waiter = client(), other = client(), supervisor = client(), kitchen = client(), bar = client(),
+    cashier = client(), auditor = client(), administrator = client();
+  await waiter.login("mesero");
+  await other.login("mesero2");
+  await supervisor.login("supervisor");
+  await kitchen.login("cocina");
+  await bar.login("bar");
+  await cashier.login("caja");
+  await auditor.login("auditor");
+  await administrator.login("admin");
+  const initial = await waiter.request("/api/state");
+  const food = initial.products.find((p) => p.area === "cocina");
+  const drink = initial.products.find((p) => p.area === "bar");
+  const free = initial.tables.map((t) => t.number).filter((n) => !initial.orders.some((o) => o.table_number === n));
+  assert.ok(free.length >= 3);
+  const created = await waiter.request("/api/orders", {
+    tableNumber: free[0], firstItem: { productId: food.id, quantity: 4, account: 1, note: "" },
+  }, 201);
+  const path = `/api/orders/${created.id}/actions`;
+  const current = async (c = waiter) => (await c.request("/api/state")).orders.find((o) => o.id === created.id);
+  const perform = async (c, action, fields = {}, expected = 200) =>
+    c.request(path, { action, version: (await current()).version, ...fields }, expected);
+  const item = async (productId, account = 1) =>
+    (await current()).items.find((i) => i.product_id === productId && i.account === account);
+  await perform(waiter, "add", { productId: drink.id, quantity: 2, account: 1, note: "" });
+
+  // A draft is removed, not voided.
+  await perform(waiter, "void", { itemId: (await item(food.id)).id, quantity: 1, reason: "Error" }, 409);
+  await perform(waiter, "send");
+  const foodItem = await item(food.id), drinkItem = await item(drink.id);
+
+  // Voiding requires the owner, a valid quantity and a reason.
+  await perform(other, "void", { itemId: foodItem.id, quantity: 1, reason: "Error" }, 403);
+  await perform(kitchen, "void", { itemId: foodItem.id, quantity: 1, reason: "Error" }, 403);
+  await perform(cashier, "void", { itemId: foodItem.id, quantity: 1, reason: "Error" }, 403);
+  await perform(waiter, "void", { itemId: foodItem.id, quantity: 1, reason: "  " }, 400);
+  await perform(waiter, "void", { itemId: foodItem.id, quantity: 5, reason: "Error" }, 400);
+  await perform(waiter, "void", { itemId: foodItem.id, quantity: 1, reason: " El cliente cambió de opinión " });
+  let order = await current();
+  assert.equal(order.items.find((i) => i.id === foodItem.id).quantity, 3);
+  assert.equal(order.voids.length, 1);
+  assert.deepEqual(
+    (({ quantity, reason, username, item_status, product_name }) => ({ quantity, reason, username, item_status, product_name }))(order.voids[0]),
+    { quantity: 1, reason: "El cliente cambió de opinión", username: "mesero", item_status: "preparing", product_name: food.name },
+  );
+
+  // The station sees the notice and confirms it; another station cannot.
+  const notice = (await current(kitchen)).voids[0];
+  await perform(bar, "void_seen", { voidId: Number(notice.id) }, 403);
+  await perform(waiter, "void_seen", { voidId: Number(notice.id) }, 403);
+  await perform(kitchen, "void_seen", { voidId: Number(notice.id) });
+  await perform(kitchen, "void_seen", { voidId: Number(notice.id) }, 409);
+  assert.ok((await current()).voids[0].acknowledged_at);
+
+  // Note of a product in preparation.
+  await perform(other, "note", { itemId: foodItem.id, note: "Sin sal" }, 403);
+  await perform(waiter, "note", { itemId: foodItem.id, note: "Sin sal" });
+  await perform(waiter, "note", { itemId: foodItem.id, note: "Sin sal" }, 409);
+  order = await current();
+  assert.equal(order.items.find((i) => i.id === foodItem.id).note, "Sin sal");
+  assert.ok(order.items.find((i) => i.id === foodItem.id).note_changed_at);
+
+  // Once prepared: the waiter needs a supervisor, and the note is fixed.
+  await perform(kitchen, "ready", { itemId: foodItem.id });
+  await perform(waiter, "void", { itemId: foodItem.id, quantity: 1, reason: "Error" }, 403);
+  await perform(waiter, "note", { itemId: foodItem.id, note: "Otra" }, 409);
+  await perform(waiter, "pickup", { itemId: foodItem.id, quantity: 2 });
+  // Of 3 units (2 served), voiding 2 keeps one served unit and records one served unit as voided.
+  await perform(supervisor, "void", { itemId: foodItem.id, quantity: 2, reason: "Producto devuelto" });
+  order = await current();
+  assert.deepEqual(
+    (({ quantity, picked_up_quantity, status }) => ({ quantity, picked_up_quantity, status }))(order.items.find((i) => i.id === foodItem.id)),
+    { quantity: 1, picked_up_quantity: 1, status: "ready" },
+  );
+  assert.equal(order.voids[1].picked_up_quantity, 1);
+  assert.equal(order.voids[1].username, "supervisor");
+
+  // Moving part of a product to another account splits it and keeps the totals.
+  const totalBefore = order.items.reduce((n, i) => n + i.quantity * i.tariff.precio, 0);
+  await perform(waiter, "move", { itemId: drinkItem.id, quantity: 1, toAccount: 1 }, 400);
+  await perform(waiter, "move", { itemId: drinkItem.id, quantity: 3, toAccount: 2 }, 400);
+  await perform(other, "move", { itemId: drinkItem.id, quantity: 1, toAccount: 2 }, 403);
+  await perform(waiter, "move", { itemId: drinkItem.id, quantity: 1, toAccount: 2 });
+  order = await current();
+  assert.deepEqual(order.items.filter((i) => i.product_id === drink.id).map((i) => [i.account, i.quantity, i.status]).sort(),
+    [[1, 1, "preparing"], [2, 1, "preparing"]]);
+  assert.ok(order.accounts.some((a) => a.number === 2));
+  assert.equal(order.items.reduce((n, i) => n + i.quantity * i.tariff.precio, 0), totalBefore);
+  await perform(waiter, "move", { itemId: (await item(drink.id, 2)).id, quantity: 1, toAccount: 3 });
+  assert.equal((await item(drink.id, 3)).quantity, 1);
+  assert.equal(await item(drink.id, 2), undefined);
+
+  // Changing tables: only to a free, existing table.
+  const busy = await other.request("/api/orders", { tableNumber: free[1], occupiedExplicitly: true }, 201);
+  await perform(waiter, "transfer", { tableNumber: free[1] }, 409);
+  await perform(waiter, "transfer", { tableNumber: 998 }, 400);
+  await perform(other, "transfer", { tableNumber: free[2] }, 403);
+  await perform(waiter, "transfer", { tableNumber: free[2] });
+  assert.equal((await current()).table_number, free[2]);
+  await other.request(`/api/orders/${busy.id}/actions`, { action: "release", version: 1 });
+
+  // An invoiced account is closed to corrections; the other accounts are not.
+  for (const i of (await current()).items.filter((i) => i.status === "preparing"))
+    await perform(bar, "ready", { itemId: i.id });
+  await perform(waiter, "bill");
+  await perform(cashier, "account", { account: 1, name: "", customer: { identification: "0912345678", name: "Cliente Uno" } });
+  await perform(cashier, "send_lsoft", { account: 1 });
+  await perform(supervisor, "void", { itemId: foodItem.id, quantity: 1, reason: "Tarde" }, 409);
+  await perform(supervisor, "move", { itemId: (await item(drink.id, 3)).id, quantity: 1, toAccount: 1 }, 409);
+  await perform(supervisor, "transfer", { tableNumber: free[0] }, 409);
+  await perform(supervisor, "void", { itemId: (await item(drink.id, 3)).id, quantity: 1, reason: "No lo pidió" });
+  assert.equal(await item(drink.id, 3), undefined);
+
+  // The log records who did what, with quantities, reasons and amounts.
+  await waiter.request(`/api/orders/${created.id}/events`, undefined, 403);
+  await kitchen.request(`/api/orders/${created.id}/events`, undefined, 403);
+  const events = await auditor.request(`/api/orders/${created.id}/events`);
+  const of = (action) => events.filter((e) => e.action === action);
+  assert.deepEqual(events[0].details, { product: food.name, quantity: 4, account: 1, note: "" });
+  assert.deepEqual(of("send")[0].details.items.map((i) => i.quantity).sort(), [2, 4]);
+  assert.deepEqual(of("void").map((e) => [e.username, e.details.quantity, e.details.reason, e.details.picked_up]), [
+    ["mesero", 1, "El cliente cambió de opinión", 0],
+    ["supervisor", 2, "Producto devuelto", 1],
+    ["supervisor", 1, "No lo pidió", 0],
+  ]);
+  assert.equal(of("void")[0].details.cents, amounts(foodItem.tariff, 1).total);
+  assert.deepEqual(of("note")[0].details, { product: food.name, account: 1, from: "", to: "Sin sal" });
+  assert.deepEqual(of("move")[0].details, { product: drink.name, quantity: 1, from: 1, to: 2 });
+  assert.deepEqual(of("transfer")[0].details, { from: free[0], to: free[2] });
+  assert.equal(of("pickup")[0].details.quantity, 2);
+  assert.equal(of("ready")[0].username, "cocina");
+  assert.equal(of("send_lsoft")[0].details.retry, false);
+
+  // General audit: restricted, filtered, and it includes the administrative log.
+  await waiter.request("/api/audit", undefined, 403);
+  await cashier.request("/api/audit", undefined, 403);
+  const corrections = await auditor.request("/api/audit?scope=correcciones");
+  assert.ok(corrections.length >= 6);
+  assert.ok(corrections.every((e) => e.scope === "pedido" && ["void", "note", "move", "transfer", "remove", "edit", "assign"].includes(e.action)));
+  assert.equal(corrections.find((e) => e.action === "void").table_number, free[2]);
+  await pool.query("UPDATE users SET must_change_password=false WHERE username='nueva.persona'");
+  const administration = await administrator.request("/api/audit?scope=administracion");
+  for (const action of ["login", "user_created", "password_reset", "user_deactivated", "user_activated", "password_changed", "station_created", "config_changed"])
+    assert.ok(administration.some((e) => e.action === action), action);
+  assert.ok(administration.every((e) => e.scope === "administracion"));
+  assert.ok(!JSON.stringify(administration).includes("temporal-"));
+
+  // Closing keeps voids and events in the history.
+  await perform(cashier, "close");
+  const archived = (await auditor.request("/api/history")).find((o) => o.id === created.id);
+  assert.equal(archived.voids.length, 3);
+  assert.equal(archived.events.at(-1).action, "close");
+  assert.equal(archived.events.length, events.length + 1);
+});
+
+test("un pedido con todo anulado se libera y conserva su rastro", async () => {
+  const waiter = client(), administrator = client();
+  await waiter.login("mesero");
+  await administrator.login("admin");
+  const state = await waiter.request("/api/state");
+  const product = state.products[0];
+  const table = state.tables.map((t) => t.number).find((n) => !state.orders.some((o) => o.table_number === n));
+  const run = async (id, action, fields = {}, expected = 200) => {
+    const order = (await waiter.request("/api/state")).orders.find((o) => o.id === id);
+    return waiter.request(`/api/orders/${id}/actions`, { action, version: order.version, ...fields }, expected);
+  };
+  const firstItem = { productId: product.id, quantity: 1, account: 1, note: "" };
+  const seated = await waiter.request("/api/orders", { tableNumber: table, firstItem }, 201);
+  await run(seated.id, "send");
+  await run(seated.id, "bill");
+  await run(seated.id, "release", {}, 409);
+  const item = (await waiter.request("/api/state")).orders.find((o) => o.id === seated.id).items[0];
+  await run(seated.id, "void", { itemId: item.id, quantity: 1, reason: "Se retiraron" });
+  await run(seated.id, "close", {}, 409);
+  await run(seated.id, "release");
+  const history = await administrator.request("/api/history");
+  assert.equal(history.find((o) => o.id === seated.id).voids[0].reason, "Se retiraron");
+
+  // Takeaway: with voids it is archived; without history worth keeping it is deleted and logged.
+  const takeaway = await waiter.request("/api/orders", { firstItem }, 201);
+  await run(takeaway.id, "send");
+  const sent = (await waiter.request("/api/state")).orders.find((o) => o.id === takeaway.id).items[0];
+  await run(takeaway.id, "void", { itemId: sent.id, quantity: 1, reason: "Error al tomar el pedido" });
+  await run(takeaway.id, "delete_empty");
+  assert.equal((await pool.query("SELECT status FROM orders WHERE id=$1", [takeaway.id])).rows[0].status, "closed");
+  const empty = await waiter.request("/api/orders", { firstItem }, 201);
+  const draft = (await waiter.request("/api/state")).orders.find((o) => o.id === empty.id).items[0];
+  await run(empty.id, "remove", { itemId: draft.id });
+  await run(empty.id, "delete_empty");
+  assert.equal((await pool.query("SELECT 1 FROM orders WHERE id=$1", [empty.id])).rowCount, 0);
+  const deleted = (await administrator.request("/api/audit?scope=administracion")).find((e) => e.action === "order_deleted");
+  assert.equal(deleted.details.number, Number(empty.number));
+  assert.deepEqual(deleted.details.events.map((e) => e.action), ["created", "remove"]);
+  assert.equal(deleted.details.events[1].details.product, product.name);
+});
+
+test("el límite de ingresos cuenta solo los intentos fallidos y responde JSON", async () => {
+  const visitor = client();
+  let limited;
+  for (let attempt = 0; attempt < 45 && !limited; attempt++) {
+    const response = await fetch(base + "/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "inexistente", password: "incorrecta" }),
+    });
+    if (response.status === 429) limited = await response.json();
+    else assert.equal(response.status, 401);
+  }
+  assert.match(limited.error, /Demasiados intentos/);
+  await visitor.login("mesero", password, 429);
 });

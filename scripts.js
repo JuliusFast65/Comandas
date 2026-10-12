@@ -133,6 +133,20 @@ function confirmOtherWaiter(o, name) {
     return null;
   return { confirmedOtherWaiterId: o.waiter_id };
 }
+function accountSent(o, number) {
+  return o.accounts.some((a) => a.number === number && a.lsoft?.json);
+}
+// Corrections after sending: note, account and voiding, until the account is invoiced.
+function mayCorrect(o, i) {
+  return owned(o) && !o.pending && o.status !== "closed" && !accountSent(o, i.account);
+}
+function mayVoid(o, i) {
+  return mayCorrect(o, i) && i.status !== "draft" &&
+    (user.role !== "mesero" || i.status === "preparing");
+}
+function mayAudit() {
+  return ["admin", "supervisor", "caja", "auditor"].includes(user?.role);
+}
 function editableOrder(o) {
   return (
     owned(o) && o.status !== "closed" && !o.accounts.some((a) => a.lsoft?.json)
@@ -517,13 +531,15 @@ function areas() {
       ...stations,
       "caja",
       "historial",
+      "auditoria",
       "configuracion",
       "meseros",
       "usuarios",
     ];
   if (user.role === "mesero") return ["mesas", ...stations, "caja"];
   if (user.role === "supervisor") return ["mesas", ...stations, "caja", "historial"];
-  if (["caja", "auditor"].includes(user.role)) return ["caja", "historial"];
+  if (user.role === "auditor") return ["caja", "historial", "auditoria"];
+  if (user.role === "caja") return ["caja", "historial"];
   if (user.role === "estacion") return user.stations;
   return [user.role];
 }
@@ -533,6 +549,7 @@ const areaNames = {
   bar: "Bar",
   caja: "LSoft · Caja",
   historial: "Operaciones cerradas",
+  auditoria: "Auditoría",
   configuracion: "Configuración",
   meseros: "Equipo de meseros",
   usuarios: "Usuarios y permisos",
@@ -631,6 +648,7 @@ function render() {
   else if (view === "caja") renderCash(page(content, "caja-screen"));
   else if (view === "historial")
     renderHistory(page(content, "historial-screen"));
+  else if (view === "auditoria") renderAudit(page(content, "auditoria-screen"));
   else if (view === "configuracion")
     renderConfig(page(content, "configuracion-screen"));
   else if (view === "meseros") renderWaiters(page(content, "meseros-screen"));
@@ -736,7 +754,7 @@ function tableCard(table, o) {
   }
   if (o?.status === "bill_requested")
     b.append(el("small", o.items.length && o.items.every((i) => o.accounts.some((a) => a.number === i.account && a.lsoft?.json)) ? "Enviada a LSoft · Pendiente de liberar" : "Cuenta pedida", { class: "table-label" }));
-  if (o && !table && !o.items.length && editableOrder(o) && o.status === "open") {
+  if (o && !table && !o.items.length && editableOrder(o)) {
     const card = el("div", null, { class: "takeaway-card" });
     const trash = button("", () => action(o, "delete_empty"), false, "delete-empty-order");
     trash.setAttribute("aria-label", `Eliminar ${orderTitle(o)} vacío`);
@@ -825,7 +843,7 @@ function renderOrder(content, o) {
   if (!confirming && o.table_number && editable) {
     if (o.pending || !o.occupied_explicitly)
       header.append(button("Ocupar mesa", () => action(o, "occupy"), o.items.length > 0 || o.status !== "open"));
-    if (!o.pending && !o.items.length && o.status === "open")
+    if (!o.pending && !o.items.length)
       header.append(button("Liberar mesa", () => action(o, "release")));
     if (o.occupied_explicitly && !o.items.length)
       header.append(el("p", "Ocupada · Sin pedido"));
@@ -891,6 +909,13 @@ function renderOrder(content, o) {
     else if (["admin", "supervisor"].includes(user.role))
       header.append(el("small", "Mesero: " + waiterName(o.waiter_id)));
   }
+  const freeTables = state.tables.filter((t) => !state.orders.some((other) => other.table_number === t.number));
+  if (!confirming && !o.pending && o.table_number && editable && freeTables.length) {
+    const transfer = select("Cambiar a mesa ", [["", "—"], ...freeTables.map((t) => [t.number, `Mesa ${t.number}`])], "",
+      (v) => v && action(o, "transfer", { tableNumber: Number(v) }));
+    transfer.querySelector("select").id = "cambiar-mesa";
+    header.append(transfer);
+  }
   content.append(header);
   if (!confirming) renderRelease(content, o);
   const layout = el("div", null, { class: "order-content" });
@@ -927,6 +952,7 @@ function renderOrder(content, o) {
       ? { ...o, items: o.items.filter((i) => i.status === "draft") }
       : o,
   );
+  if (!confirming) renderVoids(summary, o);
   const total = totals(o.items).total,
     totalLine = el("p", "Total ", { class: "summary-total" });
   totalLine.append(el("strong", money(total)));
@@ -978,6 +1004,7 @@ function renderOrder(content, o) {
       ),
     );
     if (mayPickup()) summary.append(pickupAllButton(o));
+    if (!o.pending && mayAudit()) summary.append(button("Ver bitácora", () => openEvents(o)));
   }
   summary.append(footer);
   layout.append(summary);
@@ -1354,6 +1381,7 @@ function renderItems(content, o, area = null) {
     );
     li.append(el("small", `Cuenta ${i.account}${i.additional ? " · Adicional" : ""}`, { class: "item-account" }));
     if (i.note) li.append(el("p", i.note, { class: "item-note" }));
+    if (area && i.note_changed_at) li.append(el("small", "Nota modificada", { class: "note-changed" }));
     if (!area)
       li.append(el("small", money(amounts(i.tariff, i.quantity).total), { class: "item-price" }));
     if (area) {
@@ -1424,6 +1452,14 @@ function renderItems(content, o, area = null) {
         button("Quitar", () => action(o, "remove", (current) =>
           current.items.some((item) => item.id === i.id) ? { itemId: i.id } : null)),
       );
+    }
+    if (!area && i.status !== "draft" && mayCorrect(o, i)) {
+      const corrections = el("div", null, { class: "item-corrections" });
+      if (i.status === "preparing") corrections.append(button("Nota", () => editNote(o, i)));
+      corrections.append(button("Mover", () => openMove(o, i)));
+      if (mayVoid(o, i))
+        corrections.append(button("Anular", () => openVoid(o, i), false, "pickup-button void-button"));
+      li.append(corrections);
     }
     list.append(li);
   }
@@ -1499,11 +1535,12 @@ function editNote(o, i) {
       return;
     }
     run(async () => {
+      // A product already sent keeps its quantity; the station sees the new note.
       await api(`/orders/${current.id}/actions`, {
-        action: "edit",
+        action: item.status === "draft" ? "edit" : "note",
         version: current.version,
         itemId: item.id,
-        quantity: item.quantity,
+        ...(item.status === "draft" ? { quantity: item.quantity } : {}),
         note: note.value,
       });
       dialog.close();
@@ -1554,9 +1591,20 @@ function renderPreparation(content) {
         ),
       );
     }
-    if (!items.some((i) => remaining(i) > 0)) continue;
+    const notices = (o.voids || []).filter((v) => v.area === view && !v.acknowledged_at);
+    if (!items.some((i) => remaining(i) > 0) && !notices.length) continue;
     const card = el("section", null, { class: "cocina-item" });
     card.append(stationOrderHeading(o));
+    for (const v of notices) {
+      const notice = el("div", null, { class: "void-notice", role: "status" });
+      notice.append(
+        el("strong", `ANULADO · ${v.quantity} × ${v.product_name}`),
+        el("small", `Cuenta ${v.account} · ${v.reason}`),
+      );
+      if (mayPrepare(view))
+        notice.append(button("Enterado", () => action(o, "void_seen", { voidId: Number(v.id) })));
+      card.append(notice);
+    }
     if (mayPickup()) {
       const pickupAll = pickupAllButton(o, view);
       pickupAll.classList.add("station-pickup-all");
@@ -1960,6 +2008,7 @@ function renderCash(content) {
     const unsent = accounts.some((a) => !a.lsoft?.json),
       pending = o.items.some((i) => i.status !== "ready");
     renderRelease(card, o);
+    if (mayAudit()) card.append(button("Ver bitácora", () => openEvents(o)));
     if (unsent || pending)
       card.append(
         el(
@@ -2045,6 +2094,7 @@ async function renderHistory(content) {
         ),
       );
       renderItems(card, o);
+      renderVoids(card, o);
       for (const a of o.accounts) {
         card.append(
           el("h4", `Cuenta ${a.number} · ${a.customer.name || "Sin datos"}`),
@@ -2054,10 +2104,221 @@ async function renderHistory(content) {
           el("pre", JSON.stringify(a.lsoft, null, 2), { class: "lsoft-json" }),
         );
       }
+      const log = el("details");
+      log.append(el("summary", `Bitácora (${o.events.length})`), eventTable(o.events));
+      card.append(log);
       content.append(card);
     }
     if (!orders.length)
       content.append(el("p", "Todavía no hay pedidos cerrados."));
+  } catch (e) {
+    message(e.message, true);
+  }
+}
+function renderVoids(content, o) {
+  if (!o.voids?.length) return;
+  const section = el("div", null, { class: "void-list" });
+  section.append(el("p", "Anulados", { class: "collection-title" }));
+  for (const v of o.voids)
+    section.append(el("p",
+      `${v.quantity} × ${v.product_name} · Cuenta ${v.account} · ${money(amounts(v.tariff, v.quantity).total)} · ${v.reason} · ${v.username}, ${new Date(v.voided_at).toLocaleTimeString()}`));
+  content.append(section);
+}
+function correctionDialog(title, submitLabel) {
+  const dialog = el("dialog", null, { class: "note-dialog correction-dialog", "aria-label": title }),
+    form = el("form"),
+    footer = el("div", null, { class: "footer" });
+  form.append(el("h3", title));
+  footer.append(el("button", submitLabel, { type: "submit" }), button("Cancelar", () => dialog.close()));
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.append(form);
+  return { dialog, form, footer };
+}
+function quantityField(form, id, i) {
+  return labeled(form, `Cantidad (de ${i.quantity})`, el("input", null, {
+    id, type: "number", min: "1", max: String(i.quantity), step: "1", value: String(i.quantity), required: "",
+  }));
+}
+function openVoid(o, i) {
+  const { dialog, form, footer } = correctionDialog(`Anular ${i.product_name} · Cuenta ${i.account}`, "Anular"),
+    quantity = quantityField(form, "void-quantity", i),
+    reasons = ["Error al tomar el pedido", "El cliente cambió de opinión", "Producto agotado",
+      "Demora en la preparación", "Producto devuelto", "Otro motivo"],
+    reason = select("Motivo ", reasons.map((r) => [r, r]), reasons[0]),
+    reasonInput = reason.querySelector("select");
+  reasonInput.id = "void-reason";
+  form.append(reason);
+  const detail = labeled(form, "Detalle", el("input", null, { id: "void-detail", type: "text", maxlength: "120" }));
+  reasonInput.addEventListener("change", () => (detail.required = reasonInput.value === "Otro motivo"));
+  if (i.status === "ready" || i.picked_up_quantity)
+    form.append(el("p", i.picked_up_quantity
+      ? `Este producto ya fue preparado y ${i.picked_up_quantity} se retiraron. La anulación lo quita de la cuenta.`
+      : "Este producto ya fue preparado. La anulación lo quita de la cuenta.", { class: "consumption-notice" }));
+  else form.append(el("p", "La estación verá el aviso de anulación.", { class: "menu-help" }));
+  form.append(footer);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    const text = detail.value.trim(),
+      motive = reasonInput.value === "Otro motivo" ? text : reasonInput.value + (text ? ": " + text : "");
+    run(async () => {
+      await api(`/orders/${o.id}/actions`, {
+        action: "void", version: latest(o).version, itemId: i.id,
+        quantity: Number(quantity.value), reason: motive,
+      });
+      dialog.close();
+    });
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+function openMove(o, i) {
+  const { dialog, form, footer } = correctionDialog(`Mover ${i.product_name} · Cuenta ${i.account}`, "Mover"),
+    quantity = quantityField(form, "move-quantity", i),
+    account = labeled(form, "Cuenta de destino", el("input", null, {
+      id: "move-account", type: "number", min: "1", max: "99", step: "1", required: "",
+      value: String(i.account === 1 ? 2 : 1),
+    }));
+  form.append(footer);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    run(async () => {
+      await api(`/orders/${o.id}/actions`, {
+        action: "move", version: latest(o).version, itemId: i.id,
+        quantity: Number(quantity.value), toAccount: Number(account.value),
+      });
+      dialog.close();
+    });
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+function describeEvent(e) {
+  const d = e.details || {},
+    q = (x) => `${x.quantity} × ${x.product}`,
+    list = (items) => (items?.length ? ": " + items.map(q).join(", ") : ""),
+    account = d.account ? ` · Cuenta ${d.account}` : "";
+  switch (e.action) {
+    case "created": return "Abrió el pedido" + (d.product ? ` con ${q(d)}` : "");
+    case "add": return d.product ? `Añadió ${q(d)}${account}${d.note ? " · Nota: " + d.note : ""}` : "Añadió un producto";
+    case "edit": return d.product
+      ? `Modificó ${d.product} sin enviar${account}: cantidad ${d.from.quantity} → ${d.to.quantity}` +
+        (d.from.note !== d.to.note ? ` · nota «${d.from.note}» → «${d.to.note}»` : "")
+      : "Modificó un producto";
+    case "remove": return d.product ? `Quitó ${q(d)} sin enviar${account}` : "Quitó un producto";
+    case "send": return "Envió a preparación" + list(d.items);
+    case "ready": return d.product ? `${d.ready ? "Marcó preparado" : "Desmarcó preparado"}: ${q(d)}${account}` : "Cambió la preparación";
+    case "pickup": return d.product ? `Retiró ${q(d)}${account}` : "Retiró productos";
+    case "pickup_all": return "Retiró todo lo listo" + list(d.items);
+    case "void": return `ANULÓ ${q(d)}${account} · ${money(d.cents)} · Motivo: ${d.reason}` +
+      (d.picked_up ? ` · ${d.picked_up} ya retirados` : d.status === "ready" ? " · ya preparado" : "");
+    case "void_seen": return `La estación confirmó la anulación de ${q(d)}`;
+    case "note": return `Cambió la nota de ${d.product}${account}: «${d.from}» → «${d.to}»`;
+    case "move": return `Movió ${q(d)} de Cuenta ${d.from} a Cuenta ${d.to}`;
+    case "transfer": return `Cambió de Mesa ${d.from} a Mesa ${d.to}`;
+    case "assign": return "Reasignó el mesero" + (d.to ? `: ${d.from ?? "Sin asignar"} → ${d.to}` : "");
+    case "account": return `Actualizó los datos de la cuenta${account}`;
+    case "bill": return "Pidió la cuenta";
+    case "send_lsoft": return `${d.retry ? "Reintentó el envío" : "Envió la cuenta"} a LSoft${account}` + (d.cents !== undefined ? ` · ${money(d.cents)}` : "");
+    case "pay": return `Registró el pago${account}` + (d.method ? ` · ${d.method}` : "");
+    case "bill_delivered": return `Entregó la precuenta${account}`;
+    case "collected": return `Confirmó el cobro${account}`;
+    case "documents_received": return `Caja recibió precuenta y voucher${account}`;
+    case "close": return "Cerró el pedido";
+    case "new_consumption": return "Archivó la cuenta y abrió un nuevo consumo";
+    case "occupy": return "Ocupó la mesa";
+    case "release": return d.automatic ? "Mesa liberada al quedar sin productos" : "Liberó la mesa";
+    case "delete_empty": return "Cerró el pedido vacío";
+    case "login": return "Inició sesión";
+    case "login_failed": return "Intento de ingreso con contraseña incorrecta";
+    case "password_changed": return "Cambió su contraseña";
+    case "user_created": return `Creó el usuario ${d.username} (${roles[d.role] || d.role})`;
+    case "password_reset": return `Restableció la contraseña de ${d.username}`;
+    case "user_activated": return `Reactivó el usuario ${d.username}`;
+    case "user_deactivated": return `Desactivó el usuario ${d.username}`;
+    case "station_created": return `Creó la estación ${d.name}`;
+    case "station_changed": return `Modificó la estación ${d.name} (${d.active ? "activa" : "inactiva"})`;
+    case "products_station": return `Asignó ${d.products} productos a la estación ${areaName(d.station)}`;
+    case "user_stations": return `Cambió las estaciones de ${userName(d.user)}: ${d.stations.map(areaName).join(", ") || "ninguna"}`;
+    case "user_waiter": return `Vinculó a ${userName(d.user)} con el mesero ${d.waiter}`;
+    case "user_role": return `Cambió el rol de ${userName(d.user)} a ${roles[d.role] || d.role}`;
+    case "config_changed": return "Cambió la configuración: " + ([
+      ...["iva", "servicio", "incluidos"].filter((k) => d[k]).map((k) => `${k} ${d[k].from} → ${d[k].to}`),
+      ...Object.entries(d.precios || {}).map(([name, p]) => `${name} ${p.from === null ? "predeterminado" : money(p.from)} → ${money(p.to)}`),
+    ].join(" · ") || "sin diferencias");
+    case "product_help": return `Editó la ficha de ${state.products.find((p) => p.id === d.product)?.name || "un producto"}`;
+    case "waiters_changed": return `Actualizó el equipo de meseros: ${d.names.join(", ")}`;
+    case "order_deleted": return `Eliminó el pedido para llevar ${d.number}, vacío`;
+    default: return e.action;
+  }
+}
+function userName(id) {
+  return state.users?.find((u) => u.id === id)?.username || "un usuario";
+}
+function eventTable(events, withOrder = false) {
+  const table = el("table", null, { class: "consumption-table audit-table" }),
+    head = el("tr"),
+    body = el("tbody");
+  for (const title of ["Fecha", "Usuario", ...(withOrder ? ["Pedido"] : []), "Registro"])
+    head.append(el("th", title, { scope: "col" }));
+  for (const e of events) {
+    const row = el("tr", null, e.action === "void" ? { class: "audit-void" } : {});
+    row.append(el("td", new Date(e.created_at).toLocaleString()), el("td", e.username));
+    if (withOrder)
+      row.append(el("td", e.scope !== "pedido" ? "—"
+        : e.table_number ? `Mesa ${e.table_number} · N.º ${e.order_number}` : `Para llevar ${e.order_number}`));
+    row.append(el("td", describeEvent(e)));
+    body.append(row);
+  }
+  if (!events.length) {
+    const row = el("tr");
+    row.append(el("td", "Sin registros.", { colspan: withOrder ? "4" : "3" }));
+    body.append(row);
+  }
+  const wrapper = el("div", null, { class: "audit-scroll" });
+  table.append(el("thead"), body);
+  table.querySelector("thead").append(head);
+  wrapper.append(table);
+  return wrapper;
+}
+async function openEvents(o) {
+  const dialog = el("dialog", null, { class: "note-dialog events-dialog", "aria-label": "Bitácora de " + orderTitle(o) }),
+    header = el("div", null, { class: "summary-heading" }),
+    close = button("✕", () => dialog.close());
+  close.setAttribute("aria-label", "Cerrar bitácora");
+  header.append(el("h3", "Bitácora · " + orderTitle(o)), close);
+  dialog.append(header);
+  dialog.addEventListener("close", () => dialog.remove());
+  document.body.append(dialog);
+  dialog.showModal();
+  try {
+    dialog.append(eventTable(await api(`/orders/${o.id}/events`)));
+  } catch (e) {
+    dialog.append(el("p", e.message, { class: "error" }));
+  }
+}
+let auditScope = "";
+async function renderAudit(content) {
+  content.append(
+    heading("Auditoría"),
+    el("p", "Últimos 300 registros de pedidos, anulaciones, accesos y administración. El detalle completo permanece en PostgreSQL."),
+  );
+  const filter = select("Mostrar ", [
+    ["", "Todo"],
+    ["correcciones", "Anulaciones y correcciones"],
+    ["pedido", "Pedidos"],
+    ["administracion", "Accesos y administración"],
+  ], auditScope, (v) => {
+    auditScope = v;
+    render();
+  });
+  filter.querySelector("select").id = "audit-scope";
+  content.append(filter);
+  try {
+    const events = await api("/audit" + (auditScope ? "?scope=" + auditScope : ""));
+    if (view !== "auditoria" || !user || !content.isConnected) return;
+    content.append(eventTable(events, true));
   } catch (e) {
     message(e.message, true);
   }

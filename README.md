@@ -34,6 +34,26 @@ La migración 8 marca todas las cuentas existentes para cambiar la contraseña e
 - Si PostgreSQL se reinicia o cierra conexiones inactivas, el servidor registra el aviso y continúa; las conexiones se restablecen en la siguiente operación.
 - Los toques seguidos sobre un producto o sobre los botones de cantidad se guardan en orden, uno tras otro, sin descartarse. Las demás operaciones (enviar, pedir cuenta, liberar) siguen ignorando un segundo toque mientras la primera está en curso.
 
+## Anulaciones y correcciones después de enviar
+
+Ejecutar `npm.cmd run db:init` para aplicar la migración 9 y reiniciar el servidor. En **Detalle de la orden**, cada producto ya enviado ofrece:
+
+- **Anular**: retira una cantidad de la cuenta, con motivo obligatorio. El mesero responsable puede anular mientras el producto está en preparación; si ya está preparado o retirado, solo el supervisor o el administrador. La cantidad anulada sale del consumo y de los totales, y queda registrada con su importe, motivo, usuario y hora. La estación ve el aviso **ANULADO** hasta pulsar «Enterado».
+- **Nota**: cambia la nota mientras el producto está en preparación; la estación lo ve marcado como «Nota modificada».
+- **Mover**: pasa una cantidad a otra cuenta de la misma mesa, conservando su estado de preparación.
+- **Cambiar a mesa**: traslada el pedido completo a una mesa libre.
+
+Una cuenta ya enviada a LSoft no admite correcciones; las demás cuentas de la mesa sí. Si se anula todo, la mesa se libera con «Liberar mesa» (o el pedido para llevar con su botón de eliminar) y el pedido queda en el historial con sus anulaciones.
+
+## Auditoría
+
+- Cada cambio de un pedido guarda quién, cuándo y qué: producto, cantidades, cuenta, notas anteriores y nuevas, motivo e importe de las anulaciones, traslados y reasignaciones. Supervisor, caja, auditor y administrador lo consultan con **Ver bitácora** y en cada operación cerrada.
+- **Auditoría** (administrador y auditor) muestra los últimos 300 registros, con filtros para anulaciones y correcciones, pedidos, o accesos y administración: ingresos e intentos fallidos, cambios y restablecimientos de contraseña, altas y bajas de usuarios, estaciones, precios y equipo de meseros. Nunca se guardan contraseñas.
+- Los pedidos para llevar vacíos que se eliminan dejan su rastro en el registro administrativo.
+- Los registros anteriores a la migración 9 conservan solo el nombre de la acción.
+
+El límite de intentos de ingreso (40 cada 15 minutos por dirección) cuenta solo los fallidos, de modo que varios dispositivos detrás de una misma dirección no se bloquean entre sí.
+
 ## Varios clientes
 
 La fase 1 de estaciones usa la migración 5: `stations` guarda las estaciones y
@@ -120,4 +140,4 @@ Esta es la primera base funcional, no una instalación publicada. Puede usar un 
 
 Para acceso desde Internet, configurar dominio y HTTPS en un proxy inverso, `APP_ORIGIN` con el origen público y `COOKIE_SECURE=true`; permitir SSE sin almacenamiento intermedio. Ejecutar el backend como servicio supervisado. La conexión local a PostgreSQL se publica solo en `127.0.0.1`; usar un usuario de base con permisos mínimos para el backend y otro para inicialización/migraciones. Configurar y verificar copias de seguridad con `pg_dump` y restauraciones antes de operar. El servidor dentro de la red local funciona sin Internet; no hay modo de trabajo desconectado del servidor.
 
-Quedan pendientes la cancelación de pedidos, administración del catálogo e integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor. Roboto y los iconos usan los proveedores del diseño anterior; sin Internet se usa la fuente de respaldo y los textos siguen disponibles.
+Quedan pendientes los descuentos, la administración del catálogo e integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor. Roboto y los iconos usan los proveedores del diseño anterior; sin Internet se usa la fuente de respaldo y los textos siguen disponibles.

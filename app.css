@@ -487,3 +487,18 @@ summary:focus-visible {
 .password-dialog input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px; font-size: 16px; border: 1px solid #ddd; border-radius: var(--border-radius); }
 .password-dialog .error { color: #b3261e; }
 .client-info label[hidden] { display: none; }
+.item-corrections { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 100%; margin-top: 6px; }
+.item-corrections button { min-height: 40px; }
+.void-button { background: #b3261e; color: white; }
+.void-list { margin: 12px 0; padding: 10px 12px; border-left: 4px solid #b3261e; background: #fdf1f0; }
+.void-list p { margin: 4px 0; font-size: 14px; }
+.void-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0; padding: 10px 12px; border: 2px solid #b3261e; border-radius: 8px; background: #fdf1f0; color: #7a1712; }
+.void-notice small { flex: 1 1 160px; }
+.void-notice button { min-height: 44px; }
+.note-changed { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #fff3cd; color: #6b4e00; font-weight: bold; }
+.correction-dialog label { display: block; margin-top: 12px; font-weight: bold; }
+.correction-dialog input, .correction-dialog select { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px; font-size: 16px; }
+.events-dialog { width: min(96vw, 820px); }
+.audit-scroll { overflow-x: auto; }
+.consumption-table.audit-table td, .consumption-table.audit-table th { text-align: left; vertical-align: top; font-size: 14px; }
+.audit-table .audit-void td { color: #7a1712; font-weight: bold; }

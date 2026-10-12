@@ -49,6 +49,24 @@ const dummyHash = hashPassword(randomBytes(24).toString("hex"));
 const newPassword = (value) => text(value, 256) && value.length >= 8;
 const passwordRule = "La contraseña debe tener entre 8 y 256 caracteres.";
 const userRoles = ["admin", "supervisor", "mesero", "estacion", "caja", "auditor"];
+// Administrative log: accounts, access and configuration. Order changes go to order_events.
+async function audit(db, userId, action, details = {}) {
+  await db.query("INSERT INTO audit_events(user_id,action,details) VALUES($1,$2,$3)", [
+    userId,
+    action,
+    details,
+  ]);
+}
+// Devices behind one address share the limit, so correct sign-ins do not consume it.
+const attemptLimit = (skipSuccessfulRequests) =>
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 40,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    skipSuccessfulRequests,
+    message: { error: "Demasiados intentos. Espera unos minutos y vuelve a intentar." },
+  });
 async function assignedStations(userId, db = pool) {
   return (await db.query(
     "SELECT s.code FROM user_stations us JOIN stations s ON s.code=us.station_code WHERE us.user_id=$1 AND s.active=true ORDER BY s.code",
@@ -57,12 +75,7 @@ async function assignedStations(userId, db = pool) {
 }
 app.post(
   "/api/login",
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 40,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-  }),
+  attemptLimit(true),
   async (req, res) => {
     const { username, password } = req.body;
     if (!text(username, 80) || !text(password, 256))
@@ -74,6 +87,7 @@ app.post(
       [username],
     );
     const valid = verifyPassword(password, user?.password_hash || dummyHash);
+    if (user) await audit(pool, user.id, valid ? "login" : "login_failed");
     if (!user || !valid) fail(401, "Usuario o contraseña incorrectos.");
     const token = randomBytes(32).toString("hex");
     await pool.query("DELETE FROM sessions WHERE expires_at <= now()");
@@ -119,12 +133,7 @@ app.use("/api", async (req, res, next) => {
 app.get("/api/me", (req, res) => res.json(req.user));
 app.post(
   "/api/password",
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 40,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-  }),
+  attemptLimit(false),
   async (req, res) => {
     const { current, password } = req.body;
     if (!text(current, 256) || !newPassword(password)) fail(400, passwordRule);
@@ -145,6 +154,7 @@ app.post(
         req.user.id,
         req.sessionHash,
       ]);
+      await audit(db, req.user.id, "password_changed");
     });
     res.json({ ok: true });
   },
@@ -213,6 +223,11 @@ app.get("/api/state", async (req, res) => {
         "SELECT a.* FROM order_accounts a JOIN orders o ON o.id=a.order_id WHERE o.status<>'closed'",
       )
     ).rows;
+    const voids = (
+      await db.query(
+        "SELECT v.*,u.username FROM order_item_voids v JOIN orders o ON o.id=v.order_id JOIN users u ON u.id=v.voided_by WHERE o.status<>'closed' ORDER BY v.id",
+      )
+    ).rows;
     const waiters = (await db.query("SELECT * FROM waiters ORDER BY name"))
       .rows;
     const settings = (await db.query("SELECT * FROM app_settings WHERE id=1"))
@@ -234,6 +249,7 @@ app.get("/api/state", async (req, res) => {
         return {
           ...o,
           items: items.filter((i) => i.order_id === o.id),
+          voids: voids.filter((v) => v.order_id === o.id),
           accounts: accounts
             .filter((a) => a.order_id === o.id)
             .map((a) =>
@@ -257,11 +273,11 @@ function ownOrder(user, order) {
   )
     fail(403, "Esta mesa pertenece a otro mesero.");
 }
-async function event(db, order, user, action) {
+async function event(db, order, user, action, details = {}) {
   await db.query("UPDATE orders SET version=version+1 WHERE id=$1", [order]);
   await db.query(
-    "INSERT INTO order_events(order_id,user_id,action) VALUES($1,$2,$3)",
-    [order, user, action],
+    "INSERT INTO order_events(order_id,user_id,action,details) VALUES($1,$2,$3,$4)",
+    [order, user, action, details],
   );
   await db.query("SELECT pg_notify('comandas_changed','')");
 }
@@ -314,6 +330,22 @@ async function addProduct(db, id, b) {
         tariff,
       ],
     );
+  return { product: p.name, quantity: b.quantity, account: b.account, note: b.note };
+}
+async function openAccount(db, order, account) {
+  if (
+    (
+      await db.query(
+        "SELECT 1 FROM order_accounts WHERE order_id=$1 AND number=$2 AND lsoft<>'{}'::jsonb",
+        [order, account],
+      )
+    ).rowCount
+  )
+    fail(409, "La cuenta ya fue enviada a LSoft; no admite cambios.");
+}
+async function waiterLabel(db, id) {
+  if (!id) return null;
+  return (await db.query("SELECT name FROM waiters WHERE id=$1", [id])).rows[0]?.name ?? null;
 }
 app.post("/api/orders", async (req, res) => {
   allow(req.user, ["mesero", "supervisor"]);
@@ -345,8 +377,9 @@ app.post("/api/orders", async (req, res) => {
       "INSERT INTO orders(id,table_number,created_by,waiter_id,occupied_explicitly) VALUES($1,$2,$3,$4,$5) RETURNING *",
       [id, table, req.user.id, waiter, occupied],
     );
+    let details = {};
     if (req.body.firstItem) {
-      await addProduct(db, id, req.body.firstItem);
+      details = await addProduct(db, id, req.body.firstItem);
       if (req.body.firstAccount) {
         const account = req.body.firstAccount;
         if (!text(account.name, 100)) fail(400, "Nombre de cuenta inválido.");
@@ -354,7 +387,7 @@ app.post("/api/orders", async (req, res) => {
           [account.name, id, req.body.firstItem.account]);
       }
     }
-    await event(db, id, req.user.id, "created");
+    await event(db, id, req.user.id, "created", details);
     return order;
   });
   res.status(201).json(order);
@@ -383,12 +416,19 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     documents_received: ["caja"],
     close: ["mesero", "caja"],
     new_consumption: ["mesero", "caja"],
+    void: ["mesero"],
+    note: ["mesero"],
+    move: ["mesero"],
+    transfer: ["mesero"],
+    void_seen: [],
   };
+  // Station work depends on the assigned stations, not on the role or the owner of the order.
+  const stationActions = ["ready", "void_seen"];
   for (const roles of Object.values(roleActions)) {
     if (roles.includes("mesero")) roles.push("supervisor");
   }
   if (!Object.hasOwn(roleActions, action)) fail(400, "Acción inválida.");
-  if (action !== "ready" || !req.user.stations.length)
+  if (!stationActions.includes(action) || !req.user.stations.length)
     allow(req.user, roleActions[action]);
   if (!integer(version, 0, 2147483647)) fail(400, "Versión requerida.");
   const result = await transaction(async (db) => {
@@ -401,7 +441,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     const permittedWaiterAction =
       ["pickup", "pickup_all", "bill"].includes(action) &&
       (order.table_number === null || req.body.confirmedOtherWaiterId === order.waiter_id);
-    if (!permittedWaiterAction && action !== "ready") ownOrder(req.user, order);
+    if (!permittedWaiterAction && !stationActions.includes(action)) ownOrder(req.user, order);
     if (order.status === "closed") fail(409, "El pedido ya está cerrado.");
     if (order.version !== version)
       fail(
@@ -410,8 +450,10 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       );
     const id = order.id,
       b = req.body;
+    let details = {};
     if (["occupy", "release"].includes(action)) {
-      if (order.table_number === null || order.status !== "open")
+      // A table whose products were all voided is released even after asking for the bill.
+      if (order.table_number === null || (order.status !== "open" && action === "occupy"))
         fail(409, "Esta acción requiere una mesa abierta.");
       if (action === "occupy") {
         if ((await db.query("SELECT 1 FROM order_items WHERE order_id=$1 LIMIT 1", [id])).rowCount)
@@ -419,7 +461,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         await db.query("UPDATE orders SET occupied_explicitly=true WHERE id=$1", [id]);
       } else {
         const contents = await db.query(
-          "SELECT 1 FROM order_items WHERE order_id=$1 UNION ALL SELECT 1 FROM order_accounts WHERE order_id=$1 AND lsoft<>'{}'::jsonb UNION ALL SELECT 1 FROM order_events WHERE order_id=$1 AND action IN ('send','send_lsoft','new_consumption')",
+          "SELECT 1 FROM order_items WHERE order_id=$1 UNION ALL SELECT 1 FROM order_accounts WHERE order_id=$1 AND lsoft<>'{}'::jsonb",
           [id],
         );
         if (contents.rowCount) fail(409, "Solo puedes liberar una mesa sin productos ni consumo enviado.");
@@ -438,18 +480,31 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         account.collection[action] = { at: new Date().toISOString(), userId: req.user.id };
         await db.query("UPDATE order_accounts SET collection=$1 WHERE order_id=$2 AND number=$3", [account.collection, id, b.account]);
       }
+      details = { account: b.account };
     }
     if (action === "delete_empty") {
-      if (order.table_number !== null || order.status !== "open")
+      if (order.table_number !== null)
         fail(409, "Solo se puede eliminar un pedido para llevar vacío.");
       const contents = await db.query(
         "SELECT 1 FROM order_items WHERE order_id=$1 UNION ALL SELECT 1 FROM order_accounts WHERE order_id=$1 AND lsoft<>'{}'::jsonb",
         [id],
       );
       if (contents.rowCount) fail(409, "El pedido ya tiene productos o una cuenta enviada.");
+      if ((await db.query("SELECT 1 FROM order_item_voids WHERE order_id=$1 LIMIT 1", [id])).rowCount) {
+        // Voided products stay in the history with their order.
+        await db.query("UPDATE orders SET status='closed',closed_at=now() WHERE id=$1", [id]);
+        await event(db, id, req.user.id, action);
+        return;
+      }
+      const { rows: events } = await db.query(
+        "SELECT e.action,e.details,e.created_at,u.username FROM order_events e JOIN users u ON u.id=e.user_id WHERE e.order_id=$1 ORDER BY e.id",
+        [id],
+      );
       await db.query("DELETE FROM order_accounts WHERE order_id=$1", [id]);
       await db.query("DELETE FROM order_events WHERE order_id=$1", [id]);
       await db.query("DELETE FROM orders WHERE id=$1", [id]);
+      // The removed order keeps its trace in the administrative log.
+      await audit(db, req.user.id, "order_deleted", { number: Number(order.number), events });
       await db.query("SELECT pg_notify('comandas_changed','')");
       return;
     }
@@ -463,8 +518,8 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       ).rowCount
     )
       fail(409, "El pedido ya fue enviado a LSoft; no admite otra ronda.");
-    if (action === "add") await addProduct(db, id, b);
-    if (["edit", "remove", "ready", "pickup"].includes(action)) {
+    if (action === "add") details = await addProduct(db, id, b);
+    if (["edit", "remove", "ready", "pickup", "void", "note", "move"].includes(action)) {
       if (!uuid(b.itemId)) fail(400, "Ítem inválido.");
       const {
         rows: [item],
@@ -488,6 +543,59 @@ app.post("/api/orders/:id/actions", async (req, res) => {
           "UPDATE order_items SET status=$1,ready_at=CASE WHEN $1='ready' THEN now() ELSE NULL END WHERE id=$2",
           [ready ? "ready" : "preparing", item.id],
         );
+        details = { product: item.product_name, quantity: item.quantity, account: item.account, ready };
+      } else if (action === "void") {
+        if (item.status === "draft")
+          fail(409, "Este producto aún no se envió; quítalo de la orden.");
+        if (req.user.role === "mesero" && item.status !== "preparing")
+          fail(403, "El producto ya está preparado. Pide a un supervisor que lo anule.");
+        if (!integer(b.quantity, 1, item.quantity) || !text(b.reason, 200) || !b.reason.trim())
+          fail(400, "Indica la cantidad y el motivo de la anulación.");
+        await openAccount(db, id, item.account);
+        // Units still waiting at the station are voided before the ones already served.
+        const left = item.quantity - b.quantity,
+          picked = Math.min(item.picked_up_quantity, left);
+        await db.query(
+          "INSERT INTO order_item_voids(order_id,item_id,product_id,product_name,area,quantity,account,note,tariff,item_status,picked_up_quantity,reason,voided_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+          [id, item.id, item.product_id, item.product_name, item.area, b.quantity, item.account,
+            item.note, item.tariff, item.status, item.picked_up_quantity - picked, b.reason.trim(), req.user.id],
+        );
+        if (left)
+          await db.query("UPDATE order_items SET quantity=$1,picked_up_quantity=$2 WHERE id=$3", [left, picked, item.id]);
+        else await db.query("DELETE FROM order_items WHERE id=$1", [item.id]);
+        details = {
+          product: item.product_name, quantity: b.quantity, account: item.account, reason: b.reason.trim(),
+          status: item.status, picked_up: item.picked_up_quantity - picked,
+          cents: amounts(item.tariff, b.quantity).total,
+        };
+      } else if (action === "note") {
+        if (item.status !== "preparing")
+          fail(409, "Solo puedes cambiar la nota mientras el producto está en preparación.");
+        if (!text(b.note)) fail(400, "Nota inválida.");
+        if (b.note === item.note) fail(409, "La nota no cambió.");
+        await db.query("UPDATE order_items SET note=$1,note_changed_at=now() WHERE id=$2", [b.note, item.id]);
+        details = { product: item.product_name, account: item.account, from: item.note, to: b.note };
+      } else if (action === "move") {
+        if (!integer(b.quantity, 1, item.quantity) || !integer(b.toAccount, 1, 99) || b.toAccount === item.account)
+          fail(400, "Cantidad o cuenta de destino inválidas.");
+        await openAccount(db, id, item.account);
+        await openAccount(db, id, b.toAccount);
+        await db.query(
+          "INSERT INTO order_accounts(order_id,number) VALUES($1,$2) ON CONFLICT DO NOTHING",
+          [id, b.toAccount],
+        );
+        const left = item.quantity - b.quantity,
+          picked = Math.min(item.picked_up_quantity, left);
+        if (!left)
+          await db.query("UPDATE order_items SET account=$1 WHERE id=$2", [b.toAccount, item.id]);
+        else {
+          await db.query("UPDATE order_items SET quantity=$1,picked_up_quantity=$2 WHERE id=$3", [left, picked, item.id]);
+          await db.query(
+            "INSERT INTO order_items(id,order_id,product_id,product_name,area,quantity,account,note,status,sent_at,ready_at,picked_up_quantity,tariff,additional,note_changed_at) SELECT $1,order_id,product_id,product_name,area,$2,$3,note,status,sent_at,ready_at,$4,tariff,additional,note_changed_at FROM order_items WHERE id=$5",
+            [randomUUID(), b.quantity, b.toAccount, item.picked_up_quantity - picked, item.id],
+          );
+        }
+        details = { product: item.product_name, quantity: b.quantity, from: item.account, to: b.toAccount };
       } else if (action === "pickup") {
         if (item.status !== "ready")
           fail(409, "El producto aún no está listo para retirar.");
@@ -497,10 +605,12 @@ app.post("/api/orders/:id/actions", async (req, res) => {
           "UPDATE order_items SET picked_up_quantity=picked_up_quantity+$1 WHERE id=$2",
           [b.quantity, item.id],
         );
+        details = { product: item.product_name, quantity: b.quantity, account: item.account };
       } else {
         if (item.status !== "draft")
           fail(409, "Solo puedes editar productos que aún no se enviaron.");
         if (action === "remove") {
+          details = { product: item.product_name, quantity: item.quantity, account: item.account, note: item.note };
           await db.query("DELETE FROM order_items WHERE id=$1", [item.id]);
           if (order.table_number !== null && !order.occupied_explicitly && order.status === "open") {
             const remaining = await db.query(
@@ -509,7 +619,9 @@ app.post("/api/orders/:id/actions", async (req, res) => {
             );
             if (!remaining.rowCount) {
               await db.query("UPDATE orders SET status='closed',closed_at=now() WHERE id=$1", [id]);
-              await event(db, id, req.user.id, "release");
+              await event(db, id, req.user.id, "remove", details);
+              await event(db, id, req.user.id, "release", { automatic: true });
+              return;
             }
           }
         } else {
@@ -519,6 +631,11 @@ app.post("/api/orders/:id/actions", async (req, res) => {
             "UPDATE order_items SET quantity=$1,note=$2 WHERE id=$3",
             [b.quantity, b.note, item.id],
           );
+          details = {
+            product: item.product_name, account: item.account,
+            from: { quantity: item.quantity, note: item.note },
+            to: { quantity: b.quantity, note: b.note },
+          };
         }
       }
     }
@@ -526,11 +643,16 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       if (b.area !== undefined && (!text(b.area, 80) ||
           !(await db.query("SELECT code FROM stations WHERE code=$1", [b.area])).rowCount))
         fail(400, "Área inválida.");
+      const { rows: waiting } = await db.query(
+        "SELECT product_name AS product,quantity-picked_up_quantity AS quantity,account FROM order_items WHERE order_id=$1 AND status='ready' AND picked_up_quantity<quantity AND ($2::text IS NULL OR area=$2) ORDER BY id",
+        [id, b.area ?? null],
+      );
       const picked = await db.query(
         "UPDATE order_items SET picked_up_quantity=quantity WHERE order_id=$1 AND status='ready' AND picked_up_quantity<quantity AND ($2::text IS NULL OR area=$2)",
         [id, b.area ?? null],
       );
       if (!picked.rowCount) fail(409, "No hay productos listos para retirar.");
+      details = { area: b.area ?? null, items: waiting };
     }
     if (action === "account") {
       if (!integer(b.account, 1, 99) || !text(b.name, 100))
@@ -563,6 +685,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         "INSERT INTO order_accounts(order_id,number,name,customer,tip_cents) VALUES($1,$2,$3,$4,$5) ON CONFLICT(order_id,number) DO UPDATE SET name=$3,customer=$4,tip_cents=$5",
         [id, b.account, b.name, customer, tip],
       );
+      details = { account: b.account, name: b.name, tip_cents: tip };
     }
     if (action === "assign") {
       if (
@@ -587,9 +710,43 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         b.waiterId,
         id,
       ]);
+      details = { from: await waiterLabel(db, order.waiter_id), to: await waiterLabel(db, b.waiterId) };
+    }
+    if (action === "transfer") {
+      if (order.table_number === null) fail(409, "Solo se puede cambiar de mesa un pedido de mesa.");
+      if (!integer(b.tableNumber, 1, 999) || b.tableNumber === order.table_number)
+        fail(400, "Mesa de destino inválida.");
+      if (
+        (
+          await db.query(
+            "SELECT 1 FROM order_accounts WHERE order_id=$1 AND lsoft<>'{}'::jsonb",
+            [id],
+          )
+        ).rowCount
+      )
+        fail(409, "El pedido ya fue enviado a LSoft.");
+      if (!(await db.query("SELECT 1 FROM dining_tables WHERE number=$1 FOR SHARE", [b.tableNumber])).rowCount)
+        fail(400, "La mesa de destino no existe.");
+      if ((await db.query("SELECT 1 FROM orders WHERE table_number=$1 AND status<>'closed'", [b.tableNumber])).rowCount)
+        fail(409, "La mesa de destino está ocupada.");
+      await db.query("UPDATE orders SET table_number=$1 WHERE id=$2", [b.tableNumber, id]);
+      details = { from: order.table_number, to: b.tableNumber };
+    }
+    if (action === "void_seen") {
+      if (!integer(b.voidId, 1, Number.MAX_SAFE_INTEGER)) fail(400, "Anulación inválida.");
+      const {
+        rows: [voided],
+      } = await db.query("SELECT * FROM order_item_voids WHERE id=$1 AND order_id=$2", [b.voidId, id]);
+      if (!voided) fail(404, "Anulación no encontrada.");
+      if (req.user.role !== "admin" && !(await assignedStations(req.user.id, db)).includes(voided.area))
+        fail(403, "La anulación pertenece a otra área.");
+      if (voided.acknowledged_at) fail(409, "La anulación ya fue confirmada.");
+      await db.query("UPDATE order_item_voids SET acknowledged_at=now() WHERE id=$1", [voided.id]);
+      details = { product: voided.product_name, quantity: voided.quantity };
     }
     if (action === "send_lsoft" || action === "pay") {
       if (!integer(b.account, 1, 99)) fail(400, "Cuenta inválida.");
+      details = { account: b.account };
       const {
         rows: [account],
       } = await db.query(
@@ -664,6 +821,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
           ]);
           if (!same.equal) fail(409, "El pedido cambió después de su envío.");
         }
+        details = { account: b.account, cents: json.totalesCentavos.pagar, retry: !!account.lsoft.json };
         if (!account.lsoft.json)
           await db.query(
             "UPDATE order_accounts SET lsoft=$1 WHERE order_id=$2 AND number=$3",
@@ -690,6 +848,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
           fail(409, "Primero envía la cuenta al simulador.");
         if (!["efectivo", "tarjeta", "transferencia"].includes(b.method))
           fail(400, "Medio de pago inválido.");
+        details = { account: b.account, method: b.method };
         if (account.lsoft.response.estado !== "pagado") {
           account.lsoft.response = {
             ...account.lsoft.response,
@@ -706,10 +865,11 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     }
     if (action === "send") {
       const sent = await db.query(
-        "UPDATE order_items SET status='preparing',sent_at=now(),additional=EXISTS(SELECT 1 FROM order_items previous WHERE previous.order_id=$1 AND previous.status<>'draft') WHERE order_id=$1 AND status='draft'",
+        "UPDATE order_items SET status='preparing',sent_at=now(),additional=EXISTS(SELECT 1 FROM order_items previous WHERE previous.order_id=$1 AND previous.status<>'draft') WHERE order_id=$1 AND status='draft' RETURNING product_name AS product,quantity,account,note",
         [id],
       );
       if (!sent.rowCount) fail(409, "No hay productos pendientes de enviar.");
+      details = { items: sent.rows };
     }
     if (action === "bill") {
       const {
@@ -766,14 +926,32 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         return { orderId: nextId };
       }
     }
-    await event(db, id, req.user.id, action);
+    await event(db, id, req.user.id, action, details);
   });
   res.json({ ok: true, ...result });
 });
 app.get("/api/history", async (req, res) => {
   allow(req.user, ["caja", "auditor", "supervisor"]);
   const { rows } = await pool.query(
-    "SELECT o.*,COALESCE((SELECT jsonb_agg(i) FROM order_items i WHERE i.order_id=o.id),'[]'::jsonb) AS items,COALESCE((SELECT jsonb_agg(a) FROM order_accounts a WHERE a.order_id=o.id),'[]'::jsonb) AS accounts FROM orders o WHERE status='closed' ORDER BY closed_at DESC LIMIT 100",
+    "SELECT o.*,COALESCE((SELECT jsonb_agg(i) FROM order_items i WHERE i.order_id=o.id),'[]'::jsonb) AS items,COALESCE((SELECT jsonb_agg(a) FROM order_accounts a WHERE a.order_id=o.id),'[]'::jsonb) AS accounts,COALESCE((SELECT jsonb_agg(to_jsonb(v)||jsonb_build_object('username',u.username) ORDER BY v.id) FROM order_item_voids v JOIN users u ON u.id=v.voided_by WHERE v.order_id=o.id),'[]'::jsonb) AS voids,COALESCE((SELECT jsonb_agg(jsonb_build_object('action',e.action,'details',e.details,'created_at',e.created_at,'username',u.username) ORDER BY e.id) FROM order_events e JOIN users u ON u.id=e.user_id WHERE e.order_id=o.id),'[]'::jsonb) AS events FROM orders o WHERE status='closed' ORDER BY closed_at DESC LIMIT 100",
+  );
+  res.json(rows);
+});
+app.get("/api/orders/:id/events", async (req, res) => {
+  allow(req.user, ["supervisor", "caja", "auditor"]);
+  if (!uuid(req.params.id)) fail(400, "Pedido inválido.");
+  const { rows } = await pool.query(
+    "SELECT e.action,e.details,e.created_at,u.username FROM order_events e JOIN users u ON u.id=e.user_id WHERE e.order_id=$1 ORDER BY e.id",
+    [req.params.id],
+  );
+  res.json(rows);
+});
+// Latest changes of orders and administration, newest first.
+app.get("/api/audit", async (req, res) => {
+  allow(req.user, ["auditor"]);
+  const { rows } = await pool.query(
+    "SELECT * FROM (SELECT e.created_at,u.username,e.action,e.details,'pedido' AS scope,o.number::int AS order_number,o.table_number FROM order_events e JOIN users u ON u.id=e.user_id JOIN orders o ON o.id=e.order_id UNION ALL SELECT a.created_at,u.username,a.action,a.details,'administracion',NULL,NULL FROM audit_events a JOIN users u ON u.id=a.user_id) events WHERE $1::text IS NULL OR scope=$1 OR ($1='correcciones' AND action IN ('void','note','move','transfer','remove','edit','assign')) ORDER BY created_at DESC LIMIT 300",
+    [["pedido", "administracion", "correcciones"].includes(req.query.scope) ? req.query.scope : null],
   );
   res.json(rows);
 });
@@ -809,6 +987,7 @@ app.post("/api/users", async (req, res) => {
       "INSERT INTO users(id,username,password_hash,role,waiter_id,must_change_password) VALUES($1,$2,$3,$4,$5,true) RETURNING id,username,role,waiter_id,active",
       [randomUUID(), username, hashPassword(password), role, waiterId],
     );
+    await audit(db, req.user.id, "user_created", { username, role });
     await db.query("SELECT pg_notify('comandas_changed','')");
     return user;
   });
@@ -822,10 +1001,11 @@ app.post("/api/users/:id/password", async (req, res) => {
     fail(400, "Usa «Cambiar contraseña» para tu propia cuenta.");
   await transaction(async (db) => {
     const updated = await db.query(
-      "UPDATE users SET password_hash=$1,must_change_password=true WHERE id=$2",
+      "UPDATE users SET password_hash=$1,must_change_password=true WHERE id=$2 RETURNING username",
       [hashPassword(req.body.password), req.params.id],
     );
     if (!updated.rowCount) fail(404, "Usuario no encontrado.");
+    await audit(db, req.user.id, "password_reset", { username: updated.rows[0].username });
     await db.query("DELETE FROM sessions WHERE user_id=$1", [req.params.id]);
     await db.query("SELECT pg_notify('comandas_changed','')");
   });
@@ -838,11 +1018,14 @@ app.post("/api/users/:id/active", async (req, res) => {
   // The acting administrator stays active, so one administrator always remains.
   if (req.params.id === req.user.id) fail(400, "No puedes desactivar tu propia cuenta.");
   await transaction(async (db) => {
-    const updated = await db.query("UPDATE users SET active=$1 WHERE id=$2", [
+    const updated = await db.query("UPDATE users SET active=$1 WHERE id=$2 RETURNING username", [
       req.body.active,
       req.params.id,
     ]);
     if (!updated.rowCount) fail(404, "Usuario no encontrado.");
+    await audit(db, req.user.id, req.body.active ? "user_activated" : "user_deactivated", {
+      username: updated.rows[0].username,
+    });
     if (!req.body.active)
       await db.query("DELETE FROM sessions WHERE user_id=$1", [req.params.id]);
     await db.query("SELECT pg_notify('comandas_changed','')");
@@ -850,12 +1033,13 @@ app.post("/api/users/:id/active", async (req, res) => {
   res.json({ ok: true });
 });
 // A shared configuration version prevents overwriting another administrator's changes.
-async function changeConfiguration(version, fn) {
+async function changeConfiguration(version, fn, record) {
   if (!integer(version, 0, 2147483647)) fail(400, "Versión requerida.");
   return transaction(async (db) => {
     const { rows: [settings] } = await db.query("SELECT version FROM app_settings WHERE id=1 FOR UPDATE");
     if (settings.version !== version) fail(409, "Otro usuario cambió la configuración. Actualiza los datos.");
     const result = await fn(db);
+    if (record) await audit(db, record.user, record.action, record.details);
     await db.query("UPDATE app_settings SET version=version+1 WHERE id=1");
     await db.query("SELECT pg_notify('comandas_changed','')");
     return result;
@@ -870,7 +1054,7 @@ app.post("/api/stations", async (req, res) => {
       fail(409, "Ya existe una estación con ese nombre.");
     return (await db.query("INSERT INTO stations(code,name) VALUES($1,$2) RETURNING *",
       ["station_" + randomUUID().replaceAll("-", ""), name.trim()])).rows[0];
-  });
+  }, { user: req.user.id, action: "station_created", details: { name: name.trim() } });
   res.status(201).json(station);
 });
 app.post("/api/stations/:code", async (req, res) => {
@@ -889,7 +1073,7 @@ app.post("/api/stations/:code", async (req, res) => {
         fail(409, "Hay productos pendientes de preparar o retirar en esta estación.");
     }
     await db.query("UPDATE stations SET name=$1,active=$2 WHERE code=$3", [name.trim(), active, station.code]);
-  });
+  }, { user: req.user.id, action: "station_changed", details: { code: req.params.code, name: name.trim(), active } });
   res.json({ ok: true });
 });
 app.post("/api/products/station", async (req, res) => {
@@ -903,7 +1087,7 @@ app.post("/api/products/station", async (req, res) => {
       fail(400, "Estación no disponible.");
     const result = await db.query("UPDATE products SET area=$1 WHERE id=ANY($2::uuid[])", [stationCode, productIds]);
     if (result.rowCount !== productIds.length) fail(404, "Producto no encontrado.");
-  });
+  }, { user: req.user.id, action: "products_station", details: { station: stationCode, products: productIds.length } });
   res.json({ ok: true });
 });
 app.post("/api/users/:id/stations", async (req, res) => {
@@ -919,7 +1103,7 @@ app.post("/api/users/:id/stations", async (req, res) => {
       fail(400, "Estación no encontrada.");
     await db.query("DELETE FROM user_stations WHERE user_id=$1", [req.params.id]);
     for (const code of stations) await db.query("INSERT INTO user_stations(user_id,station_code) VALUES($1,$2)", [req.params.id,code]);
-  });
+  }, { user: req.user.id, action: "user_stations", details: { user: req.params.id, stations } });
   res.json({ ok: true });
 });
 app.post("/api/users/:id/waiter", async (req, res) => {
@@ -944,6 +1128,10 @@ app.post("/api/users/:id/waiter", async (req, res) => {
       ).rowCount
     )
       fail(404, "Usuario mesero no encontrado.");
+    await audit(db, req.user.id, "user_waiter", {
+      user: req.params.id,
+      waiter: await waiterLabel(db, req.body.waiterId),
+    });
     await db.query("SELECT pg_notify('comandas_changed','')");
   });
   res.json({ ok: true });
@@ -959,7 +1147,7 @@ app.post("/api/users/:id/role", async (req, res) => {
     if (!["mesero", "supervisor"].includes(user.role)) fail(400, "Solo puedes cambiar entre Mesero y Supervisor.");
     if (role === "mesero" && !user.waiter_id) fail(400, "Vincula un mesero antes de cambiar este rol.");
     await db.query("UPDATE users SET role=$1 WHERE id=$2", [role, req.params.id]);
-  });
+  }, { user: req.user.id, action: "user_role", details: { user: req.params.id, role } });
   res.json({ ok: true });
 });
 app.post("/api/config", async (req, res) => {
@@ -1007,6 +1195,20 @@ app.post("/api/config", async (req, res) => {
         },
       ],
     );
+    const before = settings.config,
+      prices = Object.fromEntries(
+        Object.entries(config.precios)
+          .filter(([name, value]) => before.precios?.[name] !== value)
+          .map(([name, value]) => [name, { from: before.precios?.[name] ?? null, to: value }]),
+      );
+    await audit(db, req.user.id, "config_changed", {
+      ...Object.fromEntries(
+        ["iva", "servicio", "incluidos"]
+          .filter((key) => before[key] !== config[key])
+          .map((key) => [key, { from: before[key], to: config[key] }]),
+      ),
+      ...(Object.keys(prices).length ? { precios: prices } : {}),
+    });
     await db.query("SELECT pg_notify('comandas_changed','')");
   });
   res.json({ ok: true });
@@ -1031,6 +1233,7 @@ app.post("/api/product-help", async (req, res) => {
     await db.query("UPDATE app_settings SET config=$1,version=version+1 WHERE id=1", [
       { ...settings.config, productHelp },
     ]);
+    await audit(db, req.user.id, "product_help", { product: productId });
     await db.query("SELECT pg_notify('comandas_changed','')");
   });
   res.json({ ok: true });
@@ -1062,6 +1265,7 @@ app.post("/api/waiters", async (req, res) => {
         [randomUUID(), name],
       );
     await db.query("UPDATE app_settings SET version=version+1 WHERE id=1");
+    await audit(db, req.user.id, "waiters_changed", { names });
     await db.query("SELECT pg_notify('comandas_changed','')");
   });
   res.json({ ok: true });
