@@ -29,7 +29,26 @@ La migración 8 marca todas las cuentas existentes para cambiar la contraseña e
 - El administrador crea usuarios en **Usuarios y permisos** con una contraseña temporal, la restablece cuando alguien la olvida y desactiva o reactiva cuentas. Restablecer o desactivar cierra las sesiones de esa cuenta. Un administrador no puede desactivar ni restablecer su propia cuenta desde esa pantalla.
 - Un usuario con rol Mesero debe estar vinculado a un integrante del equipo de meseros.
 
+## HTTPS en la red local
+
+Por HTTP, las contraseñas y la sesión viajan sin cifrar por el Wi-Fi del restaurante. Comandas puede servir HTTPS directamente, sin proxy:
+
+1. Crear un certificado para la dirección del servidor (ejemplo con OpenSSL, incluido en Git para Windows; reemplazar la IP):
+
+   ```sh
+   mkdir certs
+   openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj "/CN=comandas" -addext "subjectAltName=IP:192.168.100.70,DNS:localhost" -keyout certs/comandas.key -out certs/comandas.crt
+   ```
+
+2. En `.env`: `TLS_CERT_FILE=certs/comandas.crt`, `TLS_KEY_FILE=certs/comandas.key`, `COOKIE_SECURE=true` y, si se usa, `APP_ORIGIN=https://192.168.100.70:3000`.
+3. Reiniciar y abrir `https://IP-DEL-SERVIDOR:3000`. Con HTTPS activo el puerto deja de aceptar HTTP.
+
+Un certificado autofirmado cifra la conexión, pero cada navegador mostrará una advertencia hasta instalarlo como de confianza en el dispositivo (o usar una autoridad local como `mkcert`). La carpeta `certs/` no se guarda en Git; la clave privada no debe copiarse fuera del servidor.
+
 ## Robustez
+
+- Cocina, bar y meseros pueden trabajar a la vez sobre la misma mesa: añadir productos, marcar preparado y retirar ya no producen el aviso «Otro usuario modificó el pedido». Ese control se mantiene para los cambios que reemplazan datos (editar cantidades o notas, enviar, cuentas, cobro, cierre).
+- Enviar una cuenta a LSoft cierra solo esa cuenta. Las demás cuentas de la mesa, y las cuentas nuevas, siguen pidiendo y enviando rondas hasta que todas estén enviadas; después se continúa con «Abrir nuevo consumo».
 
 - Si PostgreSQL se reinicia o cierra conexiones inactivas, el servidor registra el aviso y continúa; las conexiones se restablecen en la siguiente operación.
 - Los toques seguidos sobre un producto o sobre los botones de cantidad se guardan en orden, uno tras otro, sin descartarse. Las demás operaciones (enviar, pedir cuenta, liberar) siguen ignorando un segundo toque mientras la primera está en curso.
@@ -124,7 +143,7 @@ Para probar roles simultáneos en una sola computadora, usar perfiles de navegad
 
 La interfaz recupera el diseño de `4c0a111` / `orden-movil-1`, con menú superior, usuario y cierre de sesión, chips, búsqueda expandible, cantidades del borrador por cuenta y revisión móvil del pedido. Los precios iniciales son los valores de demostración de aquella versión. Cada producto conserva la tarifa vigente al añadirlo. Los pedidos PostgreSQL anteriores, que no tenían precios, reciben esa tarifa de demostración una sola vez al migrar. IVA y servicio se calculan sobre la misma base en centavos; pueden estar incluidos o añadirse aparte. La propina voluntaria se registra por cuenta. La precuenta se puede imprimir.
 
-LSoft sigue siendo un **simulador**: no conecta con ListoSoft, DataFast ni SRI y no emite facturas fiscales. El JSON enviado y el estado de recepción se guardan en PostgreSQL. Los reintentos conservan el identificador; después del primer envío se bloquean las nuevas rondas y la edición de datos enviados. El mesero entrega el voucher en caja; el cobro y la firma se realizan físicamente, sin registrarlos en Comandas. Después de enviar todas las cuentas, la mesa permanece ocupada hasta confirmar «Liberar mesa» cuando los clientes se retiren. Esta acción está disponible para el mesero responsable, caja y administrador, requiere productos preparados y conserva el pedido en el historial sin marcarlo pagado. Para llevar se usa «Finalizar pedido». No hay cierre automático por preparación ni pago simulado. Ver [contrato provisional](docs/lsoft-contrato.md).
+LSoft sigue siendo un **simulador**: no conecta con ListoSoft, DataFast ni SRI y no emite facturas fiscales. El JSON enviado y el estado de recepción se guardan en PostgreSQL. Los reintentos conservan el identificador; una cuenta enviada queda cerrada a nuevas rondas y a la edición de sus datos, y las demás cuentas de la mesa siguen abiertas. El mesero entrega el voucher en caja; el cobro y la firma se realizan físicamente, sin registrarlos en Comandas. Después de enviar todas las cuentas, la mesa permanece ocupada hasta confirmar «Liberar mesa» cuando los clientes se retiren. Esta acción está disponible para el mesero responsable, caja y administrador, requiere productos preparados y conserva el pedido en el historial sin marcarlo pagado. Para llevar se usa «Finalizar pedido». No hay cierre automático por preparación ni pago simulado. Ver [contrato provisional](docs/lsoft-contrato.md).
 
 Los pedidos usan UUID y una numeración común. Los cambios se realizan en transacciones, con bloqueo por pedido y control de versión: una modificación basada en datos antiguos recibe un conflicto y el cliente actualiza sus datos. Un índice impide dos pedidos activos para la misma mesa. Al cerrar una cuenta se conserva el pedido y sus productos, y la mesa queda disponible.
 

@@ -436,13 +436,16 @@ app.post("/api/orders/:id/actions", async (req, res) => {
   };
   // Station work depends on the assigned stations, not on the role or the owner of the order.
   const stationActions = ["ready", "void_seen"];
+  // These changes are validated against the locked order and do not overwrite anyone's work,
+  // so the kitchen and the waiter can act on the same table at once without conflicts.
+  const versionFree = ["add", "ready", "pickup", "pickup_all", "void_seen"];
   for (const roles of Object.values(roleActions)) {
     if (roles.includes("mesero")) roles.push("supervisor");
   }
   if (!Object.hasOwn(roleActions, action)) fail(400, "Acción inválida.");
   if (!stationActions.includes(action) || !req.user.stations.length)
     allow(req.user, roleActions[action]);
-  if (!integer(version, 0, 2147483647)) fail(400, "Versión requerida.");
+  if (!versionFree.includes(action) && !integer(version, 0, 2147483647)) fail(400, "Versión requerida.");
   const result = await transaction(async (db) => {
     const {
       rows: [order],
@@ -455,7 +458,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       (order.table_number === null || req.body.confirmedOtherWaiterId === order.waiter_id);
     if (!permittedWaiterAction && !stationActions.includes(action)) ownOrder(req.user, order);
     if (order.status === "closed") fail(409, "El pedido ya está cerrado.");
-    if (order.version !== version)
+    if (!versionFree.includes(action) && order.version !== version)
       fail(
         409,
         "Otro usuario modificó el pedido. Se actualizarán los datos; vuelve a intentar.",
@@ -520,17 +523,21 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       await db.query("SELECT pg_notify('comandas_changed','')");
       return;
     }
-    if (
-      ["add", "edit", "remove", "send"].includes(action) &&
-      (
-        await db.query(
-          "SELECT 1 FROM order_accounts WHERE order_id=$1 AND lsoft<>'{}'::jsonb",
-          [id],
-        )
-      ).rowCount
-    )
-      fail(409, "El pedido ya fue enviado a LSoft; no admite otra ronda.");
-    if (action === "add") details = await addProduct(db, id, b);
+    if (["add", "edit", "remove", "send"].includes(action)) {
+      // An invoiced account is closed; the others keep ordering until every account is invoiced.
+      const {
+        rows: [billing],
+      } = await db.query(
+        "SELECT count(*)::int AS items,count(*) FILTER(WHERE a.lsoft IS NOT NULL AND a.lsoft<>'{}'::jsonb)::int AS sent FROM order_items i LEFT JOIN order_accounts a ON a.order_id=i.order_id AND a.number=i.account WHERE i.order_id=$1",
+        [id],
+      );
+      if (billing.items && billing.items === billing.sent)
+        fail(409, "Todas las cuentas ya fueron enviadas a LSoft; no admite otra ronda.");
+    }
+    if (action === "add") {
+      if (integer(b.account, 1, 99)) await openAccount(db, id, b.account);
+      details = await addProduct(db, id, b);
+    }
     if (["edit", "remove", "ready", "pickup", "void", "note", "move"].includes(action)) {
       if (!uuid(b.itemId)) fail(400, "Ítem inválido.");
       const {
@@ -621,6 +628,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       } else {
         if (item.status !== "draft")
           fail(409, "Solo puedes editar productos que aún no se enviaron.");
+        await openAccount(db, id, item.account);
         if (action === "remove") {
           details = { product: item.product_name, quantity: item.quantity, account: item.account, note: item.note };
           await db.query("DELETE FROM order_items WHERE id=$1", [item.id]);
@@ -770,7 +778,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         [id],
       );
       const lines = items.filter((i) => i.account === b.account);
-      if (!account || !lines.length || items.some((i) => i.status === "draft"))
+      if (!account || !lines.length || lines.some((i) => i.status === "draft"))
         fail(409, "Envía los productos antes de enviar la cuenta.");
       if (action === "send_lsoft") {
         if (

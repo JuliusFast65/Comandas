@@ -308,10 +308,26 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
         }),
       ),
     );
-    assert.deepEqual(responses.map((r) => r.status).sort(), [200, 409]);
+    // Adding does not overwrite anything: both requests are saved, even with the same version.
+    assert.deepEqual(responses.map((r) => r.status).sort(), [200, 200]);
     const after = await order();
     assert.equal(after.items.length, 3);
     const extra = after.items.find((i) => i.note === "Otra porción");
+    assert.equal(extra.quantity, 2);
+    // Two edits based on the same data: the second one is a conflict.
+    const edits = await Promise.all(
+      [3, 4].map((quantity) =>
+        fetch(`${base}/api/orders/${orderId}/actions`, {
+          method: "POST",
+          headers: {
+            Cookie: mesero.cookie,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "edit", version: after.version, itemId: extra.id, quantity, note: extra.note }),
+        }),
+      ),
+    );
+    assert.deepEqual(edits.map((r) => r.status).sort(), [200, 409]);
     await action(mesero, "remove", { itemId: extra.id });
     const pizza = (await order()).items.find((i) => i.area === "cocina");
     await action(mesero, "edit", {
@@ -450,10 +466,11 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
           }),
         ),
       );
-      assert.deepEqual(pickupResults.map((r) => r.status).sort(), [200, 409]);
+      // Each pickup is validated against what remains, so both units are registered.
+      assert.deepEqual(pickupResults.map((r) => r.status).sort(), [200, 200]);
       await action(caja, "close", {}, 409);
       await action(bar, "ready", { itemId: water.id });
-      await action(mesero, "pickup_all", { area: "cocina" });
+      await action(mesero, "pickup_all", { area: "cocina" }, 409);
       assert.equal(
         (await order()).items.find((i) => i.id === pizza.id).picked_up_quantity,
         3,
@@ -1427,6 +1444,67 @@ test("la migración 10 traslada los precios guardados por nombre a cada producto
   assert.equal(await price("Tarta de Queso", "postres"), 400);
   assert.equal((await pool.query("SELECT config ? 'precios' AS kept FROM app_settings")).rows[0].kept, false);
   await assert.rejects(pool.query("UPDATE products SET category='inexistente' WHERE name='Pasta'"), { code: "23503" });
+});
+
+test("cocina y mesero no chocan, y las cuentas sin facturar siguen pidiendo", async () => {
+  const waiter = client(), kitchen = client(), cashier = client(), administrator = client();
+  await waiter.login("mesero");
+  await kitchen.login("cocina");
+  await cashier.login("caja");
+  await administrator.login("admin");
+  const state = await waiter.request("/api/state");
+  const food = state.products.find((p) => p.area === "cocina" && p.active);
+  const table = state.tables.find((t) => t.active && !state.orders.some((o) => o.table_number === t.number)).number;
+  const item = (account) => ({ productId: food.id, quantity: 1, account, note: "" });
+  const created = await waiter.request("/api/orders", { tableNumber: table, firstItem: item(1) }, 201);
+  const path = `/api/orders/${created.id}/actions`;
+  const current = async () => (await waiter.request("/api/state")).orders.find((o) => o.id === created.id);
+  const perform = async (c, action, fields = {}, expected = 200) =>
+    c.request(path, { action, version: (await current()).version, ...fields }, expected);
+  await perform(waiter, "add", item(2));
+  await perform(waiter, "send");
+
+  // The same outdated version: the kitchen marks, the waiter adds and picks up, without conflicts.
+  const stale = (await current()).version;
+  const [first, second] = (await current()).items;
+  await kitchen.request(path, { action: "ready", version: stale, itemId: first.id });
+  await waiter.request(path, { action: "add", version: stale, ...item(2) });
+  await kitchen.request(path, { action: "ready", itemId: second.id });
+  await waiter.request(path, { action: "pickup", version: stale, itemId: first.id, quantity: 1 });
+  await waiter.request(path, { action: "pickup_all", version: stale });
+  // Changes that replace data still need the current version.
+  const draft = (await current()).items.find((i) => i.status === "draft");
+  await waiter.request(path, { action: "edit", version: stale, itemId: draft.id, quantity: 2, note: "" }, 409);
+  await waiter.request(path, { action: "edit", itemId: draft.id, quantity: 2, note: "" }, 400);
+  await waiter.request(path, { action: "send", version: stale }, 409);
+
+  // Account 1 is invoiced while account 2 still has a product to send.
+  await perform(waiter, "remove", { itemId: draft.id });
+  await perform(waiter, "bill");
+  await perform(waiter, "add", item(2));
+  const customer = { identification: "0912345678", name: "Cliente" };
+  await perform(cashier, "account", { account: 2, name: "", customer });
+  await perform(cashier, "send_lsoft", { account: 2 }, 409);
+  await perform(cashier, "account", { account: 1, name: "", customer });
+  await perform(cashier, "send_lsoft", { account: 1 });
+
+  // The invoiced account is closed; the others keep ordering, even a new one.
+  await perform(waiter, "add", item(1), 409);
+  await perform(waiter, "add", item(2));
+  await perform(waiter, "add", item(3));
+  await perform(waiter, "send");
+  assert.deepEqual((await current()).items.filter((i) => i.status === "preparing").map((i) => i.account).sort(), [2, 3]);
+  await perform(administrator, "assign", { waiterId: (await current()).waiter_id }, 409);
+  await perform(cashier, "close", {}, 409);
+
+  // With every account invoiced the order accepts no more rounds.
+  for (const pending of (await current()).items.filter((i) => i.status === "preparing"))
+    await perform(kitchen, "ready", { itemId: pending.id });
+  await perform(cashier, "send_lsoft", { account: 2 });
+  await perform(cashier, "account", { account: 3, name: "", customer });
+  await perform(cashier, "send_lsoft", { account: 3 });
+  await perform(waiter, "add", item(4), 409);
+  await perform(cashier, "close");
 });
 
 test("el límite de ingresos cuenta solo los intentos fallidos y responde JSON", async () => {

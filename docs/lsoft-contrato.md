@@ -46,7 +46,8 @@ y, al pagar, `medioPago`, `pagadoEn`. `sri: no_aplica_simulacion` distingue
 explícitamente esta demo de un resultado fiscal real. El contrato final necesitará
 estados separados de recepción, facturación, autorización SRI, pago y anulaciones.
 
-La demo bloquea nuevas rondas y edición de datos después del primer envío.
+La demo bloquea nuevas rondas y edición de datos de cada cuenta después de su envío;
+las cuentas no enviadas de la misma mesa siguen abiertas.
 Modificar pedidos recibidos requerirá una operación explícita de actualización
 o anulación acordada con LSoft. Se libera la mesa mediante confirmación del mesero
 responsable, caja o administrador cuando todas las cuentas estén enviadas y los

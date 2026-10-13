@@ -145,10 +145,12 @@ function mayVoid(o, i) {
 function mayAudit() {
   return ["admin", "supervisor", "caja", "auditor"].includes(user?.role);
 }
+// New rounds stay open for the accounts not yet invoiced.
+function fullyInvoiced(o) {
+  return o.items.length > 0 && o.items.every((i) => accountSent(o, i.account));
+}
 function editableOrder(o) {
-  return (
-    owned(o) && o.status !== "closed" && !o.accounts.some((a) => a.lsoft?.json)
-  );
+  return owned(o) && o.status !== "closed" && !fullyInvoiced(o);
 }
 function waiterName(id) {
   return state.waiters.find((w) => w.id === id)?.name || "Sin asignar";
@@ -878,7 +880,7 @@ function renderOrder(content, o) {
     const nameField = el("div");
     nameField.append(name);
     form.append(nameField);
-    name.disabled = !editable;
+    name.disabled = !editable || accountSent(o, m.account);
     account.addEventListener("change", () => {
       if (account.checkValidity()) {
         m.account = Number(account.value);
@@ -912,7 +914,7 @@ function renderOrder(content, o) {
       header.append(el("small", "Mesero: " + waiterName(o.waiter_id)));
   }
   const freeTables = state.tables.filter((t) => t.active && !state.orders.some((other) => other.table_number === t.number));
-  if (!confirming && !o.pending && o.table_number && editable && freeTables.length) {
+  if (!confirming && !o.pending && o.table_number && editable && freeTables.length && !o.accounts.some((a) => a.lsoft?.json)) {
     const transfer = select("Cambiar a mesa ", [["", "—"], ...freeTables.map((t) => [t.number, `Mesa ${t.number}`])], "",
       (v) => v && action(o, "transfer", { tableNumber: Number(v) }));
     transfer.querySelector("select").id = "cambiar-mesa";
@@ -1059,8 +1061,9 @@ window.addEventListener("resize", () => {
     $("#detalle-dialogo")?.close();
   }
 });
-function renderMenu(content, o, editable) {
+function renderMenu(content, o, editableOrderNow) {
   const m = menu(o),
+    editable = editableOrderNow && !accountSent(o, m.account),
     visibleCategories = menuCategories(),
     nav = el("nav", null, {
       id: "categories",
@@ -1166,6 +1169,10 @@ function renderMenu(content, o, editable) {
     nav,
     count,
     title,
+    ...(editableOrderNow && !editable
+      ? [el("p", `La Cuenta ${m.account} ya fue enviada a LSoft. Elige otra cuenta para seguir pidiendo.`,
+          { class: "consumption-notice", role: "status" })]
+      : []),
     products,
   );
   const normalize = (value) =>

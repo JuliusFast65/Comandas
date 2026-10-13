@@ -1,3 +1,5 @@
+import { createServer } from "node:https";
+import { readFileSync } from "node:fs";
 import { app, notifyClients } from "./app.js";
 import { pool } from "./db.js";
 const { rowCount: migrated } = await pool.query(
@@ -30,21 +32,26 @@ async function listenChanges() {
   }
 }
 await listenChanges();
-const server = app.listen(
-  Number(process.env.PORT || 3000),
-  process.env.HOST || "0.0.0.0",
-  async (error) => {
-    if (error) {
-      console.error(
-        `No se pudo iniciar Comandas: ${error.code || error.message}`,
-      );
-      await stop();
-      process.exitCode = 1;
-      return;
-    }
-    console.log(`Comandas disponible en el puerto ${process.env.PORT || 3000}`);
-  },
+// With a certificate the server speaks HTTPS itself, so passwords and sessions are encrypted
+// on the local network without a reverse proxy.
+const tls = process.env.TLS_CERT_FILE && process.env.TLS_KEY_FILE;
+if (tls && process.env.COOKIE_SECURE !== "true")
+  console.warn("HTTPS activo: define COOKIE_SECURE=true para que la sesión solo viaje cifrada.");
+const server = (
+  tls
+    ? createServer(
+        { cert: readFileSync(process.env.TLS_CERT_FILE), key: readFileSync(process.env.TLS_KEY_FILE) },
+        app,
+      )
+    : app
+).listen(Number(process.env.PORT || 3000), process.env.HOST || "0.0.0.0", () =>
+  console.log(`Comandas disponible en el puerto ${process.env.PORT || 3000} (${tls ? "HTTPS" : "HTTP"})`),
 );
+server.on("error", async (error) => {
+  console.error(`No se pudo iniciar Comandas: ${error.code || error.message}`);
+  await stop();
+  process.exitCode = 1;
+});
 async function stop() {
   stopping = true;
   clearTimeout(retry);
