@@ -2,8 +2,10 @@ import { createServer } from "node:https";
 import { readFileSync } from "node:fs";
 import { app, notifyClients } from "./app.js";
 import { pool } from "./db.js";
+import { latestVersion } from "./migrate.js";
 const { rowCount: migrated } = await pool.query(
-  "SELECT version FROM schema_migrations WHERE version=11",
+  "SELECT version FROM schema_migrations WHERE version=$1",
+  [await latestVersion()],
 );
 if (!migrated)
   throw new Error(

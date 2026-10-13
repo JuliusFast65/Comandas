@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { pool, transaction } from "./db.js";
 import { hashPassword } from "./password.js";
 import { catalog } from "./catalog.js";
+import { migrate } from "./migrate.js";
 // Demonstration prices of the seed catalog, in cents. Later changes are made in the application.
 const seedPrices = { entradas: 500, platos: 1000, postres: 400, bebidas: 250, bebidasAlcoolicas: 600, adicionales: 200 },
   seedPricesByName = { Guacamole: 500, Ensalada: 1000 };
@@ -14,9 +14,8 @@ if (!password || password.length < 12 || password.startsWith("change-this")) {
 }
 try {
   await transaction(async (db) => {
-    await db.query(
-      await readFile(new URL("./schema.sql", import.meta.url), "utf8"),
-    );
+    const applied = await migrate(db);
+    if (applied.length) console.log("Migraciones aplicadas: " + applied.join(", "));
     for (const role of [
       "admin",
       "supervisor",

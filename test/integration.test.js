@@ -91,11 +91,11 @@ test("migración de roles anteriores conserva datos y no repone asignaciones rev
     DROP TABLE user_stations;
     DROP TABLE order_item_voids;
     DROP TABLE stations;
-    DELETE FROM schema_migrations WHERE version=5;
+    DELETE FROM schema_migrations WHERE version IN (5,6,9);
     ALTER TABLE users DROP CONSTRAINT users_role_check;
     UPDATE users SET role=username WHERE username IN ('cocina','bar');
   `);
-  const schema = await readFile(new URL("../server/schema.sql", import.meta.url), "utf8");
+  const { migrate } = await import("../server/migrate.js");
   const preservedTables = ["products", "orders", "order_items", "order_accounts", "order_events", "sessions", "waiters", "app_settings"];
   async function snapshot() {
     const result = {};
@@ -109,7 +109,8 @@ test("migración de roles anteriores conserva datos y no repone asignaciones rev
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
-    await db.query(schema);
+    // Only the removed versions run again; the rest of the history is left alone.
+    assert.deepEqual(await migrate(db), ["005_estaciones.sql", "006_rol_supervisor.sql", "009_anulaciones_auditoria.sql"]);
     await db.query("COMMIT");
   } catch (error) {
     await db.query("ROLLBACK");
@@ -247,7 +248,7 @@ test("flujo compartido, permisos, concurrencia e historial en PostgreSQL", async
         body: "{",
       });
       assert.equal(malformed.status, 400);
-      const leaked = await fetch(base + "/server/schema.sql");
+      const leaked = await fetch(base + "/server/migrations/002_esquema_inicial.sql");
       assert.equal(leaked.status, 404);
     },
   );
@@ -1425,11 +1426,12 @@ test("la migración 10 traslada los precios guardados por nombre a cada producto
     UPDATE products SET price_cents=0;
     DELETE FROM schema_migrations WHERE version=10;
   `);
-  const schema = await readFile(new URL("../server/schema.sql", import.meta.url), "utf8");
+  const { migrate, latestVersion } = await import("../server/migrate.js");
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
-    await db.query(schema);
+    assert.deepEqual(await migrate(db), ["010_catalogo_mesas.sql"]);
+    assert.deepEqual(await migrate(db), []);
     await db.query("COMMIT");
   } catch (error) {
     await db.query("ROLLBACK");
@@ -1444,6 +1446,8 @@ test("la migración 10 traslada los precios guardados por nombre a cada producto
   assert.equal(await price("Tarta de Queso", "postres"), 400);
   assert.equal((await pool.query("SELECT config ? 'precios' AS kept FROM app_settings")).rows[0].kept, false);
   await assert.rejects(pool.query("UPDATE products SET category='inexistente' WHERE name='Pasta'"), { code: "23503" });
+  // Every numbered file is recorded, so the server accepts the database.
+  assert.equal((await pool.query("SELECT max(version) AS v FROM schema_migrations")).rows[0].v, await latestVersion());
 });
 
 test("cocina y mesero no chocan, y las cuentas sin facturar siguen pidiendo", async () => {
