@@ -1,51 +1,155 @@
 # Comandas
 
-Aplicación web con servidor Node.js y PostgreSQL 17. Los navegadores acceden a la API; la base de datos no se expone a los clientes. El catálogo y las mesas iniciales son datos de demostración que el administrador modifica desde la aplicación.
+Aplicación web para tomar pedidos en un restaurante: salón, estaciones de preparación, caja y administración. Un servidor Node.js atiende a los navegadores y guarda todo en PostgreSQL 17; la base de datos no se expone a los dispositivos.
+
+La facturación es un **simulador**: Comandas no se conecta con ListoSoft (LSoft), DataFast ni el SRI, y no emite facturas fiscales. Ver el [contrato provisional](docs/lsoft-contrato.md).
+
+## Contenido
+
+- [Puesta en marcha](#puesta-en-marcha)
+- [Actualizar una instalación](#actualizar-una-instalación)
+- [Roles](#roles)
+- [Uso](#uso)
+- [Administración](#administración)
+- [Instalación en el restaurante](#instalación-en-el-restaurante)
+- [Operación](#operación)
+- [Seguridad y consistencia](#seguridad-y-consistencia)
+- [Desarrollo](#desarrollo)
+- [Limitaciones conocidas](#limitaciones-conocidas)
 
 ## Puesta en marcha
 
-Requisitos: Node.js 22 o superior, npm y Docker con Compose, o una instancia PostgreSQL administrada.
+Requisitos: Node.js 22 o superior, npm y Docker con Compose (o un PostgreSQL 17 propio). En Windows, usar `npm.cmd` en lugar de `npm`.
 
 1. Copiar `.env.example` a `.env`.
-2. Reemplazar `POSTGRES_PASSWORD`, actualizar también esa contraseña en `DATABASE_URL`, y definir `SEED_PASSWORD` con al menos 12 caracteres. No usar los valores de ejemplo.
+2. Reemplazar `POSTGRES_PASSWORD` y la misma contraseña dentro de `DATABASE_URL`. Definir `SEED_PASSWORD` con al menos 12 caracteres. No usar los valores de ejemplo ni guardar `.env` en Git.
 3. Ejecutar:
 
+   ```sh
+   docker compose up -d db
+   npm ci
+   npm run db:init
+   npm start
+   ```
+
+4. Abrir `http://localhost:3000`, entrar como `admin` con `SEED_PASSWORD` y definir su contraseña.
+
+`db:init` crea las cuentas `admin`, `supervisor`, `mesero`, `mesero1`, `mesero2`, `cocina`, `bar`, `caja` y `auditor`. Todas comparten `SEED_PASSWORD` como contraseña **temporal**: cada cuenta debe reemplazarla en su primer ingreso y no puede operar hasta hacerlo. También carga un catálogo y nueve mesas de demostración, que el administrador modifica después desde la aplicación.
+
+### Variables de `.env`
+
+| Variable | Uso |
+|---|---|
+| `DATABASE_URL` | Conexión del servidor a PostgreSQL. |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Credenciales del contenedor de PostgreSQL. |
+| `SEED_PASSWORD` | Contraseña temporal de las cuentas iniciales. La exige `db:init`. |
+| `PORT`, `HOST` | Puerto y dirección de escucha (por defecto `3000` y `0.0.0.0`). |
+| `APP_ORIGIN` | Dirección exacta que ven los navegadores, con puerto. Necesaria detrás de un proxy; sin proxy puede omitirse. |
+| `COOKIE_SECURE` | `true` cuando se usa HTTPS. |
+| `TLS_CERT_FILE`, `TLS_KEY_FILE` | Certificado y clave para que el servidor atienda HTTPS. |
+| `BACKUP_DIR`, `BACKUP_KEEP` | Carpeta y cantidad de respaldos que conserva `db:backup` (por defecto `backups` y 30). |
+
+## Actualizar una instalación
+
 ```sh
-docker compose up -d db
+npm run db:backup
 npm ci
 npm run db:init
-npm start
 ```
 
-Abrir `http://localhost:3000`. La inicialización crea las cuentas `admin`, `supervisor`, `mesero`, `mesero1`, `mesero2`, `cocina`, `bar`, `caja` y `auditor`, con la contraseña definida en `SEED_PASSWORD`, que es temporal: cada cuenta debe reemplazarla por una propia en su primer ingreso y no puede operar hasta hacerlo. Entrar primero como `admin` y cambiar su contraseña al instalar. Las contraseñas existentes se conservan; no se restaura la contraseña `1234` de la antigua demo. Ejecutar nuevamente `db:init` aplica las migraciones sin eliminar pedidos ni cambiar las tarifas ya guardadas.
+Luego reiniciar el servidor. `db:init` aplica solo las migraciones que falten (`server/migrations`), dentro de una transacción, y conserva pedidos, usuarios, contraseñas, precios y asignaciones. El servidor se niega a arrancar si la base no tiene la última migración.
 
-En el entorno de desarrollo de este hilo ya se generó `.env`, se inicializó PostgreSQL y se arrancó el servidor. No guardar `.env` en Git.
+Cambios que conviene conocer al actualizar desde versiones antiguas:
 
-## Usuarios y contraseñas
+- Migración 8: todas las cuentas existentes deben cambiar su contraseña en el siguiente ingreso.
+- Migración 10: el precio pasa a pertenecer a cada producto. Se conserva el que tenía, pero dos productos con el mismo nombre en categorías distintas dejan de compartirlo.
+- Los registros de bitácora anteriores a la migración 9 conservan solo el nombre de la acción.
 
-La migración 8 marca todas las cuentas existentes para cambiar la contraseña en el próximo ingreso, porque compartían `SEED_PASSWORD`. Ejecutar `npm.cmd run db:init` y reiniciar el servidor.
+## Roles
 
-- Cada persona cambia su contraseña desde el menú de usuario → **Cambiar contraseña** (mínimo 8 caracteres). El cambio cierra sus sesiones en otros dispositivos.
-- El administrador crea usuarios en **Usuarios y permisos** con una contraseña temporal, la restablece cuando alguien la olvida y desactiva o reactiva cuentas. Restablecer o desactivar cierra las sesiones de esa cuenta. Un administrador no puede desactivar ni restablecer su propia cuenta desde esa pantalla.
-- Un usuario con rol Mesero debe estar vinculado a un integrante del equipo de meseros.
+| Rol | Puede |
+|---|---|
+| Mesero | Atender sus mesas y las libres, tomar pedidos, enviar rondas, retirar lo preparado, pedir la cuenta, corregir sus pedidos y liberar la mesa. |
+| Supervisor | Lo mismo en todas las mesas, reasignar el mesero responsable, anular productos ya preparados, aplicar descuentos y consultar historial y bitácoras. |
+| Personal de estación | Ver los pedidos de sus estaciones (Cocina, Bar u otras) y marcarlos preparados. No recibe datos de clientes. |
+| Caja | Registrar los datos de facturación, enviar cuentas al simulador, confirmar la recepción de documentos, liberar mesas y consultar historial y bitácoras. |
+| Auditor | Consultar caja, operaciones cerradas y auditoría, sin modificar nada. |
+| Administrador | Todo lo anterior y la administración: usuarios, estaciones, catálogo, precios, mesas, cargos y equipo de meseros. |
 
-## Operación
+Las estaciones se asignan a cualquier usuario sin cambiar su rol: un mesero puede, además, preparar los pedidos de Cafetería. El administrador puede operar todas las estaciones activas.
 
-- **Sin Internet**: la fuente Roboto y los iconos se sirven desde `vendor/`; la aplicación no carga nada de terceros y funciona completa en una red local aislada.
-- **Salud**: `GET /api/health` responde `{"ok":true}` sin sesión cuando el servidor y PostgreSQL están disponibles, y 503 si la base no responde. Sirve para el supervisor del servicio o un monitor.
-- **Errores**: los fallos internos se registran en la salida del servidor con fecha, método, ruta y traza completa. El cliente solo recibe un mensaje genérico.
-- **Respaldos**: `npm.cmd run db:backup` crea `backups/comandas-FECHA.dump` y conserva los últimos 30 (`BACKUP_KEEP`, `BACKUP_DIR`). Usa `pg_dump` si está instalado o, si no, el contenedor de Compose. Programarlo a diario, por ejemplo con el Programador de tareas de Windows, y copiar la carpeta fuera del equipo. Para restaurar en el contenedor:
+## Uso
 
-  ```sh
-  docker compose exec -T db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/ARCHIVO.dump
-  ```
+### Salón
 
-- **Contenedor**: `docker compose --profile app up -d --build` levanta también la aplicación en un contenedor que aplica las migraciones al iniciar y se reinicia solo. Sin ese perfil, `docker compose up -d db` sigue levantando únicamente PostgreSQL.
-- **Integración continua**: `.github/workflows/ci.yml` ejecuta `npm test` contra PostgreSQL 17 en cada push y pull request.
+- **Mesas**: una mesa libre solo muestra el menú. «Ocupar mesa» confirma que hay clientes aunque todavía no pidan; añadir el primer producto también la ocupa. Si se quitan todos los productos antes de enviarlos, la mesa vuelve a quedar libre, salvo que se haya ocupado expresamente.
+- **Pedido**: categorías, búsqueda sin distinguir acentos, cuentas separadas con nombre, notas por producto y ficha ⓘ con ingredientes y preparación. Los toques seguidos sobre un producto o sobre los botones de cantidad se guardan todos, en orden.
+- **Rondas**: «Enviar a Preparación» manda los productos nuevos a sus estaciones. Las rondas posteriores se marcan como adicionales.
+- **Retiro**: cuando la estación marca un producto como preparado, el mesero registra el retiro de una cantidad o de todo lo listo.
+- **Para llevar**: pedidos sin mesa, que se finalizan en lugar de liberar una mesa.
 
-## HTTPS en la red local
+### Correcciones después de enviar
 
-Por HTTP, las contraseñas y la sesión viajan sin cifrar por el Wi-Fi del restaurante. Comandas puede servir HTTPS directamente, sin proxy:
+En **Detalle de la orden**, cada producto ya enviado ofrece:
+
+- **Anular**: retira una cantidad de la cuenta, con motivo obligatorio. El mesero responsable puede hacerlo mientras el producto está en preparación; si ya está preparado o retirado, solo el supervisor o el administrador. La estación ve el aviso **ANULADO** hasta pulsar «Enterado».
+- **Nota**: cambia la nota mientras el producto está en preparación; la estación lo ve como «Nota modificada».
+- **Mover**: pasa una cantidad a otra cuenta de la misma mesa.
+- **Cambiar a mesa**: traslada el pedido completo a una mesa libre.
+
+Si se anula todo, la mesa se libera con «Liberar mesa» y el pedido queda en el historial con sus anulaciones.
+
+### Estaciones
+
+- Cada estación ve sus productos pendientes, ordenados por antigüedad y con el tiempo transcurrido, y los marca como preparados.
+- **Aviso sonoro** (activado por defecto): suena al llegar una ronda, al cambiar una nota y al anularse un producto. Lo que ya estaba en pantalla al abrirla no suena. El navegador solo permite el sonido después de un primer toque en la página, por ejemplo al iniciar sesión.
+- **Imprimir comanda**: imprime los productos en preparación de un pedido para esa estación, sin precios.
+- **Imprimir comandas al llegar** (desactivado por defecto): imprime cada ronda nueva. El navegador muestra su diálogo de impresión; para imprimir sin diálogo en una impresora de tickets, abrir Chrome o Edge con `--kiosk-printing` y dejar esa impresora como predeterminada.
+
+Las dos preferencias se guardan en cada dispositivo.
+
+### Cuenta y caja
+
+1. El mesero pide la cuenta. Caja ve resaltadas las solicitudes y cualquiera de los dos imprime la precuenta, con espacio para los datos y la firma del cliente.
+2. El mesero confirma la entrega de la precuenta y, después, el cobro físico (DataFast) y la recogida de la precuenta firmada y el voucher.
+3. Caja confirma que recibió los documentos, registra los datos del cliente y envía la cuenta al simulador de LSoft. Al escribir una cédula o RUC ya usada se recuperan los datos anteriores del cliente.
+4. Con todas las cuentas enviadas y los productos preparados, la mesa se libera cuando los clientes se retiran, o se abre un nuevo consumo en la misma mesa si el cobro está confirmado.
+
+Reglas de la cuenta:
+
+- IVA y servicio se calculan sobre la misma base, en centavos enteros. Los precios pueden incluirlos o añadirlos aparte. La propina voluntaria se registra por cuenta y no forma parte de esas bases.
+- Cada producto conserva el precio y los cargos vigentes cuando se pidió.
+- **Descuentos**: el supervisor o el administrador aplican un porcentaje o un monto fijo por cuenta, con motivo, desde la precuenta. Base, IVA y servicio bajan en la misma proporción. Se puede cambiar o quitar hasta enviar la cuenta.
+- Enviar una cuenta la cierra: no admite más rondas, correcciones ni cambios de datos. Las demás cuentas de la mesa, y las nuevas, siguen abiertas hasta que todas estén enviadas.
+- El cobro y la firma ocurren físicamente; Comandas solo registra las confirmaciones, con usuario y hora.
+
+### Historial y auditoría
+
+- **Operaciones cerradas** (caja, auditor, supervisor y administrador): los últimos 100 pedidos cerrados con sus cuentas, anulaciones y bitácora. El historial completo permanece en PostgreSQL.
+- **Ver bitácora**: cada cambio de un pedido guarda quién, cuándo y qué: productos, cantidades, cuentas, notas anteriores y nuevas, motivo e importe de anulaciones y descuentos, traslados y reasignaciones.
+- **Auditoría** (administrador y auditor): los últimos 300 registros, con filtros para correcciones, pedidos, o accesos y administración. Incluye ingresos e intentos fallidos, contraseñas cambiadas o restablecidas, usuarios, estaciones, catálogo, precios y mesas. Nunca se guardan contraseñas.
+
+## Administración
+
+Todo lo siguiente es del administrador. Nada se elimina: lo que deja de usarse se desactiva y sigue en el historial. Los cambios afectan a lo que se pida después.
+
+- **Usuarios y permisos**: crear usuarios con una contraseña temporal, restablecerla, desactivar o reactivar cuentas (ambas acciones cierran sus sesiones), vincular cada mesero con un integrante del equipo, cambiar entre Mesero y Supervisor y asignar estaciones. Un usuario con rol Mesero debe estar vinculado a un mesero. Cada persona cambia su contraseña desde el menú de usuario (mínimo 8 caracteres), lo que cierra sus otras sesiones.
+- **Equipo de meseros**: la lista de nombres a los que se asignan las mesas.
+- **Catálogo y mesas**: categorías (crear, renombrar, ordenar, ocultar), productos (crear, editar nombre, categoría, estación y disponibilidad, y guardar varios precios juntos) y mesas (crear con zona opcional, desactivar o reactivar; no con un pedido activo).
+- **Configuración**: IVA, servicio y si los precios los incluyen; estaciones (crear, renombrar, desactivar) y asignación de productos a estaciones. Para desactivar una estación hay que reasignar sus productos y terminar sus pendientes.
+- **Fichas de producto**: se editan desde el botón ⓘ del menú. Las iniciales son ejemplos ficticios, identificados como tales.
+
+Cada formulario de administración comprueba que nadie más haya cambiado la configuración entretanto.
+
+## Instalación en el restaurante
+
+El servidor escucha en `0.0.0.0:3000`. Cada dispositivo de la red local abre `http://IP-DEL-SERVIDOR:3000`; todos usan el mismo servidor y la misma base. Funciona sin Internet, pero no sin conexión al servidor.
+
+Para probar varios roles en una sola computadora, usar navegadores distintos o perfiles separados: las pestañas de un mismo perfil comparten la sesión.
+
+### HTTPS en la red local
+
+Por HTTP, las contraseñas y la sesión viajan sin cifrar por el Wi-Fi. Comandas puede servir HTTPS directamente:
 
 1. Crear un certificado para la dirección del servidor (ejemplo con OpenSSL, incluido en Git para Windows; reemplazar la IP):
 
@@ -57,146 +161,61 @@ Por HTTP, las contraseñas y la sesión viajan sin cifrar por el Wi-Fi del resta
 2. En `.env`: `TLS_CERT_FILE=certs/comandas.crt`, `TLS_KEY_FILE=certs/comandas.key`, `COOKIE_SECURE=true` y, si se usa, `APP_ORIGIN=https://192.168.100.70:3000`.
 3. Reiniciar y abrir `https://IP-DEL-SERVIDOR:3000`. Con HTTPS activo el puerto deja de aceptar HTTP.
 
-Un certificado autofirmado cifra la conexión, pero cada navegador mostrará una advertencia hasta instalarlo como de confianza en el dispositivo (o usar una autoridad local como `mkcert`). La carpeta `certs/` no se guarda en Git; la clave privada no debe copiarse fuera del servidor.
+Un certificado autofirmado cifra la conexión, pero cada navegador mostrará una advertencia hasta instalarlo como de confianza en el dispositivo (o usar una autoridad local como `mkcert`). La carpeta `certs/` no se guarda en Git.
 
-## Robustez
+### Acceso desde Internet
 
-- Cocina, bar y meseros pueden trabajar a la vez sobre la misma mesa: añadir productos, marcar preparado y retirar ya no producen el aviso «Otro usuario modificó el pedido». Ese control se mantiene para los cambios que reemplazan datos (editar cantidades o notas, enviar, cuentas, cobro, cierre).
-- Enviar una cuenta a LSoft cierra solo esa cuenta. Las demás cuentas de la mesa, y las cuentas nuevas, siguen pidiendo y enviando rondas hasta que todas estén enviadas; después se continúa con «Abrir nuevo consumo».
+Usar un proxy inverso con dominio y HTTPS, `APP_ORIGIN` con el origen público y `COOKIE_SECURE=true`, y permitir eventos del servidor (SSE) sin almacenamiento intermedio. Con un PostgreSQL externo, usar un usuario con permisos mínimos para el servidor y otro para `db:init`.
 
-- Si PostgreSQL se reinicia o cierra conexiones inactivas, el servidor registra el aviso y continúa; las conexiones se restablecen en la siguiente operación.
-- Los toques seguidos sobre un producto o sobre los botones de cantidad se guardan en orden, uno tras otro, sin descartarse. Las demás operaciones (enviar, pedir cuenta, liberar) siguen ignorando un segundo toque mientras la primera está en curso.
+## Operación
 
-## Anulaciones y correcciones después de enviar
+- **Servicio**: ejecutar el servidor bajo un supervisor que lo reinicie. `docker compose --profile app up -d --build` levanta la aplicación en un contenedor que aplica las migraciones al iniciar y se reinicia solo; sin ese perfil, `docker compose up -d db` levanta únicamente PostgreSQL.
+- **Salud**: `GET /api/health` responde `{"ok":true}` sin sesión cuando el servidor y PostgreSQL están disponibles, y 503 si la base no responde.
+- **Errores**: los fallos internos se registran en la salida del servidor con fecha, método, ruta y traza. El navegador solo recibe un mensaje genérico.
+- **Cortes de base**: si PostgreSQL se reinicia, el servidor registra el aviso y continúa.
+- **Respaldos**: `npm run db:backup` crea `backups/comandas-FECHA.dump` y conserva los últimos 30. Usa `pg_dump` si está instalado o, si no, el contenedor de Compose. Programarlo a diario (por ejemplo, con el Programador de tareas de Windows) y copiar la carpeta fuera del equipo. Para restaurar en el contenedor:
 
-Ejecutar `npm.cmd run db:init` para aplicar la migración 9 y reiniciar el servidor. En **Detalle de la orden**, cada producto ya enviado ofrece:
+  ```sh
+  docker compose exec -T db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/ARCHIVO.dump
+  ```
 
-- **Anular**: retira una cantidad de la cuenta, con motivo obligatorio. El mesero responsable puede anular mientras el producto está en preparación; si ya está preparado o retirado, solo el supervisor o el administrador. La cantidad anulada sale del consumo y de los totales, y queda registrada con su importe, motivo, usuario y hora. La estación ve el aviso **ANULADO** hasta pulsar «Enterado».
-- **Nota**: cambia la nota mientras el producto está en preparación; la estación lo ve marcado como «Nota modificada».
-- **Mover**: pasa una cantidad a otra cuenta de la misma mesa, conservando su estado de preparación.
-- **Cambiar a mesa**: traslada el pedido completo a una mesa libre.
+- **Datos**: el volumen `postgres_data` conserva la información al reiniciar el contenedor. `docker compose down -v` lo elimina.
 
-Una cuenta ya enviada a LSoft no admite correcciones; las demás cuentas de la mesa sí. Si se anula todo, la mesa se libera con «Liberar mesa» (o el pedido para llevar con su botón de eliminar) y el pedido queda en el historial con sus anulaciones.
+## Seguridad y consistencia
 
-## Catálogo y mesas
+- Contraseñas con scrypt; sesiones de 12 horas guardadas en PostgreSQL como hashes, en una cookie HttpOnly y SameSite=Strict. Cerrar sesión en un dispositivo no cierra las demás.
+- El límite de ingresos (40 intentos fallidos cada 15 minutos por dirección) no cuenta los ingresos correctos.
+- Los permisos se validan en el servidor en cada operación. Se verifica el origen de las peticiones que modifican datos y la política de contenido solo admite recursos propios: fuentes e iconos se sirven desde `vendor/`.
+- Cada cambio de un pedido ocurre en una transacción con el pedido bloqueado. Un índice impide dos pedidos activos en la misma mesa.
+- Los cambios que reemplazan datos (editar, enviar, cuentas, cobro, cierre) exigen la versión vigente del pedido; si otro usuario lo modificó, se rechazan y el navegador actualiza. Añadir productos, marcar preparado y retirar no lo exigen, de modo que salón y estaciones trabajan a la vez sobre la misma mesa.
+- Los cambios llegan a los demás dispositivos por eventos del servidor (PostgreSQL `LISTEN/NOTIFY` y SSE), con una consulta cada 15 segundos como respaldo.
 
-Ejecutar `npm.cmd run db:init` para aplicar la migración 10 y reiniciar el servidor. El administrador usa **Catálogo y mesas**:
+## Desarrollo
 
-- **Categorías**: crear, renombrar, ordenar y ocultar del menú.
-- **Productos y precios**: crear productos; editar nombre, categoría, estación de preparación y disponibilidad; escribir varios precios y guardarlos juntos. El precio pertenece a cada producto: dos productos con el mismo nombre en categorías distintas ya no comparten precio.
-- **Mesas**: crear mesas con número y zona opcional, y desactivarlas o reactivarlas. Una mesa con pedido activo no se puede desactivar.
+```
+index.html, scripts.js, styles.css, app.css   Interfaz (sin paso de compilación)
+money.js                                      Cálculo de importes, compartido por navegador y servidor
+server/index.js                               Arranque, HTTPS opcional y escucha de notificaciones
+server/app.js                                 Aplicación Express, cabeceras y archivos estáticos
+server/routes/                                Rutas por área: sesión, estado, pedidos, registros, administración
+server/shared.js                              Validaciones, permisos y utilidades comunes
+server/migrations/                            Migraciones numeradas; server/migrate.js las aplica
+server/init.js, server/backup.js              db:init y db:backup
+vendor/                                       Fuente e iconos de terceros
+docs/                                         Contrato provisional con LSoft y notas de la recuperación del diseño
+```
 
-Nada se elimina: los productos, categorías y mesas que dejan de usarse se desactivan y siguen en el historial. Los cambios afectan a lo que se pida después; los productos ya pedidos conservan su nombre, tarifa y estación. La migración traslada a cada producto el precio que tenía (los guardados en la configuración por nombre, o el de demostración de su categoría). `db:init` solo carga el catálogo de demostración cuando no existe ningún producto, de modo que no repone productos renombrados. IVA, servicio y la interpretación de precios siguen en **Configuración**.
-
-## Estaciones: aviso sonoro y comandas impresas
-
-En la pantalla de cada estación, quien tiene esa estación asignada dispone de:
-
-- **Aviso sonoro** (activado por defecto): suena cuando llega una ronda, cuando cambia la nota de un producto en preparación y cuando se anula un producto. Lo que ya estaba en pantalla al abrirla no suena. El navegador solo permite el sonido después de un primer toque en la página, por ejemplo al iniciar sesión.
-- **Imprimir comanda**: imprime los productos en preparación de ese pedido para la estación, sin precios, con cuenta, notas y la marca de adicional.
-- **Imprimir comandas al llegar** (desactivado por defecto): imprime automáticamente cada ronda nueva. El navegador muestra su diálogo de impresión; para imprimir sin diálogo en una impresora de tickets, abrir Chrome o Edge con `--kiosk-printing` y dejar esa impresora como predeterminada.
-
-Ambas preferencias se guardan en cada dispositivo.
-
-## Descuentos
-
-Ejecutar `npm.cmd run db:init` para aplicar la migración 11 y reiniciar el servidor. El supervisor o el administrador aplican un descuento por cuenta desde la **Precuenta** (o desde Caja, el administrador): un porcentaje del consumo o un monto fijo, siempre con motivo. Se puede cambiar o quitar hasta que la cuenta se envía a LSoft.
-
-El descuento reduce el consumo antes de la propina; base, IVA y servicio bajan en la misma proporción y siempre suman el total cobrado. La precuenta muestra el subtotal, el descuento con su motivo y el total. Cada descuento queda en la bitácora con usuario, valor e importe. Mesero y Caja ven el descuento pero no lo modifican.
-
-## Auditoría
-
-- Cada cambio de un pedido guarda quién, cuándo y qué: producto, cantidades, cuenta, notas anteriores y nuevas, motivo e importe de las anulaciones, traslados y reasignaciones. Supervisor, caja, auditor y administrador lo consultan con **Ver bitácora** y en cada operación cerrada.
-- **Auditoría** (administrador y auditor) muestra los últimos 300 registros, con filtros para anulaciones y correcciones, pedidos, o accesos y administración: ingresos e intentos fallidos, cambios y restablecimientos de contraseña, altas y bajas de usuarios, estaciones, precios y equipo de meseros. Nunca se guardan contraseñas.
-- Los pedidos para llevar vacíos que se eliminan dejan su rastro en el registro administrativo.
-- Los registros anteriores a la migración 9 conservan solo el nombre de la acción.
-
-El límite de intentos de ingreso (40 cada 15 minutos por dirección) cuenta solo los fallidos, de modo que varios dispositivos detrás de una misma dirección no se bloquean entre sí.
-
-## Varios clientes
-
-La fase 1 de estaciones usa la migración 5: `stations` guarda las estaciones y
-`user_stations` vincula usuarios con una o varias estaciones, independientemente
-de su rol. Las cuentas existentes de Cocina y Bar pasan al rol `estacion`,
-manteniendo sus identificadores, contraseñas y sesiones, con su estación original
-asignada. Los campos `area` de productos y pedidos conservan sus valores e historial
-y ahora referencian `stations`. El permiso de preparación se valida por asignación
-a una estación activa; el administrador mantiene acceso a ambas.
-
-Ejecutar `npm.cmd run db:init` antes de arrancar esta versión. Repetirlo conserva
-las asignaciones existentes. Esta fase mantiene las pantallas de Cocina y Bar;
-el rol Supervisor corresponde a la siguiente fase.
-
-La fase 2 permite al administrador crear, renombrar, desactivar y reactivar
-estaciones desde **Configuración → Estaciones y productos**. Los productos se
-seleccionan individualmente o por categoría y se asignan a una estación activa.
-Cambiar el destino afecta únicamente a los productos añadidos después del cambio;
-los borradores, pedidos enviados y el historial conservan su destino original.
-Para desactivar una estación hay que reasignar sus productos y terminar de preparar
-y retirar los pendientes. Las estaciones se conservan en la base, sin borrarlas.
-
-En **Usuarios y permisos**, el administrador asigna una o varias estaciones a
-cualquier usuario sin cambiar su rol. Un mesero puede atender sus mesas y preparar
-los pedidos de Cafetería o Postres, incluso si pertenecen a otro mesero; esto no le
-permite editar las mesas ajenas. La asignación se conserva al desactivar una estación
-y vuelve a habilitarse al reactivarla. Las pantallas, nombres, resúmenes y retiros por
-estación se generan desde la configuración. Los cambios se comparten entre dispositivos
-y usan control de versión para impedir que se sobrescriban cambios simultáneos.
-Esta fase utiliza la estructura de la migración 5; no requiere otra migración.
-
-La fase 3 incorpora **Supervisor** para el jefe de meseros. Puede atender y
-reasignar todas las mesas, coordinar rondas y retiros, gestionar precuentas y
-consultar el historial. Al abrir un pedido elige su mesero responsable. Preparar
-productos requiere una estación asignada, igual que para los demás usuarios.
-El supervisor no administra precios, estaciones, usuarios ni la lista de meseros,
-ni recibe los permisos exclusivos de Caja para registrar documentos o pagos.
-
-El administrador cambia entre Mesero y Supervisor desde **Usuarios y permisos →
-Rol en el salón**. Se conservan el usuario, su contraseña, sesiones, vínculo con
-el mesero y estaciones. Los permisos cambian en la sesión existente. Para volver
-a Mesero debe existir un mesero vinculado. `npm.cmd run db:init` aplica la migración
-6 y crea la cuenta inicial `supervisor` con `SEED_PASSWORD`, sin alterar las cuentas
-existentes. Ejecutarlo nuevamente conserva las asignaciones y los roles elegidos.
-
-El backend escucha en `0.0.0.0:3000`. En una instalación dentro del restaurante, abrir `http://IP-DEL-SERVIDOR:3000` desde cada dispositivo conectado a la red local. Configurar `APP_ORIGIN` con esa dirección exacta (incluido el puerto), o eliminar esa variable para acceso directo sin proxy. Todos deben usar el mismo servidor y base de datos.
-
-Para probar roles simultáneos en una sola computadora, usar perfiles de navegador separados o distintos navegadores. Las pestañas de un mismo perfil comparten la cookie de sesión. Cerrar sesión en un dispositivo no cierra las sesiones de otros dispositivos.
-
-## Flujo implementado
-
-- Mesero: atender sus mesas, usar chips y búsqueda sin distinguir acentos en todo el menú, añadir productos y notas por cuenta, confirmar rondas y enviar a cocina/bar. Retirar una cantidad o todo lo preparado y enviar la precuenta por cuenta al simulador.
-- Cocina y bar: marcar sus productos preparados. Preparación y retiro son acciones separadas; los productos totalmente retirados salen de la lista activa y permanecen en la consulta de retirados.
-- Administrador: administrar catálogo, precios, mesas, IVA y servicio, mantener el equipo de meseros y los usuarios, y reasignar mesas.
-- Mesero responsable, supervisor, caja y administrador: liberar la mesa cuando todas las cuentas estén enviadas a LSoft, los productos estén preparados y los clientes se hayan retirado.
-- Auditor: consultar cuentas y operaciones cerradas sin modificar datos.
-- Caja, auditor, supervisor y administrador: consultar los últimos 100 pedidos cerrados; el historial completo permanece en PostgreSQL.
-
-La interfaz recupera el diseño de `4c0a111` / `orden-movil-1`, con menú superior, usuario y cierre de sesión, chips, búsqueda expandible, cantidades del borrador por cuenta y revisión móvil del pedido. Los precios iniciales son los valores de demostración de aquella versión. Cada producto conserva la tarifa vigente al añadirlo. Los pedidos PostgreSQL anteriores, que no tenían precios, reciben esa tarifa de demostración una sola vez al migrar. IVA y servicio se calculan sobre la misma base en centavos; pueden estar incluidos o añadirse aparte. La propina voluntaria se registra por cuenta. La precuenta se puede imprimir.
-
-LSoft sigue siendo un **simulador**: no conecta con ListoSoft, DataFast ni SRI y no emite facturas fiscales. El JSON enviado y el estado de recepción se guardan en PostgreSQL. Los reintentos conservan el identificador; una cuenta enviada queda cerrada a nuevas rondas y a la edición de sus datos, y las demás cuentas de la mesa siguen abiertas. El mesero entrega el voucher en caja; el cobro y la firma se realizan físicamente, sin registrarlos en Comandas. Después de enviar todas las cuentas, la mesa permanece ocupada hasta confirmar «Liberar mesa» cuando los clientes se retiren. Esta acción está disponible para el mesero responsable, caja y administrador, requiere productos preparados y conserva el pedido en el historial sin marcarlo pagado. Para llevar se usa «Finalizar pedido». No hay cierre automático por preparación ni pago simulado. Ver [contrato provisional](docs/lsoft-contrato.md).
-
-Los pedidos usan UUID y una numeración común. Los cambios se realizan en transacciones, con bloqueo por pedido y control de versión: una modificación basada en datos antiguos recibe un conflicto y el cliente actualiza sus datos. Un índice impide dos pedidos activos para la misma mesa. Al cerrar una cuenta se conserva el pedido y sus productos, y la mesa queda disponible.
-
-Las notificaciones PostgreSQL (`LISTEN/NOTIFY`) se transmiten mediante eventos SSE. Los clientes reconectan automáticamente y consultan el estado cada 15 segundos para recuperar eventos perdidos. La sesión se guarda en PostgreSQL, dura 12 horas y usa una cookie HttpOnly. Las contraseñas se almacenan con scrypt y los tokens de sesión se guardan como hashes. Los permisos se validan en cada operación del servidor; cocina y bar no reciben los datos del cliente.
-
-## Validación
-
-Abrir una mesa libre solo permite consultar el menú. «Ocupar mesa» confirma que hay clientes y la asigna al mesero, incluso sin pedido; «Liberar mesa» permite terminar esa visita si no hay productos ni consumo enviado. Agregar el primer producto también ocupa la mesa. Si se eliminan todos los productos antes de enviarlos, la mesa vuelve a libre salvo que se haya confirmado «Ocupar mesa». Las visitas liberadas conservan sus eventos en el historial. Ejecutar `npm.cmd run db:init` para aplicar la migración 7 sin borrar datos y reiniciar el servidor.
-
-El catálogo ofrece ayuda con el botón ⓘ: ingredientes, preparación habitual y acompañamientos. Las fichas iniciales de entradas, platos, postres y adicionales son ejemplos ficticios identificados en la ventana. El administrador puede editarlas allí; las fichas guardadas se comparten en PostgreSQL y se conservan al cambiar precios. Las notas del pedido siguen siendo instrucciones ingresadas por el usuario. En las órdenes destacan cantidad, plato y notas; precios y totales quedan como información secundaria.
+Para un cambio de esquema, añadir `server/migrations/NNN_nombre.sql` con el número siguiente; no modificar las ya aplicadas.
 
 ```sh
 npm test
 ```
 
-Las pruebas crean una base PostgreSQL temporal y comprueban roles, privacidad, conflictos concurrentes, retiros parciales y por área, rondas adicionales, tarifas conservadas, configuración compartida, asignaciones, reintentos de LSoft, pagos, cierre, historial, migraciones repetibles y reinicio HTTP. También verifican cálculos y redondeos de la precuenta. La conexión de pruebas necesita permiso para crear y eliminar esa base; usar una instancia de desarrollo, no producción.
+Las pruebas de integración crean y eliminan su propia base temporal, por lo que `DATABASE_URL` debe apuntar a una instancia de desarrollo con permiso para crear bases, nunca a producción. Cubren roles y privacidad, concurrencia, rondas y retiros, correcciones y anulaciones, descuentos, cuentas y envío al simulador, historial y auditoría, administración, contraseñas y migraciones. `.github/workflows/ci.yml` las ejecuta en cada push y pull request.
 
-También se verificó la interfaz restaurada en Chromium (Edge), con cinco perfiles aislados y tamaños móvil y escritorio: chips y búsqueda, revisión del pedido, preparación por estación, retiro parcial y total, recarga, precuenta de varias cuentas, recepción y pago simulado, cierre e historial, configuración de precios y equipo de meseros. No hubo errores de JavaScript ni desbordamiento horizontal en la toma de pedidos o los controles de retiro.
+## Limitaciones conocidas
 
-## Instalación real
-
-Esta es la primera base funcional, no una instalación publicada. Puede usar un PostgreSQL externo configurando `DATABASE_URL`. El volumen `postgres_data` conserva la información al reiniciar el contenedor. No ejecutar `docker compose down -v` si se necesitan los datos: elimina el volumen.
-
-Para acceso desde Internet, configurar dominio y HTTPS en un proxy inverso, `APP_ORIGIN` con el origen público y `COOKIE_SECURE=true`; permitir SSE sin almacenamiento intermedio. Ejecutar el backend como servicio supervisado. La conexión local a PostgreSQL se publica solo en `127.0.0.1`; usar un usuario de base con permisos mínimos para el backend y otro para inicialización/migraciones. Configurar y verificar copias de seguridad con `pg_dump` y restauraciones antes de operar. El servidor dentro de la red local funciona sin Internet; no hay modo de trabajo desconectado del servidor.
-
-Queda pendiente la integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor.
+- La integración con LSoft es un simulador; la forma fiscal de descuentos y anulaciones debe acordarse con LSoft.
+- No hay modo sin conexión al servidor.
+- El cobro no se registra ni se verifica: solo las confirmaciones manuales.
+- `scripts.js` concentra toda la interfaz en un archivo.
