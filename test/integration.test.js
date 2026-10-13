@@ -1572,6 +1572,25 @@ test("descuentos por cuenta: permisos, límites, totales enviados y bitácora", 
   await perform(cashier, "close");
 });
 
+test("salud sin sesión, recursos locales y política de contenido sin terceros", async () => {
+  const health = await fetch(base + "/api/health");
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { ok: true });
+  const page = await fetch(base + "/");
+  const html = await page.text();
+  assert.ok(!/https?:\/\//.test(html), "index.html no debe cargar recursos externos");
+  assert.ok(!page.headers.get("content-security-policy").includes("http"));
+  for (const path of html.match(/vendor\/[^"]+/g))
+    assert.equal((await fetch(`${base}/${path}`)).status, 200, path);
+  const icons = await (await fetch(base + "/vendor/fontawesome/css/all.min.css")).text();
+  assert.ok(icons.includes("fa-solid-900.woff2"));
+  const font = await fetch(base + "/vendor/fontawesome/webfonts/fa-solid-900.woff2");
+  assert.equal(font.status, 200);
+  assert.equal(font.headers.get("content-type"), "font/woff2");
+  assert.equal((await fetch(base + "/vendor/../.env")).status, 404);
+  assert.equal((await fetch(base + "/vendor/inexistente.css")).status, 404);
+});
+
 test("el límite de ingresos cuenta solo los intentos fallidos y responde JSON", async () => {
   const visitor = client();
   let limited;

@@ -1,0 +1,10 @@
+*
+!package.json
+!package-lock.json
+!index.html
+!scripts.js
+!styles.css
+!app.css
+!money.js
+!vendor
+!server

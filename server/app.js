@@ -16,7 +16,7 @@ app.use((req, res, next) => {
   res.set("Referrer-Policy", "same-origin");
   res.set(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   );
   if (req.path.startsWith("/api")) res.set("Cache-Control", "no-store");
   if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
@@ -73,6 +73,15 @@ async function assignedStations(userId, db = pool) {
     [userId],
   )).rows.map((s) => s.code);
 }
+// For the service supervisor and monitoring: answers without a session and checks the database.
+app.get("/api/health", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ ok: true });
+  } catch {
+    res.status(503).json({ ok: false, error: "Base de datos no disponible." });
+  }
+});
 app.post(
   "/api/login",
   attemptLimit(true),
@@ -1477,6 +1486,8 @@ for (const file of [
     res.sendFile(file, { root }),
   );
 }
+// Fonts and icons are served locally so the restaurant works without Internet.
+app.use("/vendor", express.static(root + "vendor", { maxAge: "30d", fallthrough: false }));
 app.use("/api", (req, res) =>
   res.status(404).json({ error: "Ruta no encontrada." }),
 );
@@ -1489,7 +1500,7 @@ app.use((error, req, res, next) => {
     return res.status(400).json({ error: "La mesa o el registro no existe." });
   const status = error.status || 500;
   if (status >= 500)
-    console.error("Error del servidor:", error.code || error.message);
+    console.error(`${new Date().toISOString()} Error del servidor en ${req.method} ${req.path}:`, error);
   res.status(status).json({
     error: status >= 500 ? "No se pudo completar la operación." : error.message,
   });

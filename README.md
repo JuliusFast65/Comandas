@@ -29,6 +29,20 @@ La migración 8 marca todas las cuentas existentes para cambiar la contraseña e
 - El administrador crea usuarios en **Usuarios y permisos** con una contraseña temporal, la restablece cuando alguien la olvida y desactiva o reactiva cuentas. Restablecer o desactivar cierra las sesiones de esa cuenta. Un administrador no puede desactivar ni restablecer su propia cuenta desde esa pantalla.
 - Un usuario con rol Mesero debe estar vinculado a un integrante del equipo de meseros.
 
+## Operación
+
+- **Sin Internet**: la fuente Roboto y los iconos se sirven desde `vendor/`; la aplicación no carga nada de terceros y funciona completa en una red local aislada.
+- **Salud**: `GET /api/health` responde `{"ok":true}` sin sesión cuando el servidor y PostgreSQL están disponibles, y 503 si la base no responde. Sirve para el supervisor del servicio o un monitor.
+- **Errores**: los fallos internos se registran en la salida del servidor con fecha, método, ruta y traza completa. El cliente solo recibe un mensaje genérico.
+- **Respaldos**: `npm.cmd run db:backup` crea `backups/comandas-FECHA.dump` y conserva los últimos 30 (`BACKUP_KEEP`, `BACKUP_DIR`). Usa `pg_dump` si está instalado o, si no, el contenedor de Compose. Programarlo a diario, por ejemplo con el Programador de tareas de Windows, y copiar la carpeta fuera del equipo. Para restaurar en el contenedor:
+
+  ```sh
+  docker compose exec -T db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/ARCHIVO.dump
+  ```
+
+- **Contenedor**: `docker compose --profile app up -d --build` levanta también la aplicación en un contenedor que aplica las migraciones al iniciar y se reinicia solo. Sin ese perfil, `docker compose up -d db` sigue levantando únicamente PostgreSQL.
+- **Integración continua**: `.github/workflows/ci.yml` ejecuta `npm test` contra PostgreSQL 17 en cada push y pull request.
+
 ## HTTPS en la red local
 
 Por HTTP, las contraseñas y la sesión viajan sin cifrar por el Wi-Fi del restaurante. Comandas puede servir HTTPS directamente, sin proxy:
@@ -185,4 +199,4 @@ Esta es la primera base funcional, no una instalación publicada. Puede usar un 
 
 Para acceso desde Internet, configurar dominio y HTTPS en un proxy inverso, `APP_ORIGIN` con el origen público y `COOKIE_SECURE=true`; permitir SSE sin almacenamiento intermedio. Ejecutar el backend como servicio supervisado. La conexión local a PostgreSQL se publica solo en `127.0.0.1`; usar un usuario de base con permisos mínimos para el backend y otro para inicialización/migraciones. Configurar y verificar copias de seguridad con `pg_dump` y restauraciones antes de operar. El servidor dentro de la red local funciona sin Internet; no hay modo de trabajo desconectado del servidor.
 
-Queda pendiente la integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor. Roboto y los iconos usan los proveedores del diseño anterior; sin Internet se usa la fuente de respaldo y los textos siguen disponibles.
+Queda pendiente la integración real con LSoft. `styles.css` recupera los estilos de la versión móvil más reciente; `app.css` adapta los controles al servidor.

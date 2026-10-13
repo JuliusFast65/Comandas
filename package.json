@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
     "db:init": "node --env-file-if-exists=.env server/init.js",
+    "db:backup": "node --env-file-if-exists=.env server/backup.js",
     "test": "node --env-file-if-exists=.env --test test/*.test.js"
   },
   "dependencies": {
