@@ -1507,6 +1507,71 @@ test("cocina y mesero no chocan, y las cuentas sin facturar siguen pidiendo", as
   await perform(cashier, "close");
 });
 
+test("descuentos por cuenta: permisos, límites, totales enviados y bitácora", async () => {
+  const waiter = client(), supervisor = client(), cashier = client(), kitchen = client(), auditor = client();
+  await waiter.login("mesero");
+  await supervisor.login("supervisor");
+  await cashier.login("caja");
+  await kitchen.login("cocina");
+  await auditor.login("auditor");
+  const state = await waiter.request("/api/state");
+  const food = state.products.find((p) => p.area === "cocina" && p.active);
+  const table = state.tables.find((t) => t.active && !state.orders.some((o) => o.table_number === t.number)).number;
+  const created = await waiter.request("/api/orders", {
+    tableNumber: table, firstItem: { productId: food.id, quantity: 3, account: 1, note: "" },
+  }, 201);
+  const path = `/api/orders/${created.id}/actions`;
+  const current = async (c = supervisor) => (await c.request("/api/state")).orders.find((o) => o.id === created.id);
+  const perform = async (c, action, fields = {}, expected = 200) =>
+    c.request(path, { action, version: (await current()).version, ...fields }, expected);
+  const gross = amounts((await current()).items[0].tariff, 3);
+  const ten = { account: 1, type: "percent", value: 10, reason: "Cliente frecuente" };
+
+  await perform(waiter, "discount", ten, 403);
+  await perform(cashier, "discount", ten, 403);
+  await perform(supervisor, "discount", { ...ten, reason: " " }, 400);
+  await perform(supervisor, "discount", { ...ten, value: 0 }, 400);
+  await perform(supervisor, "discount", { ...ten, value: 100.5 }, 400);
+  await perform(supervisor, "discount", { ...ten, value: 10.123 }, 400);
+  await perform(supervisor, "discount", { ...ten, type: "amount", value: gross.total + 1 }, 400);
+  await perform(supervisor, "discount", { ...ten, account: 2 }, 404);
+  await perform(supervisor, "discount", { account: 1, type: "none" }, 409);
+  await perform(supervisor, "discount", { ...ten, type: "amount", value: 100 });
+  assert.equal((await current()).accounts[0].discount.value, 100);
+  await perform(supervisor, "discount", { account: 1, type: "none" });
+  assert.deepEqual((await current()).accounts[0].discount, {});
+  await perform(supervisor, "discount", ten);
+  const stored = (await current()).accounts[0].discount;
+  assert.deepEqual([stored.type, stored.value, stored.reason, stored.by], ["percent", 10, "Cliente frecuente", "supervisor"]);
+  // Stations do not receive the amounts of the account.
+  assert.equal((await current(kitchen)).accounts[0].discount, undefined);
+
+  await perform(waiter, "send");
+  await perform(kitchen, "ready", { itemId: (await current()).items[0].id });
+  await perform(waiter, "bill");
+  await perform(cashier, "account", { account: 1, name: "", customer: { identification: "0912345678", name: "Cliente" }, tipCents: 50 });
+  await perform(cashier, "send_lsoft", { account: 1 });
+  const sent = (await current()).accounts[0].lsoft.json;
+  const off = Math.round(gross.total / 10);
+  assert.deepEqual(sent.descuento, {
+    tipo: "porcentaje", valor: 10, motivo: "Cliente frecuente", centavos: off, totalAntesCentavos: gross.total,
+  });
+  assert.equal(sent.totalesCentavos.total, gross.total - off);
+  assert.equal(sent.totalesCentavos.pagar, gross.total - off + 50);
+  assert.equal(sent.totalesCentavos.base + sent.totalesCentavos.iva + sent.totalesCentavos.servicio, gross.total - off);
+  // The retry is identical, and an invoiced account keeps its discount.
+  await perform(cashier, "send_lsoft", { account: 1 });
+  await perform(supervisor, "discount", { account: 1, type: "none" }, 409);
+  await perform(supervisor, "discount", { ...ten, value: 20 }, 409);
+
+  const events = (await auditor.request(`/api/orders/${created.id}/events`)).filter((e) => e.action === "discount");
+  assert.deepEqual(events.map((e) => [e.username, e.details.type, e.details.cents]), [
+    ["supervisor", "amount", 100], ["supervisor", "none", undefined], ["supervisor", "percent", off],
+  ]);
+  assert.ok((await auditor.request("/api/audit?scope=correcciones")).some((e) => e.action === "discount"));
+  await perform(cashier, "close");
+});
+
 test("el límite de ingresos cuenta solo los intentos fallidos y responde JSON", async () => {
   const visitor = client();
   let limited;

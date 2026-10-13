@@ -35,6 +35,11 @@ con LSoft y el aislamiento entre restaurantes siguen pendientes.
 
 Todos los importes viajan como **centavos enteros**, moneda USD. IVA y servicio
 se calculan sobre la misma base. La propina no forma parte de esas bases.
+Una cuenta con descuento añade el objeto `descuento` (`tipo` `porcentaje` o `monto`,
+`valor`, `motivo`, `centavos` y `totalAntesCentavos`); `totalesCentavos` ya lo incluye,
+con base, IVA y servicio reducidos en proporción, y repite el importe en `descuento`.
+Las líneas conservan sus importes sin descuento. Sin descuento no se envía ninguna de
+esas claves. La forma fiscal del descuento debe confirmarse con LSoft.
 Cada cuenta tiene un `idOperacion` aleatorio ligado al servicio de esa mesa.
 Reenviar el mismo identificador y JSON devuelve el mismo Pedido. Reutilizarlo
 con contenido diferente debe producir un conflicto, no una segunda factura.

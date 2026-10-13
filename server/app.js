@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { pool, transaction } from "./db.js";
 import { hashPassword, verifyPassword, tokenHash } from "./password.js";
-import { tariffFor, totals, amounts } from "../money.js";
+import { tariffFor, totals, amounts, applyDiscount, discountCents } from "../money.js";
 import { exampleProductHelp } from "./product-help.js";
 
 export const app = express();
@@ -223,7 +223,7 @@ app.get("/api/state", async (req, res) => {
     ).rows;
     const accounts = (
       await db.query(
-        "SELECT a.* FROM order_accounts a JOIN orders o ON o.id=a.order_id WHERE o.status<>'closed'",
+        "SELECT a.* FROM order_accounts a JOIN orders o ON o.id=a.order_id WHERE o.status<>'closed' ORDER BY a.number",
       )
     ).rows;
     const voids = (
@@ -432,6 +432,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
     note: ["mesero"],
     move: ["mesero"],
     transfer: ["mesero"],
+    discount: ["supervisor"],
     void_seen: [],
   };
   // Station work depends on the assigned stations, not on the role or the owner of the order.
@@ -732,6 +733,43 @@ app.post("/api/orders/:id/actions", async (req, res) => {
       ]);
       details = { from: await waiterLabel(db, order.waiter_id), to: await waiterLabel(db, b.waiterId) };
     }
+    if (action === "discount") {
+      if (!integer(b.account, 1, 99) || !["percent", "amount", "none"].includes(b.type))
+        fail(400, "Descuento inválido.");
+      const {
+        rows: [account],
+      } = await db.query("SELECT * FROM order_accounts WHERE order_id=$1 AND number=$2", [id, b.account]);
+      const { rows: lines } = await db.query(
+        "SELECT tariff,quantity FROM order_items WHERE order_id=$1 AND account=$2",
+        [id, b.account],
+      );
+      if (!account || !lines.length) fail(404, "Cuenta no encontrada.");
+      await openAccount(db, id, b.account);
+      let discount = {};
+      if (b.type === "none") {
+        if (!account.discount.type) fail(409, "La cuenta no tiene descuento.");
+        details = { account: b.account, type: "none" };
+      } else {
+        const valid =
+          b.type === "percent"
+            ? typeof b.value === "number" && b.value > 0 && b.value <= 100 && Math.round(b.value * 100) / 100 === b.value
+            : integer(b.value, 1, 10000000);
+        if (!valid || !text(b.reason, 200) || !b.reason.trim())
+          fail(400, "Indica el valor y el motivo del descuento.");
+        const gross = totals(lines);
+        if (b.type === "amount" && b.value > gross.total)
+          fail(400, "El descuento supera el consumo de la cuenta.");
+        discount = {
+          type: b.type, value: b.value, reason: b.reason.trim(),
+          by: req.user.username, at: new Date().toISOString(),
+        };
+        details = {
+          account: b.account, type: b.type, value: b.value, reason: discount.reason,
+          cents: discountCents(gross, discount),
+        };
+      }
+      await db.query("UPDATE order_accounts SET discount=$1 WHERE order_id=$2 AND number=$3", [discount, id, b.account]);
+    }
     if (action === "transfer") {
       if (order.table_number === null) fail(409, "Solo se puede cambiar de mesa un pedido de mesa.");
       if (!integer(b.tableNumber, 1, 999) || b.tableNumber === order.table_number)
@@ -792,7 +830,8 @@ app.post("/api/orders/:id/actions", async (req, res) => {
         } = await db.query("SELECT name FROM waiters WHERE id=$1", [
           order.waiter_id,
         ]);
-        const total = totals(lines);
+        const gross = totals(lines),
+          total = applyDiscount(gross, account.discount);
         const json = {
           version: "0.1-provisional",
           idOperacion: `COM-${id}-C${b.account}`,
@@ -822,6 +861,18 @@ app.post("/api/orders/:id/actions", async (req, res) => {
             servicioPorcentaje: i.tariff.servicio,
             importesCentavos: amounts(i.tariff, i.quantity),
           })),
+          // Present only with a discount, so accounts sent earlier keep an identical JSON.
+          ...(total.descuento
+            ? {
+                descuento: {
+                  tipo: account.discount.type === "percent" ? "porcentaje" : "monto",
+                  valor: account.discount.value,
+                  motivo: account.discount.reason,
+                  centavos: total.descuento,
+                  totalAntesCentavos: gross.total,
+                },
+              }
+            : {}),
           totalesCentavos: {
             ...total,
             propina: account.tip_cents,
@@ -953,7 +1004,7 @@ app.post("/api/orders/:id/actions", async (req, res) => {
 app.get("/api/history", async (req, res) => {
   allow(req.user, ["caja", "auditor", "supervisor"]);
   const { rows } = await pool.query(
-    "SELECT o.*,COALESCE((SELECT jsonb_agg(i) FROM order_items i WHERE i.order_id=o.id),'[]'::jsonb) AS items,COALESCE((SELECT jsonb_agg(a) FROM order_accounts a WHERE a.order_id=o.id),'[]'::jsonb) AS accounts,COALESCE((SELECT jsonb_agg(to_jsonb(v)||jsonb_build_object('username',u.username) ORDER BY v.id) FROM order_item_voids v JOIN users u ON u.id=v.voided_by WHERE v.order_id=o.id),'[]'::jsonb) AS voids,COALESCE((SELECT jsonb_agg(jsonb_build_object('action',e.action,'details',e.details,'created_at',e.created_at,'username',u.username) ORDER BY e.id) FROM order_events e JOIN users u ON u.id=e.user_id WHERE e.order_id=o.id),'[]'::jsonb) AS events FROM orders o WHERE status='closed' ORDER BY closed_at DESC LIMIT 100",
+    "SELECT o.*,COALESCE((SELECT jsonb_agg(i) FROM order_items i WHERE i.order_id=o.id),'[]'::jsonb) AS items,COALESCE((SELECT jsonb_agg(a ORDER BY a.number) FROM order_accounts a WHERE a.order_id=o.id),'[]'::jsonb) AS accounts,COALESCE((SELECT jsonb_agg(to_jsonb(v)||jsonb_build_object('username',u.username) ORDER BY v.id) FROM order_item_voids v JOIN users u ON u.id=v.voided_by WHERE v.order_id=o.id),'[]'::jsonb) AS voids,COALESCE((SELECT jsonb_agg(jsonb_build_object('action',e.action,'details',e.details,'created_at',e.created_at,'username',u.username) ORDER BY e.id) FROM order_events e JOIN users u ON u.id=e.user_id WHERE e.order_id=o.id),'[]'::jsonb) AS events FROM orders o WHERE status='closed' ORDER BY closed_at DESC LIMIT 100",
   );
   res.json(rows);
 });
@@ -970,7 +1021,7 @@ app.get("/api/orders/:id/events", async (req, res) => {
 app.get("/api/audit", async (req, res) => {
   allow(req.user, ["auditor"]);
   const { rows } = await pool.query(
-    "SELECT * FROM (SELECT e.created_at,u.username,e.action,e.details,'pedido' AS scope,o.number::int AS order_number,o.table_number FROM order_events e JOIN users u ON u.id=e.user_id JOIN orders o ON o.id=e.order_id UNION ALL SELECT a.created_at,u.username,a.action,a.details,'administracion',NULL,NULL FROM audit_events a JOIN users u ON u.id=a.user_id) events WHERE $1::text IS NULL OR scope=$1 OR ($1='correcciones' AND action IN ('void','note','move','transfer','remove','edit','assign')) ORDER BY created_at DESC LIMIT 300",
+    "SELECT * FROM (SELECT e.created_at,u.username,e.action,e.details,'pedido' AS scope,o.number::int AS order_number,o.table_number FROM order_events e JOIN users u ON u.id=e.user_id JOIN orders o ON o.id=e.order_id UNION ALL SELECT a.created_at,u.username,a.action,a.details,'administracion',NULL,NULL FROM audit_events a JOIN users u ON u.id=a.user_id) events WHERE $1::text IS NULL OR scope=$1 OR ($1='correcciones' AND action IN ('void','note','move','transfer','remove','edit','assign','discount')) ORDER BY created_at DESC LIMIT 300",
     [["pedido", "administracion", "correcciones"].includes(req.query.scope) ? req.query.scope : null],
   );
   res.json(rows);

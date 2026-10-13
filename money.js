@@ -31,3 +31,19 @@ export function totals(items) {
     { base: 0, iva: 0, servicio: 0, total: 0 },
   );
 }
+// A discount lowers the consumption of one account; base, IVA and service shrink in proportion.
+export function discountCents(total, discount) {
+  if (!discount?.type) return 0;
+  return Math.min(
+    total.total,
+    discount.type === "percent" ? Math.round((total.total * discount.value) / 100) : discount.value,
+  );
+}
+export function applyDiscount(total, discount) {
+  const descuento = discountCents(total, discount);
+  if (!descuento) return total;
+  const pay = total.total - descuento,
+    base = Math.round((total.base * pay) / total.total),
+    iva = Math.round((total.iva * pay) / total.total);
+  return { base, iva, servicio: pay - base - iva, total: pay, descuento };
+}

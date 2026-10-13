@@ -1,4 +1,4 @@
-import { tariffFor, amounts, totals } from "./money.js";
+import { tariffFor, amounts, totals, applyDiscount } from "./money.js";
 let user = null,
   state = { tables: [], categories: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null },
   view = "mesas",
@@ -148,6 +148,12 @@ function mayAudit() {
 // New rounds stay open for the accounts not yet invoiced.
 function fullyInvoiced(o) {
   return o.items.length > 0 && o.items.every((i) => accountSent(o, i.account));
+}
+function mayDiscount(o, a) {
+  return ["admin", "supervisor"].includes(user?.role) && o.status !== "closed" && !a.lsoft?.json;
+}
+function accountTotals(o, number, items = o.items.filter((i) => i.account === number)) {
+  return applyDiscount(totals(items), o.accounts.find((a) => a.number === number)?.discount);
 }
 function editableOrder(o) {
   return owned(o) && o.status !== "closed" && !fullyInvoiced(o);
@@ -957,7 +963,8 @@ function renderOrder(content, o) {
       : o,
   );
   if (!confirming) renderVoids(summary, o);
-  const total = totals(o.items).total,
+  const total = [...new Set(o.items.map((i) => i.account))]
+      .reduce((sum, number) => sum + accountTotals(o, number).total, 0),
     totalLine = el("p", "Total ", { class: "summary-total" });
   totalLine.append(el("strong", money(total)));
   summary.append(totalLine);
@@ -1670,7 +1677,9 @@ function consumption(content, o, number, tip = 0, printed = false) {
   const items = o.items.filter(
       (i) => i.account === number && i.status !== "draft",
     ),
-    total = totals(items),
+    gross = totals(items),
+    discount = o.accounts.find((a) => a.number === number)?.discount,
+    total = applyDiscount(gross, discount),
     table = el("table", null, { class: "consumption-table" }),
     head = el("thead"),
     row = el("tr");
@@ -1691,6 +1700,12 @@ function consumption(content, o, number, tip = 0, printed = false) {
   table.append(body);
   const foot = el("tfoot");
   for (const [label, value] of [
+    ...(total.descuento
+      ? [
+          ["Subtotal", gross.total],
+          [`Descuento${discount.type === "percent" ? ` ${discount.value}%` : ""} · ${discount.reason}`, -total.descuento],
+        ]
+      : []),
     ["Consumo base", total.base],
     ["IVA", total.iva],
     ["Servicio", total.servicio],
@@ -1703,7 +1718,7 @@ function consumption(content, o, number, tip = 0, printed = false) {
     if (printed && label === "Total") r.className = "bill-total";
     r.append(
       el("th", label, { colspan: "2", scope: "row" }),
-      el("td", value === null ? "________________" : money(value)),
+      el("td", value === null ? "________________" : value < 0 ? "−" + money(-value) : money(value)),
     );
     foot.append(r);
   }
@@ -1746,6 +1761,7 @@ function renderBill(content, o) {
       { class: "menu-help" },
     ),
   );
+  if (mayDiscount(o, a)) content.append(discountButton(o, a));
   const form = el("form", null, { class: "client-info", id: "billing-form" }),
     locked = !!a.lsoft?.json || !mayBill(o),
     fields = {
@@ -2007,6 +2023,7 @@ function renderCash(content) {
       );
       consumption(accountCard, o, a.number, a.tip_cents);
       accountCard.append(button("Imprimir precuenta", () => printBill(o, a)));
+      if (mayDiscount(o, a)) accountCard.append(discountButton(o, a));
       renderCollection(accountCard, o, a);
       renderLSoft(accountCard, o, a);
       accountCard.append(
@@ -2184,6 +2201,51 @@ function openVoid(o, i) {
   document.body.append(dialog);
   dialog.showModal();
 }
+function discountButton(o, a) {
+  return button(a.discount?.type ? "Cambiar descuento" : "Aplicar descuento", () => openDiscount(o, a));
+}
+function openDiscount(o, a) {
+  const { dialog, form, footer } = correctionDialog(`Descuento · ${orderTitle(o)} · Cuenta ${a.number}`, "Guardar descuento"),
+    type = select("Tipo ", [
+      ["percent", "Porcentaje del consumo"],
+      ["amount", "Monto fijo"],
+      ...(a.discount?.type ? [["none", "Quitar el descuento"]] : []),
+    ], a.discount?.type ?? "percent"),
+    typeInput = type.querySelector("select");
+  typeInput.id = "discount-type";
+  form.append(type);
+  const value = labeled(form, "Valor", el("input", null, {
+      id: "discount-value", type: "number", min: "0.01", step: "0.01", required: "",
+      value: a.discount?.type === "amount" ? (a.discount.value / 100).toFixed(2) : String(a.discount?.value ?? ""),
+    })),
+    reason = labeled(form, "Motivo", el("input", null, {
+      id: "discount-reason", type: "text", maxlength: "200", required: "", value: a.discount?.reason ?? "",
+    })),
+    limits = () => {
+      const none = typeInput.value === "none";
+      value.disabled = reason.disabled = none;
+      value.max = typeInput.value === "percent" ? "100" : (accountTotals({ ...o, accounts: [] }, a.number).total / 100).toFixed(2);
+    };
+  typeInput.addEventListener("change", limits);
+  limits();
+  form.append(el("p", "Reduce el consumo de esta cuenta antes de la propina. Queda registrado con tu usuario.", { class: "menu-help" }), footer);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    run(async () => {
+      await api(`/orders/${o.id}/actions`, {
+        action: "discount", version: latest(o).version, account: a.number, type: typeInput.value,
+        ...(typeInput.value === "none" ? {} : {
+          value: typeInput.value === "percent" ? Number(value.value) : cents(value.value),
+          reason: reason.value,
+        }),
+      });
+      dialog.close();
+    });
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
 function openMove(o, i) {
   const { dialog, form, footer } = correctionDialog(`Mover ${i.product_name} · Cuenta ${i.account}`, "Mover"),
     quantity = quantityField(form, "move-quantity", i),
@@ -2228,6 +2290,9 @@ function describeEvent(e) {
     case "void_seen": return `La estación confirmó la anulación de ${q(d)}`;
     case "note": return `Cambió la nota de ${d.product}${account}: «${d.from}» → «${d.to}»`;
     case "move": return `Movió ${q(d)} de Cuenta ${d.from} a Cuenta ${d.to}`;
+    case "discount": return d.type === "none"
+      ? `Quitó el descuento${account}`
+      : `Aplicó un descuento de ${d.type === "percent" ? d.value + "%" : money(d.value)} (−${money(d.cents)})${account} · Motivo: ${d.reason}`;
     case "transfer": return `Cambió de Mesa ${d.from} a Mesa ${d.to}`;
     case "assign": return "Reasignó el mesero" + (d.to ? `: ${d.from ?? "Sin asignar"} → ${d.to}` : "");
     case "account": return `Actualizó los datos de la cuenta${account}`;

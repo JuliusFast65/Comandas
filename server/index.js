@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { app, notifyClients } from "./app.js";
 import { pool } from "./db.js";
 const { rowCount: migrated } = await pool.query(
-  "SELECT version FROM schema_migrations WHERE version=10",
+  "SELECT version FROM schema_migrations WHERE version=11",
 );
 if (!migrated)
   throw new Error(
