@@ -115,3 +115,27 @@ test("los toques rápidos se guardan en orden y con la versión vigente", async 
   assert.deepEqual(requests.map((r) => r.path), ["/orders", "/orders/created/actions"]);
   assert.equal(requests[1].body.version, 1);
 });
+
+test("avisos de estación: solo lo nuevo de las estaciones propias", async () => {
+  const source = await readFile(new URL("../scripts.js", import.meta.url), "utf8");
+  const start = source.indexOf("function stationNews(");
+  const context = vm.createContext({});
+  vm.runInContext(source.slice(start, source.indexOf("function announceStationWork(", start)), context);
+  const item = (id, area, status = "preparing", note_changed_at = null) => ({ id, area, status, note_changed_at });
+  const order = { id: "o", items: [item("a", "cocina"), item("b", "bar"), item("c", "cocina", "draft")], voids: [] };
+  const first = context.stationNews([order], ["cocina"], []);
+  assert.deepEqual([...first.fresh.map((n) => n.item.id)], ["a"]);
+  // Nothing new on the next refresh; a product marked ready and unmarked is not announced again.
+  assert.equal(context.stationNews([order], ["cocina"], first.seen).fresh.length, 0);
+  order.items[0].status = "ready";
+  const afterReady = context.stationNews([order], ["cocina"], first.seen);
+  order.items[0].status = "preparing";
+  assert.equal(context.stationNews([order], ["cocina"], afterReady.seen).fresh.length, 0);
+  // A sent round, a changed note and a void are news; an acknowledged void is not.
+  order.items[2].status = "preparing";
+  order.items[0].note_changed_at = "2026-01-01T00:00:00Z";
+  order.voids = [{ id: "7", area: "cocina", acknowledged_at: null }, { id: "8", area: "cocina", acknowledged_at: "x" }, { id: "9", area: "bar", acknowledged_at: null }];
+  const news = context.stationNews([order], ["cocina"], afterReady.seen);
+  assert.deepEqual([...news.fresh.map((n) => n.item?.id ?? "v" + n.voided.id)], ["a", "c", "v7"]);
+  assert.equal(context.stationNews([order], [], []).fresh.length, 0);
+});

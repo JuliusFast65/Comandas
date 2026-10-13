@@ -233,6 +233,7 @@ function logoutUI() {
   mobileDetail = false;
   menus.clear();
   createdOrders.clear();
+  knownStationWork = null;
   state = { tables: [], categories: [], products: [], orders: [], waiters: [], stations: [], users: [], settings: null };
   document.querySelectorAll("dialog").forEach((d) => {
     if (d.id === "app-menu") {
@@ -304,6 +305,7 @@ async function refresh(force = false) {
     if (!activeWaiter)
       activeWaiter = state.waiters.find((w) => w.active)?.id ?? null;
     render();
+    announceStationWork();
     restoreForms(values);
     for (const id of details) {
       const n = document.getElementById(id);
@@ -1571,6 +1573,117 @@ function editNote(o, i) {
   dialog.showModal();
   note.focus();
 }
+// Station alerts. What is already on screen when it opens is the baseline; later arrivals are news.
+let knownStationWork = null,
+  knownStations = "",
+  audio = null;
+function preference(key, fallback) {
+  try {
+    return (localStorage.getItem(key) ?? fallback) === "1";
+  } catch {
+    return fallback === "1";
+  }
+}
+function togglePreference(key, fallback) {
+  try {
+    localStorage.setItem(key, preference(key, fallback) ? "0" : "1");
+  } catch {}
+}
+// Browsers only allow sound after a touch or click on the page.
+document.addEventListener("pointerdown", () => {
+  try {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    audio.resume?.();
+  } catch {}
+}, { passive: true });
+function beep() {
+  if (!audio || !preference("comandas-sonido", "1")) return;
+  for (const [offset, frequency] of [[0, 880], [0.22, 1175]]) {
+    const oscillator = audio.createOscillator(),
+      gain = audio.createGain();
+    oscillator.frequency.value = frequency;
+    gain.gain.value = 0.25;
+    oscillator.connect(gain);
+    gain.connect(audio.destination);
+    oscillator.start(audio.currentTime + offset);
+    oscillator.stop(audio.currentTime + offset + 0.18);
+  }
+}
+// Returns the work of these stations that is not in `known`: products sent or with a changed note, and voids.
+function stationNews(orders, stations, known) {
+  const fresh = [], seen = new Set(known);
+  for (const o of orders) {
+    for (const i of o.items) {
+      if (i.status !== "preparing" || !stations.includes(i.area)) continue;
+      const key = `i${i.id}|${i.note_changed_at ?? ""}`;
+      if (!seen.has(key)) fresh.push({ order: o, item: i });
+      seen.add(key);
+    }
+    for (const v of o.voids || []) {
+      if (v.acknowledged_at || !stations.includes(v.area)) continue;
+      if (!seen.has("v" + v.id)) fresh.push({ order: o, voided: v });
+      seen.add("v" + v.id);
+    }
+  }
+  return { fresh, seen };
+}
+function announceStationWork() {
+  // The administrator is alerted for the station on screen; everyone else for their assigned stations.
+  const stations = user.role === "admin"
+      ? state.stations.filter((s) => s.code === view).map((s) => s.code)
+      : user.stations || [],
+    key = stations.join(),
+    news = stationNews(state.orders, stations, knownStationWork ?? []),
+    baseline = !knownStationWork || key !== knownStations;
+  knownStationWork = news.seen;
+  knownStations = key;
+  if (baseline || !news.fresh.length) return;
+  beep();
+  const first = news.fresh[0];
+  message(first.voided
+    ? `Anulado en ${areaName(first.voided.area)}: ${orderTitle(first.order)} · ${first.voided.quantity} × ${first.voided.product_name}`
+    : `Nuevo en ${areaName(first.item.area)}: ${orderTitle(first.order)}` +
+      (news.fresh.length > 1 ? ` y ${news.fresh.length - 1} más` : ` · ${first.item.quantity} × ${first.item.product_name}`));
+  if (!preference("comandas-impresion", "0")) return;
+  const tickets = new Map();
+  for (const { order, item } of news.fresh.filter((n) => n.item)) {
+    const ticket = order.id + "|" + item.area;
+    if (!tickets.has(ticket)) tickets.set(ticket, { order, area: item.area, items: [] });
+    tickets.get(ticket).items.push(item);
+  }
+  for (const { order, area, items } of tickets.values()) printStationTicket(order, area, items);
+}
+function printStationTicket(o, area, items) {
+  const target = $("#precuenta-impresion"),
+    list = el("ul");
+  target.className = "station-ticket";
+  for (const i of items) {
+    const line = el("li");
+    line.append(
+      el("strong", `${remaining(i)} × ${i.product_name}`),
+      el("small", `Cuenta ${i.account}${i.additional ? " · ADICIONAL" : ""}${i.note_changed_at ? " · NOTA MODIFICADA" : ""}`),
+    );
+    if (i.note) line.append(el("p", i.note));
+    list.append(line);
+  }
+  target.replaceChildren(
+    heading(`${areaName(area)} · ${orderTitle(o)}`),
+    el("p", `Mesero: ${waiterName(o.waiter_id)} · ${new Date().toLocaleString()}`),
+    list,
+  );
+  window.print();
+}
+function stationSwitch(label, key, fallback) {
+  const on = preference(key, fallback),
+    b = button(`${label}: ${on ? "sí" : "no"}`, () => {
+      togglePreference(key, fallback);
+      render();
+    }, false, "station-switch");
+  b.id = key;
+  b.setAttribute("role", "switch");
+  b.setAttribute("aria-checked", String(on));
+  return b;
+}
 function renderPreparation(content) {
   content.append(
     heading(
@@ -1578,6 +1691,14 @@ function renderPreparation(content) {
       view === "cocina" ? "utensils" : "glass-cheers",
     ),
   );
+  if (mayPrepare(view)) {
+    const options = el("div", null, { class: "station-options" });
+    options.append(
+      stationSwitch("Aviso sonoro", "comandas-sonido", "1"),
+      stationSwitch("Imprimir comandas al llegar", "comandas-impresion", "0"),
+    );
+    content.append(options);
+  }
   const cards = el("div", null, { class: "cocina-list", id: view + "-list" }),
     history = el("details", null, {
       class: "withdrawn-history",
@@ -1628,6 +1749,10 @@ function renderPreparation(content) {
       const pickupAll = pickupAllButton(o, view);
       pickupAll.classList.add("station-pickup-all");
       card.append(pickupAll);
+    }
+    if (mayPrepare(view)) {
+      const pending = items.filter((i) => i.status === "preparing");
+      card.append(button("Imprimir comanda", () => printStationTicket(o, view, pending), !pending.length, "pickup-button station-print"));
     }
     renderItems(card, o, view);
     cards.append(card);
@@ -1893,6 +2018,7 @@ function renderBill(content, o) {
 }
 function printBill(o, a) {
   const target = $("#precuenta-impresion");
+  target.className = "";
   target.replaceChildren(
     heading(`Precuenta · ${orderTitle(o)} · Cuenta ${a.number}`),
   );

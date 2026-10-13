@@ -664,6 +664,13 @@ textarea {
   #precuenta-impresion .bill-tip > * { padding-top: calc(1mm + 1.15em); }
   #precuenta-impresion .bill-total > * { font-weight: 700; }
   #precuenta-impresion tfoot tr:last-child > * { padding-bottom: calc(1mm + 1.15em); border-bottom: 1px solid black; font-weight: 700; }
+  #precuenta-impresion.station-ticket { font-size: 13pt; }
+  #precuenta-impresion.station-ticket h2 { font-size: 16pt; }
+  #precuenta-impresion.station-ticket ul { margin: 2mm 0 0; padding: 0; list-style: none; }
+  #precuenta-impresion.station-ticket li { padding: 2mm 0; border-top: 1px dashed black; break-inside: avoid; }
+  #precuenta-impresion.station-ticket li strong { display: block; font-size: 15pt; }
+  #precuenta-impresion.station-ticket li small { display: block; font-size: 10pt; }
+  #precuenta-impresion.station-ticket li p { margin: 1mm 0 0; font-weight: 700; white-space: pre-wrap; }
 }
 
 .client-info label {

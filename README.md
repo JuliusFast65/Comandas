@@ -74,6 +74,16 @@ Ejecutar `npm.cmd run db:init` para aplicar la migración 10 y reiniciar el serv
 
 Nada se elimina: los productos, categorías y mesas que dejan de usarse se desactivan y siguen en el historial. Los cambios afectan a lo que se pida después; los productos ya pedidos conservan su nombre, tarifa y estación. La migración traslada a cada producto el precio que tenía (los guardados en la configuración por nombre, o el de demostración de su categoría). `db:init` solo carga el catálogo de demostración cuando no existe ningún producto, de modo que no repone productos renombrados. IVA, servicio y la interpretación de precios siguen en **Configuración**.
 
+## Estaciones: aviso sonoro y comandas impresas
+
+En la pantalla de cada estación, quien tiene esa estación asignada dispone de:
+
+- **Aviso sonoro** (activado por defecto): suena cuando llega una ronda, cuando cambia la nota de un producto en preparación y cuando se anula un producto. Lo que ya estaba en pantalla al abrirla no suena. El navegador solo permite el sonido después de un primer toque en la página, por ejemplo al iniciar sesión.
+- **Imprimir comanda**: imprime los productos en preparación de ese pedido para la estación, sin precios, con cuenta, notas y la marca de adicional.
+- **Imprimir comandas al llegar** (desactivado por defecto): imprime automáticamente cada ronda nueva. El navegador muestra su diálogo de impresión; para imprimir sin diálogo en una impresora de tickets, abrir Chrome o Edge con `--kiosk-printing` y dejar esa impresora como predeterminada.
+
+Ambas preferencias se guardan en cada dispositivo.
+
 ## Descuentos
 
 Ejecutar `npm.cmd run db:init` para aplicar la migración 11 y reiniciar el servidor. El supervisor o el administrador aplican un descuento por cuenta desde la **Precuenta** (o desde Caja, el administrador): un porcentaje del consumo o un monto fijo, siempre con motivo. Se puede cambiar o quitar hasta que la cuenta se envía a LSoft.

@@ -512,3 +512,7 @@ summary:focus-visible {
 .mesa .table-zone { display: block; font-size: 12px; opacity: 0.85; }
 .catalog-tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0 24px; }
 #catalogo-screen section { margin-bottom: 28px; }
+.station-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.station-switch { min-height: 40px; padding: 6px 14px; border: 1px solid #c5ced8; border-radius: 20px; background: #eef2f6; color: #173b60; cursor: pointer; }
+.station-switch[aria-checked="true"] { background: #173b60; border-color: #173b60; color: white; }
+.station-print { margin-left: 8px; }
