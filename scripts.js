@@ -2500,30 +2500,14 @@ function renderCatalog(content) {
   );
   // Categories.
   const categories = el("section", null, { id: "category-settings" });
-  categories.append(heading("Categorías"));
-  const createCategory = stationConfigForm("category-create"),
-    newCategory = labeled(createCategory, "Nombre de la nueva categoría", el("input", null,
-      { id: "category-create-name", required: "", maxlength: "60" }));
-  submitConfiguration(createCategory, "Crear categoría", () => api("/categories", {
-    name: newCategory.value, version: configVersion(createCategory),
-  }));
-  categories.append(createCategory);
+  categories.append(heading("Categorías"), button("Nueva categoría", () => openCategory(null)));
   for (const c of state.categories) {
-    const form = stationConfigForm("category-edit-" + c.code),
-      name = labeled(form, "Nombre de categoría", el("input", null, {
-        id: "category-name-" + c.code, value: c.name, required: "", maxlength: "60",
-      })),
-      position = labeled(form, "Orden en el menú", el("input", null, {
-        id: "category-position-" + c.code, type: "number", min: "0", max: "999", step: "1",
-        value: String(c.position), required: "",
-      })),
-      active = checkbox(form, "Visible en el menú", "category-active-" + c.code, c.active);
-    form.append(active, el("p", `${state.products.filter((p) => p.category === c.code).length} productos`));
-    submitConfiguration(form, "Guardar categoría", () => api(`/categories/${c.code}`, {
-      name: name.value, position: Number(position.value),
-      active: active.querySelector("input").checked, version: configVersion(form),
-    }));
-    categories.append(form);
+    const row = el("div", null, { class: "catalog-row" + (c.active ? "" : " catalog-inactive") }),
+      name = el("span", null, { class: "catalog-name" }),
+      count = state.products.filter((p) => p.category === c.code).length;
+    name.append(el("strong", c.name), el("small", `Orden ${c.position} · ${count} productos${c.active ? "" : " · Oculta"}`));
+    row.append(name, button("Editar", () => openCategory(c)));
+    categories.append(row);
   }
   content.append(categories);
   // Products and prices.
@@ -2561,30 +2545,82 @@ function renderCatalog(content) {
   products.append(prices);
   content.append(products);
   // Tables.
-  const tables = el("section", null, { id: "table-settings" });
-  tables.append(heading("Mesas"), el("p", "La zona es opcional (por ejemplo, Terraza). Una mesa desactivada deja de mostrarse; no puede tener un pedido activo."));
-  const createTable = stationConfigForm("table-create"),
-    number = labeled(createTable, "Número de la nueva mesa", el("input", null, {
-      id: "table-create-number", type: "number", min: "1", max: "999", step: "1", required: "",
-      value: String(Math.max(0, ...state.tables.map((t) => t.number)) + 1),
-    })),
-    newZone = labeled(createTable, "Zona", el("input", null, { id: "table-create-zone", maxlength: "40" }));
-  submitConfiguration(createTable, "Crear mesa", () => api("/tables", {
-    number: Number(number.value), zone: newZone.value, version: configVersion(createTable),
-  }));
-  tables.append(createTable);
+  const tables = el("section", null, { id: "table-settings" }),
+    grid = el("div", null, { class: "catalog-tables" });
+  tables.append(
+    heading("Mesas"),
+    el("p", "La zona es opcional (por ejemplo, Terraza). Una mesa desactivada deja de mostrarse; no puede tener un pedido activo."),
+    button("Nueva mesa", () => openTable(null)),
+  );
   for (const t of state.tables) {
-    const form = stationConfigForm("table-edit-" + t.number);
-    form.append(el("strong", `Mesa ${t.number}` + (state.orders.some((o) => o.table_number === t.number) ? " · Con pedido activo" : "")));
-    const zone = labeled(form, "Zona", el("input", null, { id: "table-zone-" + t.number, value: t.zone, maxlength: "40" })),
-      active = checkbox(form, "Mesa activa", "table-active-" + t.number, t.active);
-    form.append(active);
-    submitConfiguration(form, "Guardar mesa", () => api(`/tables/${t.number}`, {
-      zone: zone.value, active: active.querySelector("input").checked, version: configVersion(form),
-    }));
-    tables.append(form);
+    const row = el("div", null, { class: "catalog-row" + (t.active ? "" : " catalog-inactive") }),
+      name = el("span", null, { class: "catalog-name" }),
+      busy = state.orders.some((o) => o.table_number === t.number);
+    name.append(el("strong", `Mesa ${t.number}`), el("small",
+      [t.zone, t.active ? "" : "Desactivada", busy ? "Con pedido activo" : ""].filter(Boolean).join(" · ") || "Activa"));
+    row.append(name, button("Editar", () => openTable(t)));
+    grid.append(row);
   }
+  tables.append(grid);
   content.append(tables);
+}
+function openCategory(c) {
+  const { dialog, form, footer } = correctionDialog(c ? `Editar ${c.name}` : "Nueva categoría", c ? "Guardar categoría" : "Crear categoría"),
+    name = labeled(form, "Nombre", el("input", null, {
+      id: "category-name", value: c?.name ?? "", required: "", maxlength: "60",
+    }));
+  let position = null, active = null;
+  if (c) {
+    position = labeled(form, "Orden en el menú", el("input", null, {
+      id: "category-position", type: "number", min: "0", max: "999", step: "1", value: String(c.position), required: "",
+    }));
+    active = checkbox(form, "Visible en el menú", "category-active", c.active);
+    form.append(active);
+  }
+  form.append(footer);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    run(async () => {
+      await api(c ? `/categories/${c.code}` : "/categories", {
+        name: name.value, version: state.settings.version,
+        ...(c ? { position: Number(position.value), active: active.querySelector("input").checked } : {}),
+      });
+      dialog.close();
+    });
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  name.focus();
+}
+function openTable(t) {
+  const { dialog, form, footer } = correctionDialog(t ? `Editar Mesa ${t.number}` : "Nueva mesa", t ? "Guardar mesa" : "Crear mesa");
+  let number = null, active = null;
+  if (!t)
+    number = labeled(form, "Número", el("input", null, {
+      id: "table-number", type: "number", min: "1", max: "999", step: "1", required: "",
+      value: String(Math.max(0, ...state.tables.map((table) => table.number)) + 1),
+    }));
+  const zone = labeled(form, "Zona", el("input", null, { id: "table-zone", value: t?.zone ?? "", maxlength: "40" }));
+  if (t) {
+    active = checkbox(form, "Mesa activa", "table-active", t.active);
+    form.append(active);
+  }
+  form.append(footer);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    run(async () => {
+      await api(t ? `/tables/${t.number}` : "/tables", {
+        zone: zone.value, version: state.settings.version,
+        ...(t ? { active: active.querySelector("input").checked } : { number: Number(number.value) }),
+      });
+      dialog.close();
+    });
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  (number ?? zone).focus();
 }
 function openProduct(p) {
   const { dialog, form, footer } = correctionDialog(p ? `Editar ${p.name}` : "Nuevo producto", p ? "Guardar producto" : "Crear producto"),
